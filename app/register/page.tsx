@@ -22,26 +22,37 @@ interface RegistrationData {
 }
 
 const Registration = () => {
+  // Try to restore registration token from sessionStorage on mount
+  const [registrationToken, setRegistrationToken] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("registration_token");
+    }
+    return null;
+  });
+  
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<RegistrationData>({});
-  const [registrationToken, setRegistrationToken] = useState<string | null>(null);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [hasResumedFromProgress, setHasResumedFromProgress] = useState(false);
   const router = useRouter();
 
   // Initialize React Query mutations and queries
   const { stepOne, stepTwo, stepThree, stepFour, stepFive, submitRegistration, useRegistrationProgress } = useRegistration();
   
-  // Query registration progress if token exists
+  // Query registration progress only on initial load to resume registration
   const { data: progressData } = useRegistrationProgress(registrationToken);
 
-  // Resume to the next required step based on progress data
+  // Resume to the correct step only once on initial load (when page refreshes)
   useEffect(() => {
-    if (!progressData || isCompleted) return;
+    // Only resume if we haven't already resumed and we have progress data
+    if (hasResumedFromProgress || !progressData || isCompleted) return;
+    
     const targetStep = progressData.next_step || progressData.registration_step;
-    if (targetStep && targetStep >= 1 && targetStep <= 5 && targetStep !== currentStep) {
+    if (targetStep && targetStep >= 1 && targetStep <= 5) {
       setCurrentStep(targetStep);
+      setHasResumedFromProgress(true);
     }
-  }, [progressData, currentStep, isCompleted]);
+  }, [progressData, isCompleted, hasResumedFromProgress]);
 
   const handleStepOneSubmit = async (data: StepOneData) => {
     try {
@@ -64,6 +75,10 @@ const Registration = () => {
       }
 
       setRegistrationToken(token);
+      // Store token in sessionStorage for persistence across refreshes
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("registration_token", token);
+      }
       setFormData((prev) => ({ ...prev, stepOne: data }));
       setCurrentStep(2);
       toast.success("Step 1 submitted successfully");
@@ -229,6 +244,11 @@ const Registration = () => {
       };
 
       const result = await submitRegistration.mutateAsync(submitPayload);
+      
+      // Clear registration token from sessionStorage on completion
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("registration_token");
+      }
       
       toast.success("Registration Complete!", {
         description: result?.message || "Your account has been created successfully.",

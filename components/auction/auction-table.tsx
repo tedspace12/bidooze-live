@@ -16,7 +16,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { Auction } from "@/data";
+import { Auction } from "@/features/auction/types";
 
 interface AuctionTableProps {
   loading: boolean;
@@ -40,7 +40,7 @@ export const AuctionTable: React.FC<AuctionTableProps> = ({
 
   const handleSelectAll = (checked: boolean | "indeterminate") => {
     if (checked === true) {
-      onSelectionChange(auctions.map(a => a.id));
+      onSelectionChange(auctions.map(a => String(a.id)));
     } else {
       onSelectionChange([]);
     }
@@ -156,7 +156,8 @@ export const AuctionTable: React.FC<AuctionTableProps> = ({
 
         <tbody>
           {auctions.map((item) => {
-            const isSelected = selectedIds.includes(item.id);
+            const itemId = String(item.id);
+            const isSelected = selectedIds.includes(itemId);
             return (
               <tr
                 key={item.id}
@@ -165,20 +166,26 @@ export const AuctionTable: React.FC<AuctionTableProps> = ({
                 <td className="px-6 py-4 whitespace-nowrap">
                   <Checkbox
                     checked={isSelected}
-                    onCheckedChange={(checked) => handleSelectRow(item.id, checked)}
+                    onCheckedChange={(checked) => handleSelectRow(itemId, checked)}
                   />
                 </td>
                 <td className="py-4 flex items-center gap-3">
-                  <Image
-                    src={item.banner}
-                    width={50}
-                    height={50}
-                    alt={item.title}
-                    className="rounded-md object-cover"
-                  />
+                  {item.feature_image_url ? (
+                    <Image
+                      src={item.feature_image_url}
+                      width={50}
+                      height={50}
+                      alt={item.name}
+                      className="rounded-md object-cover"
+                    />
+                  ) : (
+                    <div className="w-[50px] h-[50px] bg-slate-200 rounded-md flex items-center justify-center">
+                      <span className="text-xs text-slate-400">No Image</span>
+                    </div>
+                  )}
                   <div>
-                    <p className="font-medium text-slate-800">{item.title}</p>
-                    <p className="text-xs text-slate-500">{item.category}</p>
+                    <p className="font-medium text-slate-800">{item.name}</p>
+                    <p className="text-xs text-slate-500">{item.code}</p>
                   </div>
                 </td>
 
@@ -187,13 +194,13 @@ export const AuctionTable: React.FC<AuctionTableProps> = ({
                 </td>
 
                 <td className="font-semibold text-slate-700">
-                  {item.totalBid}
+                  {item.currency} {item.total_bid_amount || 0}
                 </td>
 
-                <td>{item.lots.length}</td>
+                <td>{item.lots?.length || 0}</td>
 
                 <td className="text-slate-600 text-xs">
-                  {formatDate(item.startDate)} → {formatDate(item.endDate)}
+                  {formatDate(item.auction_start_at)} → {formatDate(item.auction_end_at)}
                 </td>
 
                 <td className="text-right">

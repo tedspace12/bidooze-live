@@ -108,6 +108,9 @@ export const registrationService = {
 
   /**
    * Step 5: Verification Documents (Final Step)
+   * Endpoint: POST /api/auctioneer/submit
+   * Payload: multipart/form-data with registration_token, background_check_consent,
+   *          identity_verification[0], business_verification[0], compliance_documentation[0]
    */
   async submitStepFive(data: StepFivePayload): Promise<RegistrationCompleteResponse> {
     try {
@@ -115,9 +118,12 @@ export const registrationService = {
 
       // Add registration token
       formData.append("registration_token", data.registration_token);
+      
+      // Add background check consent (as string "true" or "false")
       formData.append("background_check_consent", data.background_check_consent.toString());
 
-      // Add identity verification files (using snake_case for backend)
+      // Add identity verification files
+      // Format: identity_verification[0], identity_verification[1], etc.
       if (data.identity_verification) {
         const files = Array.isArray(data.identity_verification)
           ? data.identity_verification
@@ -127,7 +133,8 @@ export const registrationService = {
         });
       }
 
-      // Add business verification files (using snake_case for backend)
+      // Add business verification files
+      // Format: business_verification[0], business_verification[1], etc.
       if (data.business_verification) {
         const files = Array.isArray(data.business_verification)
           ? data.business_verification
@@ -137,7 +144,8 @@ export const registrationService = {
         });
       }
 
-      // Add compliance documentation files (optional, using snake_case for backend)
+      // Add compliance documentation files (REQUIRED)
+      // Format: compliance_documentation[0], compliance_documentation[1], etc.
       if (data.compliance_documentation) {
         const files = Array.isArray(data.compliance_documentation)
           ? data.compliance_documentation
@@ -148,11 +156,12 @@ export const registrationService = {
       }
 
       const res = await withoutAuth.post<RegistrationCompleteResponse>(
-        "/auctioneer/upload-document",
+        "/auctioneer/submit",
         formData,
         {
           headers: {
             "Content-Type": "multipart/form-data",
+            "Accept": "application/json",
           },
         }
       );

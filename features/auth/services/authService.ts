@@ -4,7 +4,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  role: "buyer" | "auctioneer" | "admin" | "superadmin";
+  role: "auctioneer" | "admin" | "superadmin";
   avatar?: string;
 }
 
@@ -16,27 +16,6 @@ export interface LoginResponse {
 }
 
 export const authService = {
-  /**
-   * Buyer Login
-   */
-  async loginBuyer(email: string, password: string): Promise<LoginResponse> {
-    try {
-      const res = await withoutAuth.post<LoginResponse>("/buyer/login", {
-        email,
-        password,
-      });
-
-      // Store token in cookie
-      if (res.data.token) {
-        setToken(res.data.token);
-      }
-
-      return res.data;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
-    }
-  },
-
   /**
    * Auctioneer Login
    */

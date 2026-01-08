@@ -17,22 +17,6 @@ export const useAuth = () => {
     });
   };
 
-  // Buyer login mutation
-  const loginBuyer = useMutation({
-    mutationFn: ({ email, password }: { email: string; password: string }) =>
-      authService.loginBuyer(email, password),
-    mutationKey: ["auth", "login", "buyer"],
-    onSuccess: (data: LoginResponse) => {
-      queryClient.setQueryData(["current-user"], data.user);
-      toast.success("Login successful!");
-      router.push("/dashboard");
-    },
-    onError: (error: any) => {
-      const message = error?.message || "Login failed. Please try again.";
-      toast.error(message);
-    },
-  });
-
   // Auctioneer login mutation
   const loginAuctioneer = useMutation({
     mutationFn: ({ email, password }: { email: string; password: string }) =>
@@ -83,7 +67,6 @@ export const useAuth = () => {
 
   return {
     useCurrentUser,
-    loginBuyer,
     loginAuctioneer,
     loginAdmin,
     logout,

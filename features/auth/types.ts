@@ -46,7 +46,7 @@ export interface StepFivePayload {
   identity_verification: FileList | File[] | null;
   business_verification: FileList | File[] | null;
   background_check_consent: boolean;
-  compliance_documentation?: FileList | File[] | null;
+  compliance_documentation: FileList | File[] | null; // Required, not optional
 }
 
 // Registration Response Types

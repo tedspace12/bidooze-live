@@ -50,7 +50,11 @@ export const useRegistration = () => {
         return registrationService.getRegistrationProgress(registrationToken);
       },
       enabled: !!registrationToken,
-      refetchInterval: 30000, // Refetch every 30 seconds to check status updates
+      // Only fetch once on mount to resume registration, don't refetch automatically
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchInterval: false,
+      staleTime: Infinity, // Don't consider data stale
     });
   };
 

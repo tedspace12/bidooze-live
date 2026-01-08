@@ -25,7 +25,9 @@ const stepFiveSchema = z.object({
         .any()
         .refine((files) => files?.length > 0, "Please upload registration documents"),
     backgroundCheckConsent: z.boolean().refine((v) => v === true, "Consent is required"),
-    complianceDocumentation: z.any().optional(),
+    complianceDocumentation: z
+        .any()
+        .refine((files) => files?.length > 0, "Please upload compliance documentation"),
 });
 
 export type StepFiveData = z.infer<typeof stepFiveSchema>;

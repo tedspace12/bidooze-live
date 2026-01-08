@@ -29,6 +29,9 @@ export interface Auction {
   status: AuctionStatus;
   currency: string;
   lots: AuctionLot[];
+  feature_image_url?: string;
+  total_bid_amount?: number;
+  bid_count?: number;
 }
 
 export interface CreateAuctionLotInput {
