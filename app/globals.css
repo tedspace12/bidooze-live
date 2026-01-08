@@ -1,26 +1,411 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  
+  /* Figma Color Palettes - Available as Tailwind utilities */
+  --color-green-50: var(--green-50);
+  --color-green-100: var(--green-100);
+  --color-green-200: var(--green-200);
+  --color-green-300: var(--green-300);
+  --color-green-400: var(--green-400);
+  --color-green-500: var(--green-500);
+  --color-green-600: var(--green-600);
+  --color-green-700: var(--green-700);
+  --color-green-800: var(--green-800);
+  --color-green-900: var(--green-900);
+  --color-green-950: var(--green-950);
+  
+  --color-purple-50: var(--purple-50);
+  --color-purple-100: var(--purple-100);
+  --color-purple-200: var(--purple-200);
+  --color-purple-300: var(--purple-300);
+  --color-purple-400: var(--purple-400);
+  --color-purple-500: var(--purple-500);
+  --color-purple-600: var(--purple-600);
+  --color-purple-700: var(--purple-700);
+  --color-purple-800: var(--purple-800);
+  --color-purple-900: var(--purple-900);
+  --color-purple-950: var(--purple-950);
+  
+  --color-grey-50: var(--grey-50);
+  --color-grey-100: var(--grey-100);
+  --color-grey-200: var(--grey-200);
+  --color-grey-300: var(--grey-300);
+  --color-grey-400: var(--grey-400);
+  --color-grey-500: var(--grey-500);
+  --color-grey-600: var(--grey-600);
+  --color-grey-700: var(--grey-700);
+  --color-grey-800: var(--grey-800);
+  --color-grey-900: var(--grey-900);
+  --color-grey-950: var(--grey-950);
+  
+  --color-red-50: var(--red-50);
+  --color-red-100: var(--red-100);
+  --color-red-200: var(--red-200);
+  --color-red-300: var(--red-300);
+  --color-red-400: var(--red-400);
+  --color-red-500: var(--red-500);
+  --color-red-600: var(--red-600);
+  --color-red-700: var(--red-700);
+  --color-red-800: var(--red-800);
+  --color-red-900: var(--red-900);
+  --color-red-950: var(--red-950);
+  
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+
+:root {
+  /* Border Radius - Figma uses 12px (0.75rem) */
+  --radius: 0.75rem;
+  
+  /* Primary Green Palette - From Figma */
+  --green-50: #f9fef0;
+  --green-100: #f3fde0;
+  --green-200: #d8fb8a;
+  --green-300: #d2f57d;
+  --green-400: #d2f57d;
+  --green-500: #cef17b;
+  --green-600: #9fbb5e;
+  --green-700: #748943;
+  --green-800: #4c5a2a;
+  --green-900: #272f13;
+  --green-950: #161c08;
+  
+  /* Secondary Purple Palette - From Figma */
+  --purple-50: #f5f2fe;
+  --purple-100: #eae5fc;
+  --purple-200: #d6cbfa;
+  --purple-300: #c3b1f7;
+  --purple-400: #b097f4;
+  --purple-500: #9e7bf1;
+  --purple-600: #8650eb;
+  --purple-700: #6a28cd;
+  --purple-800: #491990;
+  --purple-900: #2a0b57;
+  --purple-950: #1b053c;
+  
+  /* Greyscale Palette - From Figma */
+  --grey-50: #f6f7f6;
+  --grey-100: #edeeec;
+  --grey-200: #d9dad8;
+  --grey-300: #c8cac7;
+  --grey-400: #b5b6b4;
+  --grey-500: #a4a5a3;
+  --grey-600: #818180;
+  --grey-700: #606160;
+  --grey-800: #40403f;
+  --grey-900: #232423;
+  --grey-950: #151615;
+  
+  /* Red/Error Palette - From Figma */
+  --red-50: #ffedec;
+  --red-100: #ffdad9;
+  --red-200: #ffb3b1;
+  --red-300: #ff8985;
+  --red-400: #ff4d43;
+  --red-500: #e52200;
+  --red-600: #b61900;
+  --red-700: #8f1100;
+  --red-800: #660900;
+  --red-900: #3f0300;
+  --red-950: #2b0200;
+  
+  /* Semantic Color Tokens - Mapped from Figma */
+  --background: var(--grey-50); /* Greyscale Surface Subtle */
+  --foreground: var(--grey-900); /* Greyscale Text Title */
+  --card: #ffffff;
+  --card-foreground: var(--grey-900);
+  --popover: #ffffff;
+  --popover-foreground: var(--grey-900);
+  
+  /* Primary Colors - Green from Figma */
+  --primary: var(--green-500); /* #cef17b */
+  --primary-foreground: var(--grey-900);
+  --primary-light: var(--green-200); /* #d8fb8a */
+  --primary-lighter: var(--green-100); /* #f3fde0 */
+  --primary-lightest: var(--green-50); /* #f9fef0 */
+  
+  /* Secondary Colors - Purple from Figma */
+  --secondary: var(--grey-100); /* Greyscale Surface Default */
+  --secondary-foreground: var(--grey-900);
+  
+  /* Muted Colors - From Greyscale */
+  --muted: var(--grey-300); /* Greyscale Surface Disabled */
+  --muted-foreground: var(--grey-600);
+  
+  /* Accent - Using Primary Light */
+  --accent: var(--green-200); /* #d8fb8a */
+  --accent-foreground: var(--grey-900);
+  
+  /* Destructive/Error - Red from Figma */
+  --destructive: var(--red-500); /* #e52200 */
+  --destructive-foreground: #ffffff;
+  
+  /* Border Colors - From Greyscale */
+  --border: var(--grey-400); /* Greyscale Border Default */
+  --input: var(--grey-400);
+  --ring: var(--green-500);
+  
+  /* Success & Warning - Keeping existing for now, can be updated if Figma has specific values */
+  --success: #22c55e; /* Approximate green success */
+  --warning: #f59e0b; /* Approximate amber warning */
+  
+  /* Chart Colors - Keeping existing */
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  
+  /* Sidebar Colors - Using Greyscale */
+  --sidebar: var(--grey-50);
+  --sidebar-background: var(--grey-50);
+  --sidebar-foreground: var(--grey-900);
+  --sidebar-primary: var(--green-500);
+  --sidebar-primary-foreground: var(--grey-900);
+  --sidebar-accent: var(--grey-100);
+  --sidebar-accent-foreground: var(--grey-900);
+  --sidebar-border: var(--grey-400);
+  --sidebar-ring: var(--green-500);
+}
+
+.dark {
+  /* Dark mode using darker shades from Figma palettes */
+  --background: var(--grey-950); /* #151615 */
+  --foreground: var(--grey-50); /* #f6f7f6 - Greyscale Text Negative */
+  --card: var(--grey-900); /* #232423 */
+  --card-foreground: var(--grey-50);
+  --popover: var(--grey-900);
+  --popover-foreground: var(--grey-50);
+  
+  /* Primary - Using lighter green for dark mode */
+  --primary: var(--green-200); /* #d8fb8a */
+  --primary-foreground: var(--grey-950);
+  
+  /* Secondary */
+  --secondary: var(--grey-800); /* #40403f */
+  --secondary-foreground: var(--grey-50);
+  
+  /* Muted */
+  --muted: var(--grey-800);
+  --muted-foreground: var(--grey-400);
+  
+  /* Accent */
+  --accent: var(--green-300); /* #d2f57d */
+  --accent-foreground: var(--grey-950);
+  
+  /* Destructive */
+  --destructive: var(--red-400); /* #ff4d43 - Lighter red for dark mode */
+  --destructive-foreground: #ffffff;
+  
+  /* Border */
+  --border: var(--grey-700); /* #606160 */
+  --input: var(--grey-700);
+  --ring: var(--green-200);
+  
+  /* Success & Warning */
+  --success: #22c55e;
+  --warning: #f59e0b;
+  
+  /* Chart Colors */
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  
+  /* Sidebar */
+  --sidebar: var(--grey-900);
+  --sidebar-background: var(--grey-900);
+  --sidebar-foreground: var(--grey-50);
+  --sidebar-primary: var(--green-200);
+  --sidebar-primary-foreground: var(--grey-950);
+  --sidebar-accent: var(--grey-800);
+  --sidebar-accent-foreground: var(--grey-50);
+  --sidebar-border: var(--grey-700);
+  --sidebar-ring: var(--green-200);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  /* Premium Card Styles */
+  .premium-card {
+    @apply bg-card border border-border rounded-xl p-6 shadow-sm;
+  }
+  
+  .premium-card-accent {
+    @apply bg-card border border-border rounded-xl p-6 shadow-sm;
+    border-top: 3px solid hsl(var(--primary));
+  }
+  
+  /* Selection Card Styles */
+  .selection-card {
+    @apply bg-card border-2 border-border rounded-xl p-6 cursor-pointer transition-all duration-200 hover:border-primary/30 hover:shadow-md;
+  }
+  
+  .selection-card.active {
+    @apply border-primary shadow-md;
+  }
+  
+  /* Gradient Styles - Using Figma colors */
+  .bg-gradient-primary {
+    background: linear-gradient(135deg, var(--green-500) 0%, var(--green-200) 100%);
+  }
+  
+  .gradient-gold {
+    background: linear-gradient(135deg, var(--green-200) 0%, var(--green-100) 100%);
+  }
+  
+  .gradient-surface {
+    background: linear-gradient(135deg, var(--green-50) 0%, rgba(216, 251, 138, 0.1) 100%);
+  }
+  
+  /* Shadow Utilities */
+  .shadow-soft {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+  }
+  
+  .shadow-medium {
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  }
+  
+  /* Premium Input */
+  .premium-input {
+    @apply w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors;
+  }
+  
+  /* Stat Card */
+  .stat-card {
+    @apply bg-card border border-border rounded-xl p-4 shadow-sm;
+  }
+  
+  /* Micro Label */
+  .micro-label {
+    @apply text-xs font-medium text-muted-foreground uppercase tracking-wider;
+  }
+  
+  /* Border Subtle - From Figma */
+  .border-border-subtle {
+    border-color: var(--grey-300); /* Greyscale Border Disabled */
+  }
+  
+  /* Primary Muted - Using Figma Primary Surface Subtle */
+  .bg-primary-muted {
+    background-color: var(--green-50); /* #f9fef0 */
+  }
+  
+  /* Premium Table */
+  .premium-table {
+    @apply w-full border-collapse;
+  }
+  
+  .premium-table th {
+    @apply px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider;
+  }
+  
+  .premium-table td {
+    @apply px-4 py-3 text-sm text-foreground border-t border-border;
+  }
+  
+  .premium-table tbody tr:hover {
+    @apply bg-accent/30;
+  }
+  
+  /* Wizard Tab Styles - Main navigation tabs (Pre-Auction, Auction Day, Settlement) */
+  .wizard-tab {
+    @apply px-6 py-2.5 rounded-full text-sm font-semibold tracking-wide transition-all duration-200 whitespace-nowrap;
+    @apply text-muted-foreground;
+  }
+  
+  .wizard-tab.inactive {
+    @apply hover:text-foreground hover:bg-muted/50;
+  }
+  
+  .wizard-tab.active {
+    @apply text-foreground bg-primary text-primary-foreground shadow-sm;
+    background-color: var(--green-500);
+    color: var(--grey-900);
+  }
+  
+  .wizard-tab.active:hover {
+    background-color: var(--green-600);
+  }
+  
+  /* Linear Tab Styles - Sub-navigation tabs (Details, Upload, etc.) */
+  .linear-tab {
+    @apply px-4 py-2.5 text-sm font-medium transition-all duration-200 relative;
+    @apply text-muted-foreground;
+    @apply border-b-2 border-transparent;
+    @apply hover:text-foreground;
+  }
+  
+  .linear-tab.active {
+    @apply text-foreground font-semibold;
+    border-bottom-color: var(--green-500);
+    color: var(--grey-900);
+  }
+  
+  .dark .linear-tab.active {
+    border-bottom-color: var(--green-200);
+    color: var(--grey-50);
+  }
+  
+  /* Auction Tab Trigger - For AuctionTabs component */
+  .auction-tab-trigger[data-state="active"] {
+    border-bottom-color: var(--green-500);
+  }
+  
+  .dark .auction-tab-trigger[data-state="active"] {
+    border-bottom-color: var(--green-200);
+  }
 }
