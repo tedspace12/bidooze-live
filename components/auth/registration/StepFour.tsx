@@ -45,7 +45,6 @@ export function StepFour({
     onNext,
     onBack,
     isLoading,
-    registrationToken,
 }: StepFourProps) {
     const [fileNames, setFileNames] = useState<string[]>([]);
 

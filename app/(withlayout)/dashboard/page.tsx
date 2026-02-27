@@ -1,6 +1,6 @@
 "use client";
 import { useState, useMemo } from "react";
-import { AuctionFilters } from "@/components/auction/auction-filters";
+import { AuctionFilters, type AuctionFilterState } from "@/components/auction/auction-filters";
 import { AuctionTable } from "@/components/auction/auction-table";
 import { DateRange } from "react-day-picker";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { PlusCircle, Trash2, Download } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuction } from "@/features/auction/hooks/useAuction";
+import type { Auction } from "@/features/auction/types";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AuctionsPage() {
@@ -16,11 +17,9 @@ export default function AuctionsPage() {
   const router = useRouter();
   const { useMyAuctions } = useAuction();
   
-  const [filters, setFilters] = useState({
-    status: undefined as string | undefined,
-    category: undefined as string | undefined,
+  const [filters, setFilters] = useState<AuctionFilterState>({
     search: "",
-    dateRange: undefined as DateRange | undefined
+    dateRange: undefined as DateRange | undefined,
   });
 
   // Fetch auctions from API
@@ -31,7 +30,7 @@ export default function AuctionsPage() {
   const filteredData = useMemo(() => {
     if (!auctions || auctions.length === 0) return [];
     
-    return auctions.filter((item: any) => {
+    return auctions.filter((item: Auction) => {
       const matchStatus = filters.status
         ? item.status?.toLowerCase() === filters.status.toLowerCase()
         : true;
@@ -42,7 +41,7 @@ export default function AuctionsPage() {
 
       const matchSearch = filters.search
         ? item.name?.toLowerCase().includes(filters.search.toLowerCase()) ||
-          item.title?.toLowerCase().includes(filters.search.toLowerCase())
+          item.code?.toLowerCase().includes(filters.search.toLowerCase())
         : true;
 
       const starts = item.auction_start_at ? new Date(item.auction_start_at) : null;
@@ -82,7 +81,7 @@ export default function AuctionsPage() {
   };
 
   const handleDeleteSelected = () => {
-    const selectedAuctions = auctions.filter((auction: any) =>
+    const selectedAuctions = auctions.filter((auction: Auction) =>
       selectedAuctionIds.includes(String(auction.id))
     );
 

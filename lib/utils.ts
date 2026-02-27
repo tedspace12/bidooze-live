@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { Auction } from "@/data";
+import { AuctionOverviewResponse } from "@/features/auction/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -12,33 +12,33 @@ export function cn(...inputs: ClassValue[]) {
  * @param auction The auction object.
  * @returns The calculated status: 'Draft', 'Scheduled', 'Live', 'Closed', or 'Completed'.
  */
-export function getAuctionStatus(auction: Auction): Auction['status'] {
+export function getAuctionStatus(auction: AuctionOverviewResponse): AuctionOverviewResponse['auction']['status'] {
   const now = new Date();
-  const startDate = new Date(auction.startDate);
-  const endDate = new Date(auction.endDate);
+  const startDate = new Date(auction.auction.start_at);
+  const endDate = new Date(auction.auction.end_at);
 
   // 1. If the status is explicitly 'Draft' or 'Completed', respect it.
-  if (auction.status === 'Draft' || auction.status === 'Completed') {
-    return auction.status;
+  if (auction.auction.status === 'draft' || auction.auction.status === 'completed') {
+    return auction.auction.status;
   }
 
   // 2. Check for Live status
   if (now >= startDate && now <= endDate) {
-    return 'Live';
+    return 'live';
   }
 
   // 3. Check for Scheduled status
   if (now < startDate) {
-    return 'Scheduled';
+    return 'scheduled';
   }
 
   // 4. Check for Closed status (auction has ended but not yet marked as Completed/Settled)
   if (now > endDate) {
-    return 'Closed';
+    return 'closed';
   }
 
   // Fallback to the stored status if none of the above apply (e.g., for 'Scheduled' if dates are in the future)
-  return auction.status;
+  return auction.auction.status;
 }
 
 /**

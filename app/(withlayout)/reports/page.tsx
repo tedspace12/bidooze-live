@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,10 +31,10 @@ import {
   CheckCircle2,
   Clock,
   BarChart3,
-  PieChart,
   CreditCard,
   Shield,
   Zap,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -47,7 +47,7 @@ interface Report {
   name: string;
   category: ReportCategory;
   description: string;
-  icon: any;
+  icon: LucideIcon;
   featured?: boolean;
 }
 
@@ -56,7 +56,14 @@ interface SavedReport {
   name: string;
   reportType: string;
   lastGenerated: string;
-  filters: any;
+  filters: Record<string, unknown>;
+}
+
+interface ReportRow {
+  id: number;
+  name: string;
+  value: string;
+  date: string;
 }
 
 interface ExportHistory {
@@ -73,8 +80,7 @@ export default function Reports() {
   const [selectedCategory, setSelectedCategory] = useState<ReportCategory | "all">("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
-  const [reportConfig, setReportConfig] = useState<any>({});
-  const [reportData, setReportData] = useState<any[]>([]);
+  const [reportData, setReportData] = useState<ReportRow[]>([]);
   const [reportStatus, setReportStatus] = useState<ReportStatus>("draft");
   const [activeTab, setActiveTab] = useState("library");
 
@@ -121,20 +127,17 @@ export default function Reports() {
     { id: "exp-3", reportName: "Seller Activity Report", format: "csv", generatedAt: "2024-01-13 9:15 AM", size: "856 KB", status: "completed" },
   ];
 
-  const filteredReports = useMemo(() => {
-    return reports.filter((report) => {
-      const matchesSearch = report.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           report.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = selectedCategory === "all" || report.category === selectedCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }, [searchQuery, selectedCategory]);
+  const filteredReports = reports.filter((report) => {
+    const matchesSearch = report.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      report.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === "all" || report.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   const featuredReports = reports.filter(r => r.featured);
 
   const handleGenerateReport = (report: Report) => {
     setSelectedReport(report);
-    setReportConfig({});
     setReportStatus("generating");
     setActiveTab("viewer");
     toast.info("Generating report...", {
@@ -190,7 +193,7 @@ export default function Reports() {
     system: "System & Audit",
   };
 
-  const categoryIcons: Record<ReportCategory, any> = {
+  const categoryIcons: Record<ReportCategory, LucideIcon> = {
     financial: DollarSign,
     auctions: Gavel,
     sellers: Users,
@@ -356,7 +359,10 @@ export default function Reports() {
                     className="pl-10"
                   />
                 </div>
-                <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as any)}>
+                <Select
+                  value={selectedCategory}
+                  onValueChange={(value) => setSelectedCategory(value as ReportCategory | "all")}
+                >
                   <SelectTrigger className="w-full md:w-[200px]">
                     <Filter className="h-4 w-4 mr-2" />
                     <SelectValue />

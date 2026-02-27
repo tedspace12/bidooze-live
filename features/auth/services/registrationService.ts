@@ -11,6 +11,31 @@ import type {
   RegistrationProgressResponse,
 } from "../types";
 
+type ApiErrorLike = {
+  response?: {
+    data?: unknown;
+  };
+  message?: string;
+};
+
+type RegistrationStepResponse = {
+  message?: string;
+  data?: unknown;
+} & Record<string, unknown>;
+
+const extractPayloadData = <T>(payload: unknown): T => {
+  if (payload && typeof payload === "object" && "data" in payload) {
+    const data = (payload as { data?: unknown }).data;
+    if (data !== undefined) return data as T;
+  }
+  return payload as T;
+};
+
+const rethrowApiError = (error: unknown): never => {
+  const err = error as ApiErrorLike;
+  throw err?.response?.data || { message: err?.message || "Request failed" };
+};
+
 export const registrationService = {
   /**
    * Step 1: Company Information
@@ -25,46 +50,46 @@ export const registrationService = {
       if (res.data.registration_token) {
         return res.data;
       }
-      return res.data.data || res.data;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+      return extractPayloadData<StepOneResponse>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
     }
   },
 
   /**
    * Step 2: Personal Information
    */
-  async submitStepTwo(data: StepTwoPayload): Promise<{ message?: string; data?: any }> {
+  async submitStepTwo(data: StepTwoPayload): Promise<RegistrationStepResponse> {
     try {
-      const res = await withoutAuth.post<{ message?: string; data?: any }>(
+      const res = await withoutAuth.post<RegistrationStepResponse>(
         "/auctioneer/contact-info",
         data
       );
-      return res.data.data || res.data;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+      return extractPayloadData<RegistrationStepResponse>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
     }
   },
 
   /**
    * Step 3: Bank Information
    */
-  async submitStepThree(data: StepThreePayload): Promise<{ message?: string; data?: any }> {
+  async submitStepThree(data: StepThreePayload): Promise<RegistrationStepResponse> {
     try {
-      const res = await withoutAuth.post<{ message?: string; data?: any }>(
+      const res = await withoutAuth.post<RegistrationStepResponse>(
         "/auctioneer/bank-info",
         data
       );
-      return res.data.data || res.data;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+      return extractPayloadData<RegistrationStepResponse>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
     }
   },
 
   /**
    * Step 4: Credentials & Documents (with file upload)
    */
-  async submitStepFour(data: StepFourPayload): Promise<{ message?: string; data?: any }> {
+  async submitStepFour(data: StepFourPayload): Promise<RegistrationStepResponse> {
     try {
       const formData = new FormData();
 
@@ -91,7 +116,7 @@ export const registrationService = {
         });
       }
 
-      const res = await withoutAuth.post<{ message?: string; data?: any }>(
+      const res = await withoutAuth.post<RegistrationStepResponse>(
         "/auctioneer/credentials-documents",
         formData,
         {
@@ -100,9 +125,9 @@ export const registrationService = {
           },
         }
       );
-      return res.data.data || res.data;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+      return extractPayloadData<RegistrationStepResponse>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
     }
   },
 
@@ -165,9 +190,9 @@ export const registrationService = {
           },
         }
       );
-      return res.data.data || res.data;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+      return extractPayloadData<RegistrationCompleteResponse>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
     }
   },
 
@@ -180,9 +205,9 @@ export const registrationService = {
         "/auctioneer/submit",
         data
       );
-      return res.data.data || res.data;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+      return extractPayloadData<RegistrationCompleteResponse>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
     }
   },
 
@@ -198,8 +223,8 @@ export const registrationService = {
         }
       );
       return res.data;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
     }
   },
 };

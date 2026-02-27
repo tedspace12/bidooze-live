@@ -2,20 +2,11 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import HeaderBreadcrumbs from "@/components/header-breadcrumbs"
 import {
-    Breadcrumb,
-    BreadcrumbItem,
-    BreadcrumbLink,
-    BreadcrumbList,
-    BreadcrumbPage,
-    BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import { Separator } from "@/components/ui/separator"
-import {
     SidebarInset,
     SidebarProvider,
-    SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { cn } from '@/lib/utils'
+import { AuctioneerApprovedGuard } from "@/components/guards/AuctioneerApprovedGuard"
 
 export default function BidoozeSellerLayout({ children }: { children: React.ReactNode }) {
 
@@ -28,7 +19,9 @@ export default function BidoozeSellerLayout({ children }: { children: React.Reac
                     <main className={cn(
                         "transition-all duration-300"
                     )}>
-                        <div className='pt-0 p-6'>{children}</div>
+                        <div className='pt-0 p-6'>
+                            <AuctioneerApprovedGuard>{children}</AuctioneerApprovedGuard>
+                        </div>
                     </main>
                 </div>
             </SidebarInset>

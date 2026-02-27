@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Auction } from "@/data";
-import { getAuctionStatus } from "@/lib/utils";
+import { AuctionOverviewResponse } from "@/features/auction/types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import OverviewTab from "./tabs/OverviewTab";
 import LotsTab from "./tabs/LotsTab";
@@ -24,7 +23,7 @@ import {
 } from "lucide-react";
 
 interface AuctionTabsProps {
-  auction: Auction;
+  auction: AuctionOverviewResponse;
 }
 
 const tabs = [
@@ -40,21 +39,22 @@ const tabs = [
 
 export default function AuctionTabs({ auction }: AuctionTabsProps) {
   const [activeTab, setActiveTab] = useState("overview");
-  const currentStatus = getAuctionStatus(auction);
-  const isLive = currentStatus === "Live";
-  const isClosed = currentStatus === "Closed" || currentStatus === "Completed";
+  const currentStatus = auction.auction.status;
+  const isLive = currentStatus === "live" || currentStatus === "paused";
+  const isClosed = currentStatus === "closed" || currentStatus === "completed";
 
   // Listen for custom event to switch tabs
   useEffect(() => {
-    const handleTabSwitch = (e: CustomEvent) => {
-      if (e.detail?.tab) {
-        setActiveTab(e.detail.tab);
+    const handleTabSwitch = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tab?: string }>;
+      if (customEvent.detail?.tab) {
+        setActiveTab(customEvent.detail.tab);
       }
     };
 
-    window.addEventListener('switchAuctionTab' as any, handleTabSwitch as EventListener);
+    window.addEventListener("switchAuctionTab", handleTabSwitch);
     return () => {
-      window.removeEventListener('switchAuctionTab' as any, handleTabSwitch as EventListener);
+      window.removeEventListener("switchAuctionTab", handleTabSwitch);
     };
   }, []);
 

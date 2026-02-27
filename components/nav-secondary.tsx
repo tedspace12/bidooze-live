@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useState } from "react"
-import { type LucideIcon, Bell } from "lucide-react"
+import { type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import {

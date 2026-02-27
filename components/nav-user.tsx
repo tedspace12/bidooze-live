@@ -7,7 +7,6 @@ import {
   ChevronsUpDown,
   CreditCard,
   LogOut,
-  Sparkles,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -40,6 +39,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import Link from "next/link"
+import { useAuth } from "@/features/auth/hooks/useAuth"
+import { useAuthStore } from "@/features/auth/store/authStore"
 
 interface Notification {
   id: string
@@ -95,8 +96,12 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const { logout } = useAuth()
+  const { user: currentUser, canAccessAuctioneerFeatures } = useAuthStore()
   const [notifications, setNotifications] = useState<Notification[]>(mockNotifications)
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
+  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+  const isApprovedAuctioneer = currentUser?.role === "auctioneer" && canAccessAuctioneerFeatures;
 
   const unreadCount = notifications.filter(n => !n.read).length
 
@@ -119,6 +124,14 @@ export function NavUser({
     toast.success("All notifications marked as read")
     setIsNotificationOpen(false)
   }
+
+  const handleLogout = async () => {
+    try {
+      await logout.mutateAsync();
+    } catch {
+      // Error is handled by the mutation's onError
+    }
+  };
 
   return (
     <SidebarMenu>
@@ -160,115 +173,123 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <Link href={'/settings'} passHref>
+              <Link
+                href={
+                  isAdmin
+                    ? "/admin/settings"
+                    : isApprovedAuctioneer
+                      ? "/settings"
+                      : "/auctioneer/application-status"
+                }
+                passHref
+              >
               <DropdownMenuItem>
                 <BadgeCheck />
-                Account
+                {isApprovedAuctioneer ? "Account" : "Application Status"}
               </DropdownMenuItem>
               </Link>
-              <Link href={'/billing'} passHref>
-              <DropdownMenuItem>
-                <CreditCard />
-                Billing
-              </DropdownMenuItem>
-              </Link>
-              <Popover open={isNotificationOpen} onOpenChange={setIsNotificationOpen}>
-                <PopoverTrigger asChild>
-                  <DropdownMenuItem onSelect={(e) => {
-                    e.preventDefault()
-                    handleNotificationClick()
-                  }}>
-                    <div className="relative">
-                      <Bell />
+              {!isAdmin && isApprovedAuctioneer && (
+                <Link href={'/billing'} passHref>
+                <DropdownMenuItem>
+                  <CreditCard />
+                  Billing
+                </DropdownMenuItem>
+                </Link>
+              )}
+              {(isAdmin || isApprovedAuctioneer) && (
+                <Popover open={isNotificationOpen} onOpenChange={setIsNotificationOpen}>
+                  <PopoverTrigger asChild>
+                    <DropdownMenuItem onSelect={(e) => {
+                      e.preventDefault()
+                      handleNotificationClick()
+                    }}>
+                      <div className="relative">
+                        <Bell />
+                        {unreadCount > 0 && (
+                          <span className="absolute -top-1 -right-1 h-2.5 w-2.5 bg-destructive rounded-full border-2 border-background" />
+                        )}
+                      </div>
+                      Notifications
                       {unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 h-2.5 w-2.5 bg-destructive rounded-full border-2 border-background" />
-                      )}
-                    </div>
-                    Notifications
-                    {unreadCount > 0 && (
-                      <Badge 
-                        variant="destructive" 
-                        className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-xs"
-                      >
-                        {unreadCount > 9 ? "9+" : unreadCount}
-                      </Badge>
-                    )}
-                  </DropdownMenuItem>
-                </PopoverTrigger>
-                <PopoverContent 
-                  className="w-80 p-0" 
-                  align="end"
-                  side={isMobile ? "top" : "right"}
-                >
-                  <div className="p-4 border-b">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-sm">Notifications</h4>
-                      {unreadCount > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={markAllAsRead}
-                          className="h-7 text-xs"
+                        <Badge 
+                          variant="destructive" 
+                          className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-xs"
                         >
-                          Mark all as read
-                        </Button>
+                          {unreadCount > 9 ? "9+" : unreadCount}
+                        </Badge>
                       )}
-                    </div>
-                  </div>
-                  <ScrollArea className="h-[400px]">
-                    {notifications.length > 0 ? (
-                      <div className="divide-y">
-                        {notifications.map((notification) => (
-                          <div
-                            key={notification.id}
-                            onClick={() => handleNotificationItemClick(notification)}
-                            className={`p-4 cursor-pointer hover:bg-accent transition-colors ${
-                              !notification.read ? "bg-blue-50/50" : ""
-                            }`}
+                    </DropdownMenuItem>
+                  </PopoverTrigger>
+                  <PopoverContent 
+                    className="w-80 p-0" 
+                    align="end"
+                    side={isMobile ? "top" : "right"}
+                  >
+                    <div className="p-4 border-b">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold text-sm">Notifications</h4>
+                        {unreadCount > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={markAllAsRead}
+                            className="h-7 text-xs"
                           >
-                            <div className="flex items-start gap-3">
-                              <div className={`mt-1.5 h-3 w-3 rounded-full shrink-0 ${
-                                !notification.read 
-                                  ? "bg-destructive" 
-                                  : "bg-transparent"
-                              }`} />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium">{notification.title}</p>
-                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                  {notification.message}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {notification.time}
-                                </p>
+                            Mark all as read
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <ScrollArea className="h-[400px]">
+                      {notifications.length > 0 ? (
+                        <div className="divide-y">
+                          {notifications.map((notification) => (
+                            <div
+                              key={notification.id}
+                              onClick={() => handleNotificationItemClick(notification)}
+                              className={`p-4 cursor-pointer hover:bg-accent transition-colors ${
+                                !notification.read ? "bg-blue-50/50" : ""
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={`mt-1.5 h-3 w-3 rounded-full shrink-0 ${
+                                  !notification.read 
+                                    ? "bg-destructive" 
+                                    : "bg-transparent"
+                                }`} />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium">{notification.title}</p>
+                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                    {notification.message}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {notification.time}
+                                  </p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="p-8 text-center text-sm text-muted-foreground">
-                        No notifications
-                      </div>
-                    )}
-                  </ScrollArea>
-                </PopoverContent>
-              </Popover>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-8 text-center text-sm text-muted-foreground">
+                          No notifications
+                        </div>
+                      )}
+                    </ScrollArea>
+                  </PopoverContent>
+                </Popover>
+              )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={(e) => {
                 e.preventDefault()
-                toast.info("Logging out...", {
-                  description: "You will be redirected to the login page.",
-                })
-                // In a real app, you would call a logout function here
-                setTimeout(() => {
-                  toast.success("Logged out successfully")
-                }, 1000)
+                handleLogout()
               }}
+              disabled={logout.isPending}
             >
               <LogOut />
-              Log out
+              {logout.isPending ? "Logging out..." : "Log out"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

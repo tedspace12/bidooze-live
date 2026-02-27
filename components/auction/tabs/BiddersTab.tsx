@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { Auction, Bidder } from "@/data";
+import { useMemo, useState } from "react";
+import { AuctionOverviewResponse } from "@/features/auction/types";
+import { useAuctionBidders } from "@/features/auction/hooks/useAuctionBidders";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -28,114 +29,126 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { 
-  Plus, 
-  Search, 
-  MoreHorizontal, 
-  Check, 
-  X, 
+import {
+  Search,
+  MoreHorizontal,
+  Check,
+  X,
   Eye,
   Users,
   Mail,
   Phone,
   ArrowUpDown,
   Shield,
-  ShieldOff
+  ShieldOff,
+  type LucideIcon,
 } from "lucide-react";
 
 interface BiddersTabProps {
-  auction: Auction;
+  auction: AuctionOverviewResponse;
 }
 
-function getStatusBadge(status: Bidder["status"]) {
-  const config = {
-    Accepted: { label: "Accepted", variant: "default" as const, icon: Check },
-    Rejected: { label: "Rejected", variant: "secondary" as const, icon: X },
-    Blocked: { label: "Blocked", variant: "destructive" as const, icon: X },
+type RegistrationRecord = {
+  id: number;
+  bidder?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+  } | null;
+  status?: "approved" | "rejected" | "suspended";
+  created_at?: string;
+  deposit_verified?: boolean;
+};
+
+function getStatusBadge(status?: string) {
+  const key = (status || "rejected").toLowerCase();
+  const config: Record<string, { label: string; variant: "default" | "secondary" | "destructive"; icon: LucideIcon }> = {
+    approved: { label: "Approved", variant: "default", icon: Check },
+    rejected: { label: "Rejected", variant: "secondary", icon: X },
+    suspended: { label: "Suspended", variant: "destructive", icon: X },
   };
-  return config[status] || config.Rejected;
+  return config[key] || config.rejected;
 }
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+};
+
+const extractRegistrationRecords = (payload: unknown): RegistrationRecord[] => {
+  if (Array.isArray(payload)) {
+    return payload as RegistrationRecord[];
+  }
+
+  if (payload && typeof payload === "object" && "data" in payload) {
+    const nested = (payload as { data?: unknown }).data;
+    if (Array.isArray(nested)) {
+      return nested as RegistrationRecord[];
+    }
+  }
+
+  return [];
+};
 
 export default function BiddersTab({ auction }: BiddersTabProps) {
+  const { bidders, updateRegistration } = useAuctionBidders(auction.auction.id);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortField, setSortField] = useState<keyof Bidder>("registrationDate");
+  const [sortField] = useState<"created_at">("created_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [isAddBidderOpen, setIsAddBidderOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [bidderForm, setBidderForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
-  });
+  const [isRejectOpen, setIsRejectOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [selectedRegistration, setSelectedRegistration] = useState<RegistrationRecord | null>(null);
 
-  const filteredBidders = auction.bidders
-    .filter((bidder) =>
-      bidder.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      bidder.email.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+  const registrationList: RegistrationRecord[] = useMemo(() => {
+    return extractRegistrationRecords(bidders.data);
+  }, [bidders.data]);
+
+  const filteredBidders = registrationList
+    .filter((reg) => {
+      const name = reg.bidder?.name?.toLowerCase() || "";
+      const email = reg.bidder?.email?.toLowerCase() || "";
+      return name.includes(searchQuery.toLowerCase()) || email.includes(searchQuery.toLowerCase());
+    })
     .sort((a, b) => {
-      const aVal = a[sortField];
-      const bVal = b[sortField];
-      if (typeof aVal === "number" && typeof bVal === "number") {
-        return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
-      }
+      const aVal = a[sortField] || "";
+      const bVal = b[sortField] || "";
       return sortOrder === "asc"
         ? String(aVal).localeCompare(String(bVal))
         : String(bVal).localeCompare(String(aVal));
     });
 
-  const handleSort = (field: keyof Bidder) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortOrder("desc");
-    }
+  const handleSort = () => {
+    setSortOrder(sortOrder === "asc" ? "desc" : "asc");
   };
 
-  const rejectedCount = auction.bidders.filter(b => b.status === "Rejected").length;
-
-  const handleAddBidder = async () => {
-    if (!bidderForm.name || !bidderForm.email || !bidderForm.phone) {
-      toast.error("Please fill in all required fields");
-      return;
+  const handleUpdateStatus = async (registrationId: number, status: "approved" | "rejected" | "suspended", reason?: string) => {
+    try {
+      await updateRegistration.mutateAsync({
+        registrationId,
+        payload: { status, rejection_reason: reason || null },
+      });
+      toast.success("Registration updated.");
+    } catch (error: unknown) {
+      toast.error("Failed to update registration", {
+        description: getErrorMessage(error, "Please try again."),
+      });
     }
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsAddBidderOpen(false);
-    setBidderForm({ name: "", email: "", phone: "" });
-    setIsLoading(false);
-    toast.success("Bidder added successfully", {
-      description: `${bidderForm.name} has been added to the auction.`,
-    });
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-display font-semibold text-foreground">Bidders</h2>
           <p className="text-sm text-muted-foreground font-body mt-1">
             Manage registered bidders and approvals
-            {rejectedCount > 0 && (
-              <Badge variant="secondary" className="ml-2 font-body">
-                {rejectedCount} rejected
-              </Badge>
-            )}
           </p>
         </div>
-        <Button 
-          className="gap-2 font-body gradient-gold border-0 text-accent-foreground hover:opacity-90"
-          onClick={() => setIsAddBidderOpen(true)}
-          disabled={isLoading}
-        >
-          <Plus className="w-4 h-4" />
-          Add Bidder
-        </Button>
       </div>
 
-      {/* Search */}
       <Card className="border border-border shadow-soft">
         <CardContent className="p-4">
           <div className="relative">
@@ -150,17 +163,13 @@ export default function BiddersTab({ auction }: BiddersTabProps) {
         </CardContent>
       </Card>
 
-      {/* Bidders table */}
       <Card className="border border-border shadow-soft overflow-hidden pt-0 pb-0">
         <Table>
           <TableHeader>
             <TableRow className="bg-secondary/50 hover:bg-secondary/50">
               <TableHead className="font-body font-semibold text-foreground">Bidder</TableHead>
               <TableHead className="font-body font-semibold text-foreground">Contact</TableHead>
-              <TableHead 
-                className="font-body font-semibold text-foreground cursor-pointer"
-                onClick={() => handleSort("registrationDate")}
-              >
+              <TableHead className="font-body font-semibold text-foreground cursor-pointer" onClick={handleSort}>
                 <div className="flex items-center gap-1">
                   Registered
                   <ArrowUpDown className="w-3 h-3" />
@@ -173,21 +182,25 @@ export default function BiddersTab({ auction }: BiddersTabProps) {
           </TableHeader>
           <TableBody>
             {filteredBidders.length > 0 ? (
-              filteredBidders.map((bidder) => {
-                const statusConfig = getStatusBadge(bidder.status);
+              filteredBidders.map((reg) => {
+                const statusConfig = getStatusBadge(reg.status);
                 const StatusIcon = statusConfig.icon;
                 return (
-                  <TableRow key={bidder.id} className="group hover:bg-secondary/30">
+                  <TableRow key={reg.id} className="group hover:bg-secondary/30">
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
                           <span className="font-body font-semibold text-muted-foreground text-sm">
-                            {bidder.name.split(' ').map(n => n[0]).join('')}
+                            {(reg.bidder?.name || "NA")
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .slice(0, 2)}
                           </span>
                         </div>
                         <div className="min-w-0">
                           <p className="font-body font-medium text-foreground">
-                            {bidder.name}
+                            {reg.bidder?.name || "Unknown"}
                           </p>
                         </div>
                       </div>
@@ -196,31 +209,27 @@ export default function BiddersTab({ auction }: BiddersTabProps) {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground font-body">
                           <Mail className="w-3 h-3" />
-                          {bidder.email}
+                          {reg.bidder?.email || "—"}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground font-body">
                           <Phone className="w-3 h-3" />
-                          {bidder.phone}
+                          {reg.bidder?.phone || "—"}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell className="font-body text-muted-foreground">
-                      {new Date(bidder.registrationDate).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      })}
+                      {reg.created_at ? new Date(reg.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
                     </TableCell>
                     <TableCell>
-                      {bidder.depositStatus ? (
+                      {reg.deposit_verified ? (
                         <Badge variant="outline" className="font-body text-xs gap-1 text-success border-success">
                           <Check className="w-3 h-3" />
-                          Paid
+                          Verified
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="font-body text-xs gap-1 text-muted-foreground">
                           <X className="w-3 h-3" />
-                          Unpaid
+                          Unverified
                         </Badge>
                       )}
                     </TableCell>
@@ -242,22 +251,28 @@ export default function BiddersTab({ auction }: BiddersTabProps) {
                             <Eye className="w-4 h-4" />
                             View Profile
                           </DropdownMenuItem>
-                          {bidder.status !== "Accepted" && (
-                            <DropdownMenuItem className="gap-2 text-success">
+                          {reg.status !== "approved" && (
+                            <DropdownMenuItem className="gap-2 text-success" onClick={() => handleUpdateStatus(reg.id, "approved")}>
                               <Shield className="w-4 h-4" />
-                              Accept Bidder
+                              Approve Bidder
                             </DropdownMenuItem>
                           )}
-                          {bidder.status === "Accepted" && (
-                            <DropdownMenuItem className="gap-2 text-warning">
+                          {reg.status !== "rejected" && (
+                            <DropdownMenuItem
+                              className="gap-2 text-warning"
+                              onClick={() => {
+                                setSelectedRegistration(reg);
+                                setIsRejectOpen(true);
+                              }}
+                            >
                               <X className="w-4 h-4" />
                               Reject Bidder
                             </DropdownMenuItem>
                           )}
-                          {bidder.status !== "Blocked" && (
-                            <DropdownMenuItem className="gap-2 text-destructive">
+                          {reg.status !== "suspended" && (
+                            <DropdownMenuItem className="gap-2 text-destructive" onClick={() => handleUpdateStatus(reg.id, "suspended")}>
                               <ShieldOff className="w-4 h-4" />
-                              Block Bidder
+                              Suspend Bidder
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
@@ -278,55 +293,35 @@ export default function BiddersTab({ auction }: BiddersTabProps) {
         </Table>
       </Card>
 
-      {/* Add Bidder Dialog */}
-      <Dialog open={isAddBidderOpen} onOpenChange={setIsAddBidderOpen}>
-        <DialogContent className="max-w-2xl">
+      {/* Reject Dialog */}
+      <Dialog open={isRejectOpen} onOpenChange={setIsRejectOpen}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New Bidder</DialogTitle>
-            <DialogDescription>
-              Add a new bidder to this auction. They will need to be approved before they can place bids.
-            </DialogDescription>
+            <DialogTitle>Reject Bidder</DialogTitle>
+            <DialogDescription>Provide a reason for rejection.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="bidder-name">Full Name *</Label>
-              <Input
-                id="bidder-name"
-                value={bidderForm.name}
-                onChange={(e) => setBidderForm({ ...bidderForm, name: e.target.value })}
-                placeholder="Enter bidder's full name"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bidder-email">Email Address *</Label>
-              <Input
-                id="bidder-email"
-                type="email"
-                value={bidderForm.email}
-                onChange={(e) => setBidderForm({ ...bidderForm, email: e.target.value })}
-                placeholder="Enter bidder's email"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bidder-phone">Phone Number *</Label>
-              <Input
-                id="bidder-phone"
-                type="tel"
-                value={bidderForm.phone}
-                onChange={(e) => setBidderForm({ ...bidderForm, phone: e.target.value })}
-                placeholder="Enter bidder's phone number"
-                required
-              />
-            </div>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="rejection-reason">Rejection Reason</Label>
+            <Input
+              id="rejection-reason"
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder="Reason"
+            />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddBidderOpen(false)} disabled={isLoading}>
+            <Button variant="outline" onClick={() => setIsRejectOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddBidder} disabled={isLoading}>
-              {isLoading ? "Adding..." : "Add Bidder"}
+            <Button
+              onClick={() => {
+                if (!selectedRegistration) return;
+                handleUpdateStatus(selectedRegistration.id, "rejected", rejectionReason);
+                setIsRejectOpen(false);
+                setRejectionReason("");
+              }}
+            >
+              Reject
             </Button>
           </DialogFooter>
         </DialogContent>

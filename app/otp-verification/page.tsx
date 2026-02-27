@@ -1,5 +1,3 @@
-import { GalleryVerticalEnd } from "lucide-react"
-
 import { OTPForm } from "@/components/otp-form"
 import Image from "next/image"
 

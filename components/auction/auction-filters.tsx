@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { DateRange } from "react-day-picker";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -7,12 +8,23 @@ import { DateRangeFilter } from "./date-range-filter";
 import { Button } from "@/components/ui/button";
 import { XCircle } from "lucide-react";
 
-export function AuctionFilters({ setFilters }: { setFilters: any }) {
+export type AuctionFilterState = {
+  status?: string;
+  category?: string;
+  dateRange?: DateRange;
+  search?: string;
+};
+
+interface AuctionFiltersProps {
+  setFilters: Dispatch<SetStateAction<AuctionFilterState>>;
+}
+
+export function AuctionFilters({ setFilters }: AuctionFiltersProps) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
   const handleClearDateRange = () => {
     setDateRange(undefined);
-    setFilters((prev: any) => ({
+    setFilters((prev) => ({
       ...prev,
       dateRange: undefined,
     }));
@@ -23,7 +35,7 @@ export function AuctionFilters({ setFilters }: { setFilters: any }) {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Status Filter */}
         <Select onValueChange={(value) =>
-          setFilters((prev: any) => ({ ...prev, status: value === "all" ? undefined : value}))
+          setFilters((prev) => ({ ...prev, status: value === "all" ? undefined : value}))
         }>
           <SelectTrigger>
             <SelectValue placeholder="Status" />
@@ -40,7 +52,7 @@ export function AuctionFilters({ setFilters }: { setFilters: any }) {
 
         {/* Category */}
         <Select onValueChange={(value) =>
-          setFilters((prev: any) => ({ ...prev, category: value === "all" ? undefined : value }))
+          setFilters((prev) => ({ ...prev, category: value === "all" ? undefined : value }))
         }>
           <SelectTrigger>
             <SelectValue placeholder="Category" />
@@ -61,7 +73,7 @@ export function AuctionFilters({ setFilters }: { setFilters: any }) {
             value={dateRange}
             onChange={(range) => {
               setDateRange(range);
-              setFilters((prev: any) => ({
+              setFilters((prev) => ({
                 ...prev,
                 dateRange: range,
               }));
@@ -84,7 +96,7 @@ export function AuctionFilters({ setFilters }: { setFilters: any }) {
         {/* Search Bar */}
         <Input placeholder="Search auctions..." className="bg-slate-50"
           onChange={(e) =>
-            setFilters((prev: any) => ({ ...prev, search: e.target.value }))
+            setFilters((prev) => ({ ...prev, search: e.target.value }))
           }
         />
 

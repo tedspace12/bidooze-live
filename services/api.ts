@@ -1,10 +1,10 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
 import { toast } from "sonner";
 import { redirect } from "next/navigation";
+import { clearSessionFromDocument } from "@/lib/auth-session";
 
 // Extend Axios config to support skipAuth
 declare module "axios" {
-  // eslint-disable-next-line @typescript-eslint/no-empty-interface
   export interface AxiosRequestConfig {
     skipAuth?: boolean;
   }
@@ -61,14 +61,30 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
-  async (error: AxiosError<any>) => {
+  async (error: AxiosError<unknown>) => {
     const status = error.response?.status;
-    const data = error.response?.data as any;
+    const data = error.response?.data;
+    const url = error.config?.url || "";
+    const errorMessage =
+      data && typeof data === "object" ? (data as { message?: string }).message : undefined;
 
-    if (status === 401 && !error.config?.skipAuth) {
+    
+    // List of public/auth routes where 401 should NOT redirect
+    const authEndpoints = [
+      "/admin/login",
+      "/login",
+      "/auth/login",
+      "/auth/mfa/verify",
+      "/auth/mfa/resend",
+    ];
+
+    const isAuthRequest = authEndpoints.some((endpoint) => url === endpoint);
+
+    if (status === 401 && !error.config?.skipAuth && !isAuthRequest) {
       if (!isHandlingUnauthorized) {
         isHandlingUnauthorized = true;
         removeToken();
+        clearSessionFromDocument();
         toast.error("Your session has expired. Please log in again.");
         // Avoid throwing redirect in interceptor on server; only on client
         if (typeof window !== "undefined") {
@@ -81,7 +97,12 @@ api.interceptors.response.use(
         }, 2000);
       }
     } else if (status === 403) {
-      toast.error(data?.message || "You do not have permission to perform this action.");
+      toast.error(errorMessage || "Not approved yet.");
+      if (typeof window !== "undefined") {
+        window.location.href = "/auctioneer/application-status";
+      } else {
+        redirect("/auctioneer/application-status");
+      }
     } else if (status === 422) {
       // Validation errors are handled at call site, but we normalize here
       // so callers can access error.response.data.errors
@@ -91,18 +112,20 @@ api.interceptors.response.use(
   }
 );
 
-type HttpMethod = "get" | "post" | "put" | "delete";
+type HttpMethod = "get" | "post" | "put" | "patch" | "delete";
 
 function createWithAuthMethod(method: HttpMethod) {
-  return async function <T = any>(
+  return async function <T = unknown>(
     url: string,
-    dataOrConfig?: any,
+    dataOrConfig?: unknown,
     maybeConfig?: AxiosRequestConfig & { skipAuth?: boolean }
   ): Promise<AxiosResponse<T>> {
     const token = getToken();
 
-    const hasBody = method === "post" || method === "put";
-    const config: AxiosRequestConfig = (hasBody ? maybeConfig : dataOrConfig) || {};
+    const hasBody = method === "post" || method === "put" || method === "patch";
+    const config: AxiosRequestConfig = (
+      hasBody ? maybeConfig : (dataOrConfig as AxiosRequestConfig | undefined)
+    ) || {};
 
     if (!config.headers) config.headers = {};
 
@@ -123,13 +146,15 @@ function createWithAuthMethod(method: HttpMethod) {
 }
 
 function createWithoutAuthMethod(method: HttpMethod) {
-  return async function <T = any>(
+  return async function <T = unknown>(
     url: string,
-    dataOrConfig?: any,
+    dataOrConfig?: unknown,
     maybeConfig?: AxiosRequestConfig
   ): Promise<AxiosResponse<T>> {
-    const hasBody = method === "post" || method === "put";
-    const config: AxiosRequestConfig = (hasBody ? maybeConfig : dataOrConfig) || {};
+    const hasBody = method === "post" || method === "put" || method === "patch";
+    const config: AxiosRequestConfig = (
+      hasBody ? maybeConfig : (dataOrConfig as AxiosRequestConfig | undefined)
+    ) || {};
 
     if (hasBody) {
       const body = dataOrConfig;
@@ -144,6 +169,7 @@ export const withAuth = {
   get: createWithAuthMethod("get"),
   post: createWithAuthMethod("post"),
   put: createWithAuthMethod("put"),
+  patch: createWithAuthMethod("patch"),
   delete: createWithAuthMethod("delete"),
 };
 
@@ -151,6 +177,7 @@ export const withoutAuth = {
   get: createWithoutAuthMethod("get"),
   post: createWithoutAuthMethod("post"),
   put: createWithoutAuthMethod("put"),
+  patch: createWithoutAuthMethod("patch"),
   delete: createWithoutAuthMethod("delete"),
 };
 

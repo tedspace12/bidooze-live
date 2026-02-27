@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Receipt, DollarSign, Calendar, MoreVertical, Trash2 } from "lucide-react";
+import { Plus, Receipt, DollarSign, Calendar, MoreVertical } from "lucide-react";
 import { FormSection } from "../FormSection";
 import { FormInput } from "../FormInput";
 import { FormSelect } from "../FormSelect";

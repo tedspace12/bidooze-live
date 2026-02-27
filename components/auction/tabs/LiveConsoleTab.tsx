@@ -1,18 +1,104 @@
-	import { Auction, mockActivityFeed, Lot } from "@/data";
+import { useState } from "react";
+import { AuctionOverviewResponse } from "@/features/auction/types";
+import { useAuctionLive } from "@/features/auction/hooks/useAuctionLive";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Radio, Pause, SkipForward, Volume2, Users, Gavel, DollarSign, AlertCircle } from "lucide-react";
-
-interface LiveConsoleTabProps {
-  auction: Auction;
-}
-
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import {
+  Radio,
+  Pause,
+  Play,
+  SkipForward,
+  Volume2,
+  Users,
+  Gavel,
+  DollarSign,
+  AlertCircle,
+} from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
+interface LiveConsoleTabProps {
+  auction: AuctionOverviewResponse;
+}
+
+type LiveOverview = {
+  data?: {
+    auction?: {
+      id: number;
+      status: "draft" | "scheduled" | "live" | "paused" | "closed" | "completed";
+      bidding_type: "timed" | "live" | "hybrid";
+      start_at: string | null;
+      end_at: string | null;
+    };
+    session?: {
+      status: "live" | "paused" | "ended";
+      current_lot_id: number | null;
+      started_at: string | null;
+      last_event_at: string | null;
+    };
+    current_lot?: {
+      id: number;
+      lot_number: string;
+      sale_order: number;
+      title: string;
+      status: "pending" | "active" | "sold" | "passed" | "cancelled";
+      starts_at: string | null;
+      ends_at: string | null;
+      current_highest_bid: string | null;
+      current_highest_bid_id: number | null;
+      current_highest_registration_id: number | null;
+    } | null;
+    next_lot?: {
+      id: number;
+      lot_number: string;
+      sale_order: number;
+      title: string;
+      status: "pending" | "active" | "sold" | "passed" | "cancelled";
+      starts_at: string | null;
+      ends_at: string | null;
+      current_highest_bid: string | null;
+      current_highest_bid_id: number | null;
+      current_highest_registration_id: number | null;
+    } | null;
+  };
+};
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+};
+
 export default function LiveConsoleTab({ auction }: LiveConsoleTabProps) {
-  const isLive = auction.status === "Live";
-  const currentLot = auction.lots.find(l => l.status === "Active");
+  const { overview, startSession, pauseSession, resumeSession, endSession, startLot, sellLot, passLot, floorBid } =
+    useAuctionLive(auction.auction.id);
+  const [isFloorBidOpen, setIsFloorBidOpen] = useState(false);
+  const [floorBidForm, setFloorBidForm] = useState({
+    amount: "",
+    auctionRegistrationId: "",
+  });
+
+  const liveData = (overview.data || {}) as LiveOverview;
+  const liveOverview = liveData.data;
+  const currentLot = liveOverview?.current_lot || null;
+  const nextLot = liveOverview?.next_lot || null;
+  const sessionStatus = liveOverview?.session?.status || "ended";
+
+  const isLive = auction.auction.status === "live" || auction.auction.status === "paused";
+  const acceptedBidders = auction.stats.bidders_approved || 0;
 
   if (!isLive) {
     return (
@@ -22,148 +108,266 @@ export default function LiveConsoleTab({ auction }: LiveConsoleTabProps) {
         </div>
         <h3 className="text-xl font-display font-semibold text-foreground mb-2">Auction Not Live</h3>
         <p className="text-muted-foreground font-body text-center max-w-md">
-          The live console will be available when the auction is live.
+          The live console will be available when the auction is live or paused.
         </p>
       </div>
     );
   }
 
-	  const acceptedBidders = auction.bidders.filter(b => b.status === "Accepted").length;
-	  const lotQueue: Lot[] = auction.lots.filter(l => l.status === "Pending");
-	
-	  return (
-	    <div className="space-y-6">
-	      <div className="flex items-center justify-between">
-	        <div className="flex items-center gap-3">
-	          <Badge variant="destructive" className="gap-1.5 font-body animate-pulse">
-	            <span className="w-2 h-2 rounded-full bg-destructive-foreground" />
-	            LIVE BROADCAST
-	          </Badge>
-	          <span className="text-sm text-muted-foreground font-body">
-	            Broadcasting to {acceptedBidders} active bidders
-	          </span>
-	        </div>
-	        <Button variant="outline" size="sm" className="gap-2 font-body">
-	          <Volume2 className="w-4 h-4" />
-	          Toggle Audio
-	        </Button>
-	      </div>
-	
-	      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-	        {/* Main Console: Current Lot and Bidding Controls */}
-	        <Card className="lg:col-span-2 border border-border shadow-soft">
-	          <CardHeader className="border-b border-border">
-	            <CardTitle className="text-lg font-display font-semibold flex items-center gap-2">
-	              <Gavel className="w-5 h-5 text-accent" />
-	              Live Bidding Console
-	            </CardTitle>
-	          </CardHeader>
-	          <CardContent className="p-6">
-	            {currentLot ? (
-	              <div className="space-y-6">
-	                {/* Current Lot Details */}
-	                <div>
-	                  <p className="text-sm text-muted-foreground font-body uppercase tracking-wide">Lot {currentLot.lotNumber}</p>
-	                  <h3 className="text-2xl font-display font-semibold text-foreground mt-1">{currentLot.title}</h3>
-	                  <p className="text-muted-foreground font-body mt-2">{currentLot.description}</p>
-	                </div>
-	                
-	                {/* Bidding Status and Next Bid */}
-	                <div className="p-6 rounded-xl gradient-surface border border-border">
-	                  <div className="flex items-center justify-between">
-	                    <div>
-	                      <p className="text-sm text-muted-foreground font-body uppercase tracking-wide">Highest Bid</p>
-	                      <p className="text-4xl font-display font-bold text-accent mt-1">
-	                        {currentLot.highestBid > 0 ? formatCurrency(currentLot.highestBid, auction.currency) : "No bids"}
-	                      </p>
-	                    </div>
-	                    <div className="text-right">
-	                      <p className="text-sm text-muted-foreground font-body">Starting: {formatCurrency(currentLot.startingBid, auction.currency)}</p>
-	                      <p className="text-lg font-semibold text-foreground font-body mt-1">Next Bid: {formatCurrency(currentLot.highestBid + 50000, auction.currency)}</p>
-	                    </div>
-	                  </div>
-	                </div>
-	                
-	                {/* Bidding Controls (Auctioneer Actions) */}
-	                <div className="flex flex-col gap-3">
-	                  <div className="flex items-center justify-center gap-3">
-	                    <Button variant="outline" size="lg" className="gap-2 font-body"><Pause className="w-5 h-5" />Pause Bidding</Button>
-	                    <Button className="gap-2 font-body gradient-gold border-0 text-accent-foreground hover:opacity-90" size="lg"><Gavel className="w-5 h-5" />Sell Lot</Button>
-	                    <Button variant="outline" size="lg" className="gap-2 font-body"><SkipForward className="w-5 h-5" />Pass Lot</Button>
-	                  </div>
-	                  <div className="flex items-center justify-center gap-3">
-	                    <Button variant="secondary" size="sm" className="font-body">Accept Floor Bid</Button>
-	                    <Button variant="secondary" size="sm" className="font-body">Adjust Bid Increment</Button>
-	                  </div>
-	                </div>
-	              </div>
-	            ) : (
-	              <div className="text-center py-12">
-	                <AlertCircle className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
-	                <p className="text-muted-foreground font-body">No active lot. Start the first lot from the queue.</p>
-	              </div>
-	            )}
-	          </CardContent>
-	        </Card>
-	
-	        {/* Right Column: Session Stats and Lot Queue */}
-	        <div className="space-y-6">
-	          {/* Session Stats */}
-	          <Card className="border border-border shadow-soft">
-	            <CardHeader className="border-b border-border">
-	              <CardTitle className="text-lg font-display font-semibold">Session Stats</CardTitle>
-	            </CardHeader>
-	            <CardContent className="p-4 space-y-4">
-	              <div className="flex items-center justify-between">
-	                <div className="flex items-center gap-2"><Users className="w-4 h-4 text-muted-foreground" /><span className="text-sm font-body text-muted-foreground">Active Bidders</span></div>
-	                <span className="font-body font-semibold">{acceptedBidders}</span>
-	              </div>
-	              <div className="flex items-center justify-between">
-	                <div className="flex items-center gap-2"><Gavel className="w-4 h-4 text-muted-foreground" /><span className="text-sm font-body text-muted-foreground">Total Bids</span></div>
-	                <span className="font-body font-semibold">{auction.bidCount}</span>
-	              </div>
-	              <div className="flex items-center justify-between">
-	                <div className="flex items-center gap-2"><DollarSign className="w-4 h-4 text-muted-foreground" /><span className="text-sm font-body text-muted-foreground">Total Sales</span></div>
-	                <span className="font-body font-semibold text-accent">{formatCurrency(auction.totalBid, auction.currency)}</span>
-	              </div>
-	            </CardContent>
-	          </Card>
-	
-	          {/* Lot Queue */}
-	          <Card className="border border-border shadow-soft">
-	            <CardHeader className="border-b border-border">
-	              <CardTitle className="text-lg font-display font-semibold flex items-center gap-2">
-	                <SkipForward className="w-5 h-5 text-muted-foreground" />
-	                Upcoming Lots ({lotQueue.length})
-	              </CardTitle>
-	            </CardHeader>
-	            <CardContent className="p-0">
-	              {lotQueue.length > 0 ? (
-	                <div className="divide-y divide-border max-h-96 overflow-y-auto">
-	                  {lotQueue.slice(0, 5).map((lot) => (
-	                    <div key={lot.id} className="p-4 hover:bg-secondary/50 transition-colors flex items-center justify-between">
-	                      <div>
-	                        <p className="text-sm font-medium text-foreground font-body">Lot {lot.lotNumber}</p>
-	                        <p className="text-xs text-muted-foreground font-body truncate max-w-48">{lot.title}</p>
-	                      </div>
-	                      <Button variant="secondary" size="sm">Start</Button>
-	                    </div>
-	                  ))}
-	                  {lotQueue.length > 5 && (
-	                    <div className="p-4 text-center text-sm text-muted-foreground">
-	                      + {lotQueue.length - 5} more lots in queue
-	                    </div>
-	                  )}
-	                </div>
-	              ) : (
-	                <div className="p-6 text-center text-muted-foreground">
-	                  All lots have been processed.
-	                </div>
-	              )}
-	            </CardContent>
-	          </Card>
-	        </div>
-	      </div>
-	    </div>
-	  );
-	}
+  const handleFloorBid = async () => {
+    const amount = Number(floorBidForm.amount);
+    const registrationId = Number(floorBidForm.auctionRegistrationId);
+
+    if (!amount || !registrationId) {
+      toast.error("Enter a valid amount and registration ID.");
+      return;
+    }
+
+    try {
+      await floorBid.mutateAsync({ lotId: currentLot?.id || 0, amount, auction_registration_id: registrationId });
+      setIsFloorBidOpen(false);
+      setFloorBidForm({ amount: "", auctionRegistrationId: "" });
+      toast.success("Floor bid placed.");
+    } catch (error: unknown) {
+      toast.error("Unable to place floor bid", {
+        description: getErrorMessage(error, "Please try again."),
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Badge variant="destructive" className="gap-1.5 font-body animate-pulse">
+            <span className="w-2 h-2 rounded-full bg-destructive-foreground" />
+            LIVE BROADCAST
+          </Badge>
+          <span className="text-sm text-muted-foreground font-body">
+            Broadcasting to {acceptedBidders} active bidders
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {sessionStatus === "ended" && (
+            <Button size="sm" className="gap-2 font-body" onClick={() => startSession.mutateAsync()}>
+              <Play className="w-4 h-4" />
+              Start Session
+            </Button>
+          )}
+          {sessionStatus === "live" && (
+            <Button variant="outline" size="sm" className="gap-2 font-body" onClick={() => pauseSession.mutateAsync()}>
+              <Pause className="w-4 h-4" />
+              Pause Session
+            </Button>
+          )}
+          {sessionStatus === "paused" && (
+            <Button variant="outline" size="sm" className="gap-2 font-body" onClick={() => resumeSession.mutateAsync()}>
+              <Play className="w-4 h-4" />
+              Resume Session
+            </Button>
+          )}
+          {sessionStatus !== "ended" && (
+            <Button variant="outline" size="sm" className="gap-2 font-body" onClick={() => endSession.mutateAsync()}>
+              End Session
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="gap-2 font-body">
+            <Volume2 className="w-4 h-4" />
+            Toggle Audio
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Console: Current Lot and Bidding Controls */}
+        <Card className="lg:col-span-2 border border-border shadow-soft">
+          <CardHeader className="border-b border-border">
+            <CardTitle className="text-lg font-display font-semibold flex items-center gap-2">
+              <Gavel className="w-5 h-5 text-accent" />
+              Live Bidding Console
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            {currentLot ? (
+              <div className="space-y-6">
+                {/* Current Lot Details */}
+                <div>
+                  <p className="text-sm text-muted-foreground font-body uppercase tracking-wide">
+                    Lot {currentLot.lot_number}
+                  </p>
+                  <h3 className="text-2xl font-display font-semibold text-foreground mt-1">{currentLot.title}</h3>
+                </div>
+
+                {/* Bidding Status and Next Bid */}
+                <div className="p-6 rounded-xl gradient-surface border border-border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground font-body uppercase tracking-wide">Highest Bid</p>
+                      <p className="text-4xl font-display font-bold text-accent mt-1">
+                        {currentLot.current_highest_bid
+                          ? formatCurrency(Number(currentLot.current_highest_bid), auction.auction.currency)
+                          : "No bids"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bidding Controls (Auctioneer Actions) */}
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-center gap-3">
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="gap-2 font-body"
+                      onClick={() => pauseSession.mutateAsync()}
+                      disabled={sessionStatus !== "live"}
+                    >
+                      <Pause className="w-5 h-5" />
+                      Pause Bidding
+                    </Button>
+                    <Button
+                      className="gap-2 font-body gradient-gold border-0 text-accent-foreground hover:opacity-90"
+                      size="lg"
+                      onClick={() => sellLot.mutateAsync(currentLot.id)}
+                      disabled={sessionStatus !== "live"}
+                    >
+                      <Gavel className="w-5 h-5" />
+                      Sell Lot
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="gap-2 font-body"
+                      onClick={() => passLot.mutateAsync(currentLot.id)}
+                      disabled={sessionStatus !== "live"}
+                    >
+                      <SkipForward className="w-5 h-5" />
+                      Pass Lot
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-center gap-3">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="font-body"
+                      onClick={() => setIsFloorBidOpen(true)}
+                      disabled={sessionStatus !== "live"}
+                    >
+                      Accept Floor Bid
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <AlertCircle className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+                <p className="text-muted-foreground font-body">No active lot. Start the next lot to begin.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Right Column: Session Stats and Lot Queue */}
+        <div className="space-y-6">
+          {/* Session Stats */}
+          <Card className="border border-border shadow-soft">
+            <CardHeader className="border-b border-border">
+              <CardTitle className="text-lg font-display font-semibold">Session Stats</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-body text-muted-foreground">Active Bidders</span>
+                </div>
+                <span className="font-body font-semibold">{acceptedBidders}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Gavel className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-body text-muted-foreground">Total Bids</span>
+                </div>
+                <span className="font-body font-semibold">{auction.stats.total_bids}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-body text-muted-foreground">Total Sales</span>
+                </div>
+                <span className="font-body font-semibold text-accent">
+                  {formatCurrency(auction.stats.total_bid_amount, auction.auction.currency)}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lot Queue */}
+          <Card className="border border-border shadow-soft">
+            <CardHeader className="border-b border-border">
+              <CardTitle className="text-lg font-display font-semibold flex items-center gap-2">
+                <SkipForward className="w-5 h-5 text-muted-foreground" />
+                Upcoming Lot
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {nextLot ? (
+                <div className="divide-y divide-border">
+                  <div className="p-4 hover:bg-secondary/50 transition-colors flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-foreground font-body">Lot {nextLot.lot_number}</p>
+                      <p className="text-xs text-muted-foreground font-body truncate max-w-48">{nextLot.title}</p>
+                    </div>
+                    <Button variant="secondary" size="sm" onClick={() => startLot.mutateAsync(nextLot.id)}>
+                      Start
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 text-center text-muted-foreground">
+                  No upcoming lot available.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Floor Bid Dialog */}
+      <Dialog open={isFloorBidOpen} onOpenChange={setIsFloorBidOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Accept Floor Bid</DialogTitle>
+            <DialogDescription>Enter the bidder registration and amount.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="floor-bid-amount">Bid Amount</Label>
+              <Input
+                id="floor-bid-amount"
+                type="number"
+                value={floorBidForm.amount}
+                onChange={(e) => setFloorBidForm({ ...floorBidForm, amount: e.target.value })}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="floor-bid-registration">Registration ID</Label>
+              <Input
+                id="floor-bid-registration"
+                value={floorBidForm.auctionRegistrationId}
+                onChange={(e) => setFloorBidForm({ ...floorBidForm, auctionRegistrationId: e.target.value })}
+                placeholder="Registration ID"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsFloorBidOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleFloorBid}>Place Bid</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

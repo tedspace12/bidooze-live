@@ -8,14 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { TimezoneSelect } from "@/components/ui/timezone-select";
+import { CurrencySelect } from "@/components/ui/currency-select";
+import { useDetectedTimezone } from "@/lib/timezones";
 import { toast } from "sonner";
 import {
-  Settings as SettingsIcon,
   User,
   Bell,
   Shield,
   Globe,
-  Mail,
   Lock,
   Save,
   CheckCircle2,
@@ -23,6 +24,7 @@ import {
 
 export default function Settings() {
   const [isLoading, setIsLoading] = useState(false);
+  const detectedTimezone = useDetectedTimezone();
   const [settings, setSettings] = useState({
     // Profile
     firstName: "Abdulhameed",
@@ -42,7 +44,7 @@ export default function Settings() {
     
     // Preferences
     language: "en",
-    timezone: "Africa/Lagos",
+    timezone: "",
     currency: "NGN",
   });
 
@@ -316,29 +318,19 @@ export default function Settings() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="timezone">Timezone</Label>
-                <select
-                  id="timezone"
-                  value={settings.timezone}
-                  onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
-                  className="w-full h-9 px-3 rounded-md border border-input bg-background"
-                >
-                  <option value="Africa/Lagos">Africa/Lagos (WAT)</option>
-                  <option value="America/New_York">America/New_York (EST)</option>
-                  <option value="Europe/London">Europe/London (GMT)</option>
-                </select>
+                <TimezoneSelect
+                  name="timezone"
+                  value={settings.timezone || detectedTimezone || ""}
+                  onChange={(value) => setSettings({ ...settings, timezone: value || "" })}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="currency">Currency</Label>
-                <select
-                  id="currency"
+                <CurrencySelect
+                  name="currency"
                   value={settings.currency}
-                  onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
-                  className="w-full h-9 px-3 rounded-md border border-input bg-background"
-                >
-                  <option value="NGN">NGN (₦)</option>
-                  <option value="USD">USD ($)</option>
-                  <option value="EUR">EUR (€)</option>
-                </select>
+                  onChange={(value) => setSettings({ ...settings, currency: value || settings.currency })}
+                />
               </div>
             </div>
             <div className="flex justify-end pt-4">
@@ -353,3 +345,4 @@ export default function Settings() {
     </div>
   );
 }
+

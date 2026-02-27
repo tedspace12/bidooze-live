@@ -1,18 +1,29 @@
 'use client';
 import { useParams } from "next/navigation";
-import { mockAuction } from "@/data";
 import AuctionHeader from "@/components/auction/AuctionHeader";
 import AuctionTabs from "@/components/auction/AuctionTabs";
+import { useAuction } from "@/features/auction/hooks/useAuction";
 
 export default function Index() {
-    const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
+  const { useAuctionById } = useAuction();
 
-  const auction = mockAuction.find((a) => a.id === id);
+  const auctionId = Number(id);
 
-  if (!auction) return <div className="p-4 text-center">Auction not found.</div>;
+  const { data: auction, isLoading, error } = useAuctionById(auctionId);
 
 
-  if (!auction) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <p className="text-muted-foreground font-body">Loading auction...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !auction) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -20,7 +31,7 @@ export default function Index() {
             Auction Not Found
           </h1>
           <p className="text-muted-foreground font-body">
-            The auction you're looking for doesn't exist.
+            The auction you&apos;re looking for doesn&apos;t exist.
           </p>
         </div>
       </div>

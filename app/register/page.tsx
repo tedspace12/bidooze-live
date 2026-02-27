@@ -21,6 +21,34 @@ interface RegistrationData {
   stepFive?: StepFiveData;
 }
 
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error && typeof error === "object") {
+    const directMessage = (error as { message?: unknown }).message;
+    if (typeof directMessage === "string" && directMessage.trim()) return directMessage;
+
+    const responseMessage = (error as { response?: { data?: { message?: unknown } } }).response?.data?.message;
+    if (typeof responseMessage === "string" && responseMessage.trim()) return responseMessage;
+  }
+
+  return fallback;
+};
+
+const getValidationMessages = (error: unknown): string[] => {
+  if (!error || typeof error !== "object") return [];
+  const errors = (error as { errors?: unknown }).errors;
+  if (!errors || typeof errors !== "object") return [];
+
+  return Object.values(errors as Record<string, unknown>).flatMap((value) => {
+    if (Array.isArray(value)) {
+      return value.filter((item): item is string => typeof item === "string");
+    }
+    if (typeof value === "string") {
+      return [value];
+    }
+    return [];
+  });
+};
+
 const Registration = () => {
   // Try to restore registration token from sessionStorage on mount
   const [registrationToken, setRegistrationToken] = useState<string | null>(() => {
@@ -37,10 +65,10 @@ const Registration = () => {
   const router = useRouter();
 
   // Initialize React Query mutations and queries
-  const { stepOne, stepTwo, stepThree, stepFour, stepFive, submitRegistration, useRegistrationProgress } = useRegistration();
+  const { stepOne, stepTwo, stepThree, stepFour, stepFive, useRegistrationProgress } = useRegistration();
   
   // Query registration progress only on initial load to resume registration
-  const { data: progressData } = useRegistrationProgress(registrationToken);
+  const { data: progressData, refetch: refetchProgress } = useRegistrationProgress(registrationToken);
 
   // Resume to the correct step only once on initial load (when page refreshes)
   useEffect(() => {
@@ -66,8 +94,8 @@ const Registration = () => {
         years_in_business: data.yearsInBusiness,
       };
 
-      const result = await stepOne.mutateAsync(payload);
-      const token = result.registration_token || result.data?.registration_token;
+      const result = await stepOne.mutateAsync(payload);  
+      const token = result.registration_token;
 
       if (!token) {
         toast.error("Registration token not received. Please try again.");
@@ -82,18 +110,12 @@ const Registration = () => {
       setFormData((prev) => ({ ...prev, stepOne: data }));
       setCurrentStep(2);
       toast.success("Step 1 submitted successfully");
-    } catch (error: any) {
-      const errorMessage = error?.message || error?.response?.data?.message || "Error submitting Step 1. Please try again.";
-      
-      // Handle validation errors
-      if (error?.errors && typeof error.errors === 'object') {
-        Object.values(error.errors)
-          .flat()
-          .forEach((msg) => {
-            if (typeof msg === 'string') {
-              toast.error(msg);
-            }
-          });
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, "Error submitting Step 1. Please try again.");
+      const validationMessages = getValidationMessages(error);
+
+      if (validationMessages.length > 0) {
+        validationMessages.forEach((msg) => toast.error(msg));
       } else {
         toast.error(errorMessage);
       }
@@ -124,17 +146,12 @@ const Registration = () => {
       setFormData((prev) => ({ ...prev, stepTwo: data }));
       setCurrentStep(3);
       toast.success("Step 2 submitted successfully");
-    } catch (error: any) {
-      const errorMessage = error?.message || error?.response?.data?.message || "Error submitting Step 2. Please try again.";
-      
-      if (error?.errors && typeof error.errors === 'object') {
-        Object.values(error.errors)
-          .flat()
-          .forEach((msg) => {
-            if (typeof msg === 'string') {
-              toast.error(msg);
-            }
-          });
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, "Error submitting Step 2. Please try again.");
+      const validationMessages = getValidationMessages(error);
+
+      if (validationMessages.length > 0) {
+        validationMessages.forEach((msg) => toast.error(msg));
       } else {
         toast.error(errorMessage);
       }
@@ -163,17 +180,12 @@ const Registration = () => {
       setFormData((prev) => ({ ...prev, stepThree: data }));
       setCurrentStep(4);
       toast.success("Step 3 submitted successfully");
-    } catch (error: any) {
-      const errorMessage = error?.message || error?.response?.data?.message || "Error submitting Step 3. Please try again.";
-      
-      if (error?.errors && typeof error.errors === 'object') {
-        Object.values(error.errors)
-          .flat()
-          .forEach((msg) => {
-            if (typeof msg === 'string') {
-              toast.error(msg);
-            }
-          });
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, "Error submitting Step 3. Please try again.");
+      const validationMessages = getValidationMessages(error);
+
+      if (validationMessages.length > 0) {
+        validationMessages.forEach((msg) => toast.error(msg));
       } else {
         toast.error(errorMessage);
       }
@@ -201,17 +213,12 @@ const Registration = () => {
       setFormData((prev) => ({ ...prev, stepFour: data }));
       setCurrentStep(5);
       toast.success("Step 4 submitted successfully");
-    } catch (error: any) {
-      const errorMessage = error?.message || error?.response?.data?.message || "Error submitting Step 4. Please try again.";
-      
-      if (error?.errors && typeof error.errors === 'object') {
-        Object.values(error.errors)
-          .flat()
-          .forEach((msg) => {
-            if (typeof msg === 'string') {
-              toast.error(msg);
-            }
-          });
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, "Error submitting Step 4. Please try again.");
+      const validationMessages = getValidationMessages(error);
+
+      if (validationMessages.length > 0) {
+        validationMessages.forEach((msg) => toast.error(msg));
       } else {
         toast.error(errorMessage);
       }
@@ -235,15 +242,11 @@ const Registration = () => {
         compliance_documentation: data.complianceDocumentation,
       };
 
-      await stepFive.mutateAsync(stepFivePayload);
+      const result = await stepFive.mutateAsync(stepFivePayload);
       setFormData((prev) => ({ ...prev, stepFive: data }));
-      
-      // Step 2: Submit final registration
-      const submitPayload = {
-        registration_token: registrationToken,
-      };
 
-      const result = await submitRegistration.mutateAsync(submitPayload);
+      // Refresh progress after final submission to show latest state
+      await refetchProgress();
       
       // Clear registration token from sessionStorage on completion
       if (typeof window !== "undefined") {
@@ -254,17 +257,12 @@ const Registration = () => {
         description: result?.message || "Your account has been created successfully.",
       });
       setIsCompleted(true);
-    } catch (error: any) {
-      const errorMessage = error?.message || error?.response?.data?.message || "Error submitting final step. Please try again.";
-      
-      if (error?.errors && typeof error.errors === 'object') {
-        Object.values(error.errors)
-          .flat()
-          .forEach((msg) => {
-            if (typeof msg === 'string') {
-              toast.error(msg);
-            }
-          });
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, "Error submitting final step. Please try again.");
+      const validationMessages = getValidationMessages(error);
+
+      if (validationMessages.length > 0) {
+        validationMessages.forEach((msg) => toast.error(msg));
       } else {
         toast.error(errorMessage);
       }
@@ -309,9 +307,6 @@ const Registration = () => {
                       Current Step: {progressData.registration_step} / 5
                     </p>
                     <p className="text-muted-foreground mt-1">
-                      Next Step: {progressData.next_step}
-                    </p>
-                    <p className="text-muted-foreground mt-1">
                       Progress: {progressData.progress_percentage}% 
                     </p>
                     <div className="text-left mt-3 text-muted-foreground space-y-1">
@@ -328,7 +323,7 @@ const Registration = () => {
                 <div className="bg-muted/40 p-4 rounded-xl text-center text-sm leading-relaxed">
                   <p className="font-medium text-[#3F6B2D]">What happens next?</p>
                   <ul className="mt-2 space-y-1 text-muted-foreground">
-                    <li>• We'll verify your submitted details and documentation.</li>
+                    <li>• We&apos;ll verify your submitted details and documentation.</li>
                     <li>• This process usually takes <strong>24-48 hours</strong>.</li>
                     <li>• Once approved, you will gain full auctioneer access.</li>
                   </ul>
@@ -403,3 +398,4 @@ const Registration = () => {
 };
 
 export default Registration;
+

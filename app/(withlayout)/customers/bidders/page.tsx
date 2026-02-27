@@ -10,33 +10,42 @@ import { BidderTable } from '@/components/bidders/BidderTable';
 import { BidderProfileModal } from '@/components/bidders/BidderProfileModal';
 import { BulkActionsBar } from '@/components/bidders/BulkActionsBar';
 import { ConfirmationDialog } from '@/components/bidders/ConfirmationDialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
+
+const getBidderDisplayName = (bidder: BidderType) =>
+  `${bidder.firstName} ${bidder.lastName}`.trim();
 
 const BidderPage = () => {
-  const [bidders, setBidders] = useState<BidderType[]>(mockBidders);
+  const [bidders] = useState<BidderType[]>(mockBidders);
   const [searchQuery, setSearchQuery] = useState('');
   const [reputationFilter, setReputationFilter] = useState<ReputationStatus | 'all'>('all');
   const [countryFilter, setCountryFilter] = useState('all');
   const [showBlockedOnly, setShowBlockedOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [selectedBidder, setSelectedBidder] = useState<Bidder | null>(null);
+  const [selectedBidder, setSelectedBidder] = useState<BidderType | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     type: 'block' | 'unblock';
-    bidder?: Bidder;
+    bidder?: BidderType;
     count?: number;
   }>({ isOpen: false, type: 'block' });
+
+  const isLoading = false; // Replace with actual loading state
+  const error = null; // Replace with actual error state
 
   // Filtered bidders
   const filteredBidders = useMemo(() => {
     if (!bidders || bidders.length === 0) return [];
     
-    return bidders.filter((bidder: Bidder) => {
+    return bidders.filter((bidder: BidderType) => {
       // Search filter
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch =
         !searchQuery ||
-        bidder.name?.toLowerCase().includes(searchLower) ||
+        `${bidder.firstName} ${bidder.lastName}`.toLowerCase().includes(searchLower) ||
         bidder.email?.toLowerCase().includes(searchLower);
 
       // Reputation filter
@@ -47,7 +56,7 @@ const BidderPage = () => {
       const matchesCountry = countryFilter === 'all';
 
       // Blocked filter
-      const matchesBlocked = !showBlockedOnly || bidder.status === 'blocked';
+      const matchesBlocked = !showBlockedOnly || bidder.isBlocked;
 
       return matchesSearch && matchesReputation && matchesCountry && matchesBlocked;
     });
@@ -70,7 +79,7 @@ const BidderPage = () => {
   const handleSelectAll = useCallback(
     (checked: boolean) => {
       if (checked) {
-        setSelectedIds(new Set(filteredBidders.map((b) => String(b.id))));
+        setSelectedIds(new Set(filteredBidders.map((b) => b.id)));
       } else {
         setSelectedIds(new Set());
       }
@@ -78,7 +87,7 @@ const BidderPage = () => {
     [filteredBidders]
   );
 
-  const handleSelectOne = useCallback((id: string | number, checked: boolean) => {
+  const handleSelectOne = useCallback((id: string, checked: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (checked) {
@@ -90,16 +99,16 @@ const BidderPage = () => {
     });
   }, []);
 
-  const handleViewBidder = useCallback((bidder: Bidder) => {
+  const handleViewBidder = useCallback((bidder: BidderType) => {
     setSelectedBidder(bidder);
     setIsProfileOpen(true);
   }, []);
 
-  const handleBlockBidder = useCallback((bidder: Bidder) => {
+  const handleBlockBidder = useCallback((bidder: BidderType) => {
     setConfirmDialog({ isOpen: true, type: 'block', bidder });
   }, []);
 
-  const handleUnblockBidder = useCallback((bidder: Bidder) => {
+  const handleUnblockBidder = useCallback((bidder: BidderType) => {
     setConfirmDialog({ isOpen: true, type: 'unblock', bidder });
   }, []);
 
@@ -110,8 +119,8 @@ const BidderPage = () => {
       // TODO: Implement block/unblock mutation when backend endpoint is available
       toast.success(
         type === 'block'
-          ? `${bidder.name || bidder.id} has been blocked`
-          : `${bidder.name || bidder.id} has been unblocked`
+          ? `${getBidderDisplayName(bidder)} has been blocked`
+          : `${getBidderDisplayName(bidder)} has been unblocked`
       );
     } else if (count) {
       // TODO: Implement bulk block/unblock mutation when backend endpoint is available
@@ -125,7 +134,7 @@ const BidderPage = () => {
 
     setConfirmDialog({ isOpen: false, type: 'block' });
     setIsProfileOpen(false);
-  }, [confirmDialog, selectedIds]);
+  }, [confirmDialog]);
 
   const handleBulkBlock = useCallback(() => {
     setConfirmDialog({ isOpen: true, type: 'block', count: selectedIds.size });
@@ -182,7 +191,7 @@ const BidderPage = () => {
           <>
             {/* Summary Cards */}
             <section aria-label="Summary statistics" className="mb-6">
-              <SummaryCards bidders={bidders as any} />
+              <SummaryCards bidders={bidders} />
             </section>
 
             {/* Filters */}
@@ -210,7 +219,7 @@ const BidderPage = () => {
 
             <section aria-label="Bidder list">
               <BidderTable
-                bidders={filteredBidders as any}
+                bidders={filteredBidders}
                 selectedIds={selectedIds}
                 onSelectAll={handleSelectAll}
                 onSelectOne={handleSelectOne}
@@ -249,7 +258,7 @@ const BidderPage = () => {
           type={confirmDialog.type}
           bidderName={
             confirmDialog.bidder
-              ? confirmDialog.bidder.name || String(confirmDialog.bidder.id)
+              ? getBidderDisplayName(confirmDialog.bidder) || String(confirmDialog.bidder.id)
               : undefined
           }
           count={confirmDialog.count}

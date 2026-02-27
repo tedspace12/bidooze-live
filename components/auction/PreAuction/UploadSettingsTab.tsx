@@ -1,297 +1,789 @@
+import { useEffect, useMemo } from "react";
+import Image from "next/image";
+import { Plus, Upload, X } from "lucide-react";
+import { toast } from "sonner";
 import { FormSection } from "../FormSection";
 import { FormInput } from "../FormInput";
 import { FormSelect } from "../FormSelect";
-import { FormTextarea } from "../FormTextarea";
 import { FormCheckbox } from "../FormCheckbox";
+import { FormTextarea } from "../FormTextarea";
+import { PremiumButton } from "../PremiumButton";
+import { useAuctionForm } from "@/context/auction-form-context";
+import type {
+  AuctionFormat,
+  BidAmountType,
+  BidIncrementInput,
+  BidMechanism,
+  BidVisibility,
+  BiddingType,
+  DepositPolicy,
+  DepositType,
+  HandlingChargeType,
+  ShippingAvailability,
+  SuccessfulBidderRegistrationOption,
+  CreateAuctionPayload,
+} from "@/features/auction/types";
 
-export function UploadSettingsTab() {
+interface UploadSettingsTabProps {
+  initialData?: Partial<CreateAuctionPayload>;
+}
+
+export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
+  void initialData;
+  const { formState, updateFormState } = useAuctionForm();
+  const showDepositFields = formState.successful_bidder_registration_option === "deposit";
+  const parseOptionalNumber = (value: string): number | undefined => {
+    if (value.trim() === "") return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
+  const featurePreviews = useMemo(
+    () => (formState.feature_images || []).map((file) => URL.createObjectURL(file)),
+    [formState.feature_images]
+  );
+
+  useEffect(() => {
+    return () => {
+      featurePreviews.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [featurePreviews]);
+
+  useEffect(() => {
+    if (showDepositFields && !formState.deposit_type) {
+      updateFormState({ deposit_type: "fixed" });
+    }
+  }, [showDepositFields, formState.deposit_type, updateFormState]);
+
+  const handleFeatureImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    const maxSize = 10 * 1024 * 1024;
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    const validFiles: File[] = [];
+
+    files.forEach((file) => {
+      if (file.size > maxSize) {
+        toast.error(`${file.name} exceeds 10MB limit`);
+        return;
+      }
+      if (!allowedTypes.includes(file.type)) {
+        toast.error(`${file.name} has an invalid format. Accepted: JPEG, PNG, WebP, JPG`);
+        return;
+      }
+      validFiles.push(file);
+    });
+
+    if (!validFiles.length) {
+      e.target.value = "";
+      return;
+    }
+
+    updateFormState({ feature_images: [...(formState.feature_images || []), ...validFiles] });
+    e.target.value = "";
+  };
+
+  const removeFeatureImage = (index: number) => {
+    const next = [...(formState.feature_images || [])];
+    next.splice(index, 1);
+    updateFormState({ feature_images: next.length ? next : undefined });
+  };
+
+  const setBidIncrementRows = (rows: BidIncrementInput[]) => {
+    updateFormState({ bid_increments: rows });
+  };
+
+  const updateBidIncrementRow = (
+    index: number,
+    key: keyof BidIncrementInput,
+    value: number
+  ) => {
+    const next = [...(formState.bid_increments || [])];
+    next[index] = { ...next[index], [key]: value };
+    setBidIncrementRows(next);
+  };
+
+  const addBidIncrementRow = () => {
+    const next = [...(formState.bid_increments || [])];
+    next.push({ up_to_amount: 0, increment: 0 });
+    setBidIncrementRows(next);
+  };
+
+  const removeBidIncrementRow = (index: number) => {
+    const next = [...(formState.bid_increments || [])];
+    next.splice(index, 1);
+    setBidIncrementRows(next);
+  };
+
+  const applyDefaultIncrementSchedule = () => {
+    setBidIncrementRows([
+      { up_to_amount: 1000, increment: 50 },
+      { up_to_amount: 10000, increment: 100 },
+      { up_to_amount: 1000000, increment: 500 },
+    ]);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Dates */}
-      <FormSection title="Dates" description="Set preview, auction, and checkout schedules">
-        <div className="space-y-6">
-          <div>
-            <p className="micro-label mb-3">Preview Date/Times</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormInput
-                label="Start"
-                name="preview_start_at"
-                type="datetime-local"
-              />
-              <FormInput
-                label="End"
-                name="preview_end_at"
-                type="datetime-local"
-              />
-            </div>
-          </div>
-          
-          <div>
-            <p className="micro-label mb-3">Auction Date/Times</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormInput
-                label="Start"
-                name="auction_start_at_upload"
-                type="datetime-local"
-              />
-              <FormInput
-                label="End"
-                name="auction_end_at_upload"
-                type="datetime-local"
-              />
-            </div>
-          </div>
-          
-          <div>
-            <p className="micro-label mb-3">Checkout Date/Times</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormInput
-                label="Start"
-                name="checkout_start_at"
-                type="datetime-local"
-              />
-              <FormInput
-                label="End"
-                name="checkout_end_at"
-                type="datetime-local"
-              />
-            </div>
-          </div>
-        </div>
-      </FormSection>
-
-      {/* Payment/Shipping/Pickup */}
-      <FormSection title="Payment / Shipping / Pickup" description="Payment and delivery information">
-        <div className="space-y-6">
-          <FormTextarea 
-            label="Payment Information" 
-            name="payment_information"
-            placeholder="Enter payment instructions and accepted methods..."
-            rows={3}
-          />
-          <FormTextarea 
-            label="Shipping / Pick Up" 
-            name="shipping_pickup_info"
-            placeholder="Enter shipping and pickup details..."
-            rows={3}
-          />
-        </div>
-      </FormSection>
-
-      {/* Registration */}
-      <FormSection title="Registration" description="Bidder registration requirements">
-        <div className="space-y-6">
-          <FormCheckbox 
-            label="Bidder Credit Card Registration" 
-            description="Require credit card on file for registration"
-            name="require_credit_card_registration"
-          />
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormSelect 
-              label="Bidder Authentication" 
-              name="bidder_authentication"
-              options={[
-                { value: "none", label: "None Required" },
-                { value: "email", label: "Email Verification" },
-                { value: "phone", label: "Phone Verification" },
-                { value: "both", label: "Email & Phone" },
-              ]}
-            />
-            <FormInput
-              label="Authentication Required Within (hours)"
-              name="authentication_required_hours"
-              type="number"
-              placeholder="24"
-            />
-          </div>
-          
-          <div>
-            <p className="micro-label mb-3">Accepted Credit Cards</p>
+      <FormSection title="Feature Images *" description="At least one image is required before publishing.">
+        <input
+          type="file"
+          id="feature-image-upload"
+          name="feature_images"
+          accept="image/jpeg,image/jpg,image/png,image/webp"
+          className="hidden"
+          multiple
+          onChange={handleFeatureImageChange}
+        />
+        {featurePreviews.length > 0 ? (
+          <div className="relative">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <FormCheckbox label="Mastercard" name="accept_mastercard" />
-              <FormCheckbox label="Visa" name="accept_visa" />
-              <FormCheckbox label="American Express" name="accept_amex" />
-              <FormCheckbox label="Discover" name="accept_discover" />
+              {featurePreviews.map((preview, index) => (
+                <div key={preview} className="relative group">
+                  <Image
+                    src={preview}
+                    alt={`Feature preview ${index + 1}`}
+                    width={320}
+                    height={128}
+                    unoptimized
+                    className="w-full h-32 object-cover rounded-xl border border-border"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeFeatureImage(index)}
+                    className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Remove feature image"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
             </div>
+            <PremiumButton
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => document.getElementById("feature-image-upload")?.click()}
+            >
+              Add More Images
+            </PremiumButton>
           </div>
-          
-          <FormSelect 
-            label="Successful Bidder Registration Option" 
-            name="successful_bidder_registration_option"
-            options={[
-              { value: "immediate", label: "Immediate Registration" },
-              { value: "approval", label: "Requires Approval" },
-              { value: "deposit", label: "Requires Deposit" },
-            ]}
-          />
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormInput
-              label="Starting Bid Card Number"
-              name="starting_bid_card_number"
-              placeholder="000001"
-            />
-            <FormInput
-              label="Maximum Amount Per Item"
-              name="max_amount_per_item"
-              type="number"
-              placeholder="0.00"
-            />
-          </div>
-        </div>
+        ) : (
+          <label
+            htmlFor="feature-image-upload"
+            className="border-2 border-dashed border-border-subtle rounded-xl p-8 text-center hover:border-primary/50 transition-colors cursor-pointer group block"
+          >
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-12 w-12 rounded-xl bg-primary-muted flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                <Upload className="h-6 w-6 text-primary" strokeWidth={1.5} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Drop image(s) here or click to upload</p>
+                <p className="text-xs text-muted-foreground mt-1">JPEG, PNG, WebP, JPG (max 10MB each)</p>
+              </div>
+            </div>
+          </label>
+        )}
       </FormSection>
 
-      {/* Notice */}
-      <FormSection title="Notice" description="Important notices for bidders">
-        <div className="space-y-6">
-          <FormTextarea 
-            label="Bidding Notice" 
-            name="bidding_notice"
-            placeholder="Enter any important bidding notices..."
-            rows={3}
-          />
-          <FormTextarea 
-            label="Auction Notice (Optional)" 
-            name="auction_notice"
-            placeholder="Enter optional auction notice..."
-            rows={3}
-          />
-        </div>
-      </FormSection>
-
-      {/* Bidding */}
-      <FormSection title="Bidding" description="Configure bidding rules and settings">
-        <div className="space-y-6">
-          <FormSelect 
-            label="Bidding Type" 
-            name="bidding_type"
+      <FormSection title="Shipping & Handling" description="Configure shipping options and handling fees.">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormSelect
+            label="Availability"
+            name="shipping_availability"
             options={[
-              { value: "timed", label: "Timed Online" },
-              { value: "live", label: "Live Auction" },
-              { value: "hybrid", label: "Hybrid" },
+              { value: "available", label: "Available" },
+              { value: "pickup-only", label: "Pickup Only" },
+              { value: "not-available", label: "Not Available" },
             ]}
+            value={formState.shipping_availability || ""}
+            onValueChange={(value) => updateFormState({ shipping_availability: value as ShippingAvailability })}
           />
-          
-          <div>
-            <p className="micro-label mb-3">Settings</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <FormSelect 
-                label="Bid Type" 
-                name="bid_type"
-                options={[
-                  { value: "standard", label: "Standard" },
-                  { value: "proxy", label: "Proxy Bidding" },
-                ]}
-              />
-              <FormSelect 
-                label="Bid Amount Type" 
-                name="bid_amount_type"
-                options={[
-                  { value: "increment", label: "Increment Based" },
-                  { value: "free", label: "Free Form" },
-                ]}
-              />
-              <FormSelect 
-                label="Timezone" 
-                name="timezone"
-                options={[
-                  { value: "EST", label: "Eastern Time (EST)" },
-                  { value: "CST", label: "Central Time (CST)" },
-                  { value: "PST", label: "Pacific Time (PST)" },
-                  { value: "UTC", label: "UTC" },
-                ]}
-              />
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <FormInput
-              label="Open Bidding"
-              name="open_bidding_at"
-              type="datetime-local"
-            />
-            <FormInput
-              label="Close Bidding"
-              name="close_bidding_at"
-              type="datetime-local"
-            />
-            <FormInput
-              label="Soft Close Seconds"
-              name="soft_close_seconds"
-              type="number"
-              placeholder="180"
-            />
-          </div>
-          
           <FormInput
-            label="Auto Sync Grouped Lot Stagger Time (seconds)"
-            name="lot_stagger_seconds"
-            type="number"
-            placeholder="0"
+            label="Shipping Account"
+            name="shipping_account"
+            placeholder="UPS / FedEx account"
+            value={formState.shipping_account || ""}
+            onChange={(e) => updateFormState({ shipping_account: e.target.value })}
           />
-          
-          <div>
-            <p className="micro-label mb-3">Options</p>
-            <div className="space-y-3">
-              <FormCheckbox 
-                label="Show immediate bid states" 
-                description="Show Won/Lost and winning amount on closed lots"
-                name="show_immediate_bid_states"
-              />
-              <FormCheckbox 
-                label="Times the money bidding" 
-                description="Apply to lots with quantity greater than one"
-                name="times_the_money_bidding"
-              />
-              <FormCheckbox 
-                label="Show bid reserve states" 
-                description="Display Reserve Met or Reserve Not Met"
-                name="show_bid_reserve_states"
-              />
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormInput
-              label="Email Subject"
-              name="email_subject"
-              placeholder="Auction notification subject"
-            />
-            <FormTextarea
-              label="Email Body"
-              name="email_body"
-              placeholder="Email body content..."
-              rows={3}
-            />
-          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+          <FormCheckbox
+            label="Add Handling Charges"
+            name="add_handling_charges"
+            checked={!!formState.add_handling_charges}
+            onChange={(e) => updateFormState({ add_handling_charges: e.target.checked })}
+          />
+          <FormSelect
+            label="Handling Charge Type"
+            name="handling_charge_type"
+            options={[
+              { value: "flat", label: "Flat Fee" },
+              { value: "percentage", label: "Percentage" },
+              { value: "per-item", label: "Per Item" },
+            ]}
+            value={formState.handling_charge_type || ""}
+            onValueChange={(value) => updateFormState({ handling_charge_type: value as HandlingChargeType })}
+            disabled={!formState.add_handling_charges}
+          />
+          <FormInput
+            label="Handling Charge Amount"
+            name="handling_charge_amount"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formState.handling_charge_amount || ""}
+            onChange={(e) =>
+              updateFormState({ handling_charge_amount: parseFloat(e.target.value) || undefined })
+            }
+            disabled={!formState.add_handling_charges}
+          />
         </div>
       </FormSection>
 
-      {/* Bid Increments */}
-      <FormSection title="Bid Increments" description="Set minimum bid increment rules">
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormCheckbox 
-              label="Force Min Bid to Bid Increment Schedule" 
-              name="force_min_bid_to_increment"
-            />
-            <FormCheckbox 
-              label="Apply Bid Increments by Each" 
-              name="apply_bid_increments_by_each"
-            />
-          </div>
+      <FormSection title="Fees & Taxes" description="Commission, premium, and tax settings.">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormInput
+            label="Commission Percentage (%)"
+            name="commission_percentage"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formState.commission_percentage || ""}
+            onChange={(e) => updateFormState({ commission_percentage: parseFloat(e.target.value) || undefined })}
+          />
+          <FormInput
+            label="Buyer Premium Percentage (%)"
+            name="buyer_premium_percentage"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formState.buyer_premium_percentage || ""}
+            onChange={(e) => updateFormState({ buyer_premium_percentage: parseFloat(e.target.value) || undefined })}
+          />
+        </div>
+        <div className="mt-6">
+          <FormInput
+            label="Short BP Explanation"
+            name="short_bp_explanation"
+            placeholder="12.5% buyer premium"
+            value={formState.short_bp_explanation || ""}
+            onChange={(e) => updateFormState({ short_bp_explanation: e.target.value || undefined })}
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+          <FormInput
+            label="Buyer Tax Percentage (%)"
+            name="buyer_tax_percentage"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formState.buyer_tax_percentage || ""}
+            onChange={(e) => updateFormState({ buyer_tax_percentage: parseFloat(e.target.value) || undefined })}
+          />
+          <FormInput
+            label="Seller Tax Percentage (%)"
+            name="seller_tax_percentage"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formState.seller_tax_percentage || ""}
+            onChange={(e) => updateFormState({ seller_tax_percentage: parseFloat(e.target.value) || undefined })}
+          />
           <FormInput
             label="Minimum Bid Amount"
             name="minimum_bid_amount"
             type="number"
+            step="0.01"
             placeholder="0.00"
+            value={formState.minimum_bid_amount || ""}
+            onChange={(e) => updateFormState({ minimum_bid_amount: parseFloat(e.target.value) || undefined })}
           />
-          
-          <div className="p-4 bg-accent/30 rounded-lg">
-            <p className="micro-label mb-2">Increment Schedule</p>
-            <p className="text-sm text-muted-foreground">Configure bid increment tiers based on current bid amount</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+          <FormInput
+            label="Buyer Lot Charge 1"
+            name="buyer_lot_charge_1"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formState.buyer_lot_charge_1 || ""}
+            onChange={(e) => updateFormState({ buyer_lot_charge_1: parseFloat(e.target.value) || undefined })}
+          />
+          <FormInput
+            label="Buyer Lot Charge 2"
+            name="buyer_lot_charge_2"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formState.buyer_lot_charge_2 || ""}
+            onChange={(e) => updateFormState({ buyer_lot_charge_2: parseFloat(e.target.value) || undefined })}
+          />
+        </div>
+      </FormSection>
+
+      <FormSection title="Bidding Rules" description="Configure bidding mechanics and visibility.">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <FormSelect
+            label="Bidding Type"
+            name="bidding_type"
+            options={[
+              { value: "timed", label: "Timed" },
+              { value: "live", label: "Live" },
+              { value: "hybrid", label: "Hybrid" },
+            ]}
+            value={formState.bidding_type || "timed"}
+            onValueChange={(value) => updateFormState({ bidding_type: value as BiddingType })}
+          />
+          <FormSelect
+            label="Auction Format"
+            name="auction_format"
+            options={[
+              { value: "internet_only", label: "Internet Only" },
+              { value: "webcast", label: "Webcast" },
+              { value: "floor_only", label: "Floor Only" },
+              { value: "absentee", label: "Absentee" },
+            ]}
+            value={formState.auction_format || "internet_only"}
+            onValueChange={(value) => updateFormState({ auction_format: value as AuctionFormat })}
+          />
+          <FormSelect
+            label="Bid Visibility"
+            name="bid_visibility"
+            options={[
+              { value: "public", label: "Public" },
+              { value: "sealed", label: "Sealed" },
+            ]}
+            value={formState.bid_visibility || "public"}
+            onValueChange={(value) => updateFormState({ bid_visibility: value as BidVisibility })}
+          />
+          <FormSelect
+            label="Bid Mechanism"
+            name="bid_mechanism"
+            options={[
+              { value: "standard", label: "Standard" },
+              { value: "proxy", label: "Proxy" },
+            ]}
+            value={formState.bid_mechanism || "standard"}
+            onValueChange={(value) => {
+              const mechanism = value as BidMechanism;
+              updateFormState({
+                bid_mechanism: mechanism,
+                bid_amount_type: mechanism === "standard" ? "fixed_flat" : (formState.bid_amount_type || "maximum_up_to"),
+              });
+            }}
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+          <FormSelect
+            label="Bid Amount Type"
+            name="bid_amount_type"
+            options={[
+              { value: "fixed_flat", label: "Fixed Flat" },
+              { value: "maximum_up_to", label: "Maximum Up To" },
+            ]}
+            value={formState.bid_amount_type || "fixed_flat"}
+            onValueChange={(value) => updateFormState({ bid_amount_type: value as BidAmountType })}
+            disabled={formState.bid_mechanism === "standard"}
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
+          <FormInput
+            label="Soft Close (seconds)"
+            name="soft_close_seconds"
+            type="number"
+            placeholder="0"
+            value={formState.soft_close_seconds || ""}
+            onChange={(e) => updateFormState({ soft_close_seconds: parseInt(e.target.value) || undefined })}
+          />
+          <FormInput
+            label="Lot Stagger (seconds)"
+            name="lot_stagger_seconds"
+            type="number"
+            placeholder="0"
+            value={formState.lot_stagger_seconds || ""}
+            onChange={(e) => updateFormState({ lot_stagger_seconds: parseInt(e.target.value) || undefined })}
+          />
+          <FormInput
+            label="Default Lot Duration (seconds)"
+            name="default_lot_duration_seconds"
+            type="number"
+            placeholder="0"
+            value={formState.default_lot_duration_seconds || ""}
+            onChange={(e) =>
+              updateFormState({ default_lot_duration_seconds: parseInt(e.target.value) || undefined })
+            }
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+          <FormCheckbox
+            label="Show Immediate Bid States"
+            name="show_immediate_bid_states"
+            checked={!!formState.show_immediate_bid_states}
+            onChange={(e) => updateFormState({ show_immediate_bid_states: e.target.checked })}
+          />
+          <FormCheckbox
+            label="Times the Money Bidding"
+            name="times_the_money_bidding"
+            checked={!!formState.times_the_money_bidding}
+            onChange={(e) => updateFormState({ times_the_money_bidding: e.target.checked })}
+          />
+          <FormCheckbox
+            label="Show Bid Reserve States"
+            name="show_bid_reserve_states"
+            checked={!!formState.show_bid_reserve_states}
+            onChange={(e) => updateFormState({ show_bid_reserve_states: e.target.checked })}
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+          <FormCheckbox
+            label="Force Bid Increment Schedule"
+            name="force_bid_increment_schedule"
+            checked={!!formState.force_bid_increment_schedule}
+            onChange={(e) => updateFormState({ force_bid_increment_schedule: e.target.checked })}
+          />
+          <FormCheckbox
+            label="Apply Bid Increment Per Item"
+            name="apply_bid_increment_per_item"
+            checked={!!formState.apply_bid_increment_per_item}
+            onChange={(e) => updateFormState({ apply_bid_increment_per_item: e.target.checked })}
+          />
+        </div>
+        {formState.force_bid_increment_schedule && (
+          <div className="mt-6 space-y-4">
+            <div className="flex flex-wrap gap-3">
+              <PremiumButton type="button" variant="outline" size="sm" onClick={addBidIncrementRow}>
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Add Increment Row
+              </PremiumButton>
+              <PremiumButton type="button" variant="ghost" size="sm" onClick={applyDefaultIncrementSchedule}>
+                Apply Default Schedule
+              </PremiumButton>
+            </div>
+            {(formState.bid_increments || []).length > 0 ? (
+              <div className="space-y-3">
+                {(formState.bid_increments || []).map((row, index) => (
+                  <div key={`${row.up_to_amount}-${index}`} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-4 items-end">
+                    <FormInput
+                      label={index === 0 ? "Up To Amount" : ""}
+                      type="number"
+                      placeholder="1000"
+                      value={row.up_to_amount || ""}
+                      onChange={(e) =>
+                        updateBidIncrementRow(index, "up_to_amount", parseFloat(e.target.value) || 0)
+                      }
+                    />
+                    <FormInput
+                      label={index === 0 ? "Increment" : ""}
+                      type="number"
+                      placeholder="50"
+                      value={row.increment || ""}
+                      onChange={(e) =>
+                        updateBidIncrementRow(index, "increment", parseFloat(e.target.value) || 0)
+                      }
+                    />
+                    <PremiumButton type="button" variant="outline" size="sm" onClick={() => removeBidIncrementRow(index)}>
+                      Remove
+                    </PremiumButton>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Add increment rows in ascending order. Final cap must be at least 1,000,000.
+              </p>
+            )}
           </div>
+        )}
+      </FormSection>
+
+      <FormSection title="Registration & Deposit" description="Rules for bidder registration and deposits.">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <FormCheckbox
+            label="Require Credit Card Registration"
+            name="require_credit_card_registration"
+            checked={!!formState.require_credit_card_registration}
+            onChange={(e) => updateFormState({ require_credit_card_registration: e.target.checked })}
+          />
+          <FormSelect
+            label="Successful Bidder Registration Option"
+            name="successful_bidder_registration_option"
+            options={[
+              { value: "immediate", label: "Automatic" },
+              { value: "approval", label: "Manual" },
+              { value: "deposit", label: "Deposit" },
+            ]}
+            value={formState.successful_bidder_registration_option || "immediate"}
+            onValueChange={(value) => {
+              const registrationOption = value as SuccessfulBidderRegistrationOption;
+              updateFormState({
+                successful_bidder_registration_option: registrationOption,
+                ...(registrationOption === "deposit" && !formState.deposit_type
+                  ? { deposit_type: "fixed" as DepositType }
+                  : {}),
+              });
+            }}
+          />
+          <FormInput
+            label="Authentication Required (Hours)"
+            name="authentication_required_hours"
+            type="number"
+            placeholder="48"
+            value={formState.authentication_required_hours || ""}
+            onChange={(e) =>
+              updateFormState({ authentication_required_hours: parseInt(e.target.value) || undefined })
+            }
+          />
+          <FormInput
+            label="Authentication Required (Days)"
+            name="authentication_required_days"
+            type="number"
+            placeholder="2"
+            value={formState.authentication_required_days || ""}
+            onChange={(e) =>
+              updateFormState({ authentication_required_days: parseInt(e.target.value) || undefined })
+            }
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+          <FormInput
+            label="Max Amount Per Item"
+            name="max_amount_per_item"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formState.max_amount_per_item || ""}
+            onChange={(e) => updateFormState({ max_amount_per_item: parseFloat(e.target.value) || undefined })}
+          />
+        </div>
+        {showDepositFields && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <FormSelect
+              label="Deposit Type"
+              name="deposit_type"
+              options={[
+                { value: "fixed", label: "Fixed" },
+                { value: "percentage", label: "Percentage" },
+              ]}
+              value={formState.deposit_type || "fixed"}
+              onValueChange={(value) => {
+                const nextType = value as DepositType;
+                const shouldResetValue =
+                  nextType === "percentage" &&
+                  typeof formState.deposit_value === "number" &&
+                  formState.deposit_value > 100;
+                updateFormState({
+                  deposit_type: nextType,
+                  ...(shouldResetValue ? { deposit_value: undefined } : {}),
+                });
+                if (shouldResetValue) {
+                  toast.error("Percentage deposit value must be between 0 and 100.");
+                }
+              }}
+            />
+            <FormInput
+              label="Deposit Value"
+              name="deposit_value"
+              type="number"
+              step="0.01"
+              min={0}
+              max={formState.deposit_type === "percentage" ? 100 : undefined}
+              placeholder="0.00"
+              value={formState.deposit_value || ""}
+              hint={formState.deposit_type === "percentage" ? "Enter a percentage between 0 and 100." : undefined}
+              onChange={(e) => updateFormState({ deposit_value: parseOptionalNumber(e.target.value) })}
+            />
+            <FormInput
+              label="Deposit Cap"
+              name="deposit_cap"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              value={formState.deposit_cap || ""}
+              onChange={(e) => updateFormState({ deposit_cap: parseOptionalNumber(e.target.value) })}
+            />
+            <FormSelect
+              label="Deposit Policy"
+              name="deposit_policy"
+              options={[
+                { value: "refund_losers", label: "Refund Losers" },
+                { value: "apply_to_winner_invoice", label: "Apply to Winner Invoice" },
+                { value: "non_refundable", label: "Non-refundable" },
+                { value: "hold_only", label: "Hold Only" },
+                { value: "manual", label: "Manual (maps to hold_only)" },
+              ]}
+              value={formState.deposit_policy || ""}
+              onValueChange={(value) => updateFormState({ deposit_policy: value as DepositPolicy })}
+            />
+          </div>
+        )}
+      </FormSection>
+
+      <FormSection title="Payment Methods" description="Accepted cards and live card settings.">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <FormCheckbox
+            label="Accept Mastercard"
+            name="accept_mastercard"
+            checked={!!formState.accept_mastercard}
+            onChange={(e) => updateFormState({ accept_mastercard: e.target.checked })}
+          />
+          <FormCheckbox
+            label="Accept Visa"
+            name="accept_visa"
+            checked={!!formState.accept_visa}
+            onChange={(e) => updateFormState({ accept_visa: e.target.checked })}
+          />
+          <FormCheckbox
+            label="Accept American Express"
+            name="accept_amex"
+            checked={!!formState.accept_amex}
+            onChange={(e) => updateFormState({ accept_amex: e.target.checked })}
+          />
+          <FormCheckbox
+            label="Accept Discover"
+            name="accept_discover"
+            checked={!!formState.accept_discover}
+            onChange={(e) => updateFormState({ accept_discover: e.target.checked })}
+          />
+        </div>
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormInput
+            label="Starting Bid Card #"
+            name="starting_bid_card_number"
+            type="number"
+            placeholder="1"
+            value={formState.starting_bid_card_number || ""}
+            onChange={(e) => updateFormState({ starting_bid_card_number: parseInt(e.target.value) || undefined })}
+          />
+          <FormInput
+            label="Live Starting Bid Card #"
+            name="live_starting_bid_card_number"
+            type="number"
+            placeholder="1"
+            value={formState.live_starting_bid_card_number || ""}
+            onChange={(e) =>
+              updateFormState({ live_starting_bid_card_number: parseInt(e.target.value) || undefined })
+            }
+          />
+        </div>
+      </FormSection>
+
+      <FormSection title="Email Notifications" description="Templates used to notify bidders on their registeration.">
+        <div className="space-y-6">
+          <FormInput
+            label="Email Subject"
+            name="email_subject"
+            placeholder="Auction notification subject"
+            value={formState.email_subject || ""}
+            onChange={(e) => updateFormState({ email_subject: e.target.value || undefined })}
+          />
+          <FormTextarea
+            label="Email Body"
+            name="email_body"
+            placeholder="Email notification body"
+            rows={6}
+            value={formState.email_body || ""}
+            onChange={(e) => updateFormState({ email_body: e.target.value || undefined })}
+          />
+        </div>
+      </FormSection>
+
+      <FormSection title="Terms & Notices" description="Legal and bidder-facing notices.">
+        <div className="space-y-6">
+          <FormTextarea
+            label="Terms and Conditions"
+            name="terms_and_conditions"
+            placeholder="Enter terms and conditions..."
+            rows={4}
+            value={formState.terms_and_conditions || ""}
+            onChange={(e) => updateFormState({ terms_and_conditions: e.target.value || undefined })}
+          />
+          <FormTextarea
+            label="Payment Information"
+            name="payment_information"
+            placeholder="Payment details and instructions..."
+            rows={4}
+            value={formState.payment_information || ""}
+            onChange={(e) => updateFormState({ payment_information: e.target.value || undefined })}
+          />
+          <FormTextarea
+            label="Shipping & Pickup Info"
+            name="shipping_pickup_info"
+            placeholder="Shipping and pickup information..."
+            rows={4}
+            value={formState.shipping_pickup_info || ""}
+            onChange={(e) => updateFormState({ shipping_pickup_info: e.target.value || undefined })}
+          />
+          <FormTextarea
+            label="Bidding Notice"
+            name="bidding_notice"
+            placeholder="Important bidding notice..."
+            rows={4}
+            value={formState.bidding_notice || ""}
+            onChange={(e) => updateFormState({ bidding_notice: e.target.value || undefined })}
+          />
+          <FormTextarea
+            label="Auction Notice"
+            name="auction_notice"
+            placeholder="General auction notice..."
+            rows={4}
+            value={formState.auction_notice || ""}
+            onChange={(e) => updateFormState({ auction_notice: e.target.value || undefined })}
+          />
+        </div>
+      </FormSection>
+
+      <FormSection title="Auction Links" description="Optional URLs for terms, preview, or external info.">
+        <div className="space-y-4">
+          {(formState.auction_links || [{ url: "", description: "" }]).map((link, index) => (
+            <div key={index} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-4 items-end">
+              <FormInput
+                label={index === 0 ? "URL" : ""}
+                placeholder="https://example.com"
+                value={link.url}
+                onChange={(e) => {
+                  const next = [...(formState.auction_links || [])];
+                  next[index] = { ...next[index], url: e.target.value };
+                  updateFormState({ auction_links: next });
+                }}
+              />
+              <FormInput
+                label={index === 0 ? "Description" : ""}
+                placeholder="Link description"
+                value={link.description}
+                onChange={(e) => {
+                  const next = [...(formState.auction_links || [])];
+                  next[index] = { ...next[index], description: e.target.value };
+                  updateFormState({ auction_links: next });
+                }}
+              />
+              <PremiumButton
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const next = [...(formState.auction_links || [])];
+                  next.splice(index, 1);
+                  updateFormState({ auction_links: next.length ? next : [{ url: "", description: "" }] });
+                }}
+              >
+                Remove
+              </PremiumButton>
+            </div>
+          ))}
+          <PremiumButton
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const next = [...(formState.auction_links || [])];
+              next.push({ url: "", description: "" });
+              updateFormState({ auction_links: next });
+            }}
+          >
+            Add Link
+          </PremiumButton>
         </div>
       </FormSection>
     </div>

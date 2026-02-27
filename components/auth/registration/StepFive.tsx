@@ -40,7 +40,7 @@ interface StepFiveProps {
     registrationToken?: string | null;
 }
 
-export function StepFive({ defaultValues, onSubmit, onBack, isLoading, registrationToken }: StepFiveProps) {
+export function StepFive({ defaultValues, onSubmit, onBack, isLoading }: StepFiveProps) {
     const [identityFiles, setIdentityFiles] = useState<string[]>([]);
     const [businessFiles, setBusinessFiles] = useState<string[]>([]);
     const [complianceFiles, setComplianceFiles] = useState<string[]>([]);

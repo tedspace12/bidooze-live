@@ -1,125 +1,124 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { AUTH_SESSION_COOKIE, parseSessionCookie } from "@/lib/auth-session";
 
-// Public routes that don't require authentication
-const publicRoutes = ["/login", "/register", "/"];
+const publicRoutes = [
+  "/",
+  "/login",
+  "/register",
+  "/auctioneer/register",
+  "/forgot-password",
+  "/otp-verification",
+  "/admin/login",
+  "/auth/mfa",
+];
 
-// Routes that require authentication (auctioneer/admin only)
-const protectedRoutes = ["/dashboard", "/create-auction", "/customers", "/reports", "/billing", "/settings"];
+const adminRoutes = [
+  "/admin",
+];
 
-// Allowed roles for this platform (auctioneer and admin only)
+const approvedOnlyAuctioneerRoutes = [
+  "/dashboard",
+  "/create-auction",
+  "/customers",
+  "/reports",
+  "/billing",
+  "/settings",
+  "/miscellaneous",
+  "/auctioneer/dashboard",
+  "/auctioneer/auctions",
+  "/auctioneer/live-console",
+  "/auctioneer/settings",
+  "/auctioneer/customers",
+  "/auctioneer/reports",
+  "/auctioneer/billing",
+  "/auctioneer/miscellaneous",
+];
+
+const auctioneerStatusRoutes = ["/auctioneer/application-status"];
+
 const ALLOWED_ROLES = ["auctioneer", "admin", "superadmin"];
+const TOKEN_COOKIE = "bidooze_auth_token";
+
+function clearAuthCookies(response: NextResponse) {
+  response.cookies.set(AUTH_SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+  response.cookies.set(TOKEN_COOKIE, "", { path: "/", maxAge: 0 });
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  
-  // Get token from cookie
-  const token = request.cookies.get("bidooze_auth_token")?.value;
+  const token = request.cookies.get(TOKEN_COOKIE)?.value || null;
+  const sessionRaw = request.cookies.get(AUTH_SESSION_COOKIE)?.value || null;
+  const session = parseSessionCookie(sessionRaw);
+  const userRole = session?.user?.role;
+  const accountStatus = session?.user?.account_status;
+  const canAccess = !!session?.can_access_auctioneer_features;
 
-  // Check if route is public
-  const isPublicRoute = publicRoutes.some((route) => pathname === route || pathname.startsWith(route + "/"));
-  
-  // Check if route is protected
-  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
+  const isPublicRoute = publicRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  const isAdminRoute = adminRoutes.some((route) => pathname.startsWith(route));
+  const isApprovedAuctioneerRoute = approvedOnlyAuctioneerRoutes.some((route) => pathname.startsWith(route));
+  const isAuctioneerRoute =
+    pathname.startsWith("/auctioneer") || isApprovedAuctioneerRoute;
 
-  // If accessing a protected route without token, redirect to login
-  if (isProtectedRoute && !token) {
-    const loginUrl = new URL("/login", request.url);
+  const isProtectedRoute = isAdminRoute || isAuctioneerRoute;
+
+  if (isProtectedRoute && !token && !isPublicRoute) {
+    const loginUrl = new URL(isAdminRoute ? "/admin/login" : "/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // If accessing login/register with token, verify role before redirecting
-  if ((pathname === "/login" || pathname === "/register") && token) {
-    try {
-      // Verify user role via API
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "http://localhost:8000/api";
-      const response = await fetch(`${apiUrl}/user`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+  if (token && accountStatus && accountStatus !== "active") {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("blocked", "1");
+    const response = NextResponse.redirect(loginUrl);
+    clearAuthCookies(response);
+    return response;
+  }
 
-      if (response.ok) {
-        const data = await response.json();
-        const user = data.user || data;
-        const userRole = user.role;
+  if (token && isPublicRoute) {
+    if (userRole === "admin" || userRole === "superadmin") {
+      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+    }
+    if (userRole === "auctioneer") {
+      return NextResponse.redirect(
+        new URL(canAccess ? "/auctioneer/dashboard" : "/auctioneer/application-status", request.url)
+      );
+    }
+  }
 
-        // Only allow auctioneer/admin to access dashboard
-        if (ALLOWED_ROLES.includes(userRole)) {
-          return NextResponse.redirect(new URL("/dashboard", request.url));
-        } else {
-          // Buyer role - redirect to login (this platform is for auctioneer/admin only)
-          const loginUrl = new URL("/login", request.url);
-          loginUrl.searchParams.set("error", "unauthorized_role");
-          return NextResponse.redirect(loginUrl);
-        }
-      }
-    } catch (error) {
-      // If API call fails, still redirect to login to re-authenticate
+  if (token && isAdminRoute) {
+    if (userRole === "auctioneer") {
+      return NextResponse.redirect(new URL("/auctioneer/dashboard", request.url));
+    }
+    if (userRole && !ALLOWED_ROLES.includes(userRole)) {
       const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("error", "unauthorized_role");
       return NextResponse.redirect(loginUrl);
     }
   }
 
-  // For protected routes with token, verify role
-  if (isProtectedRoute && token) {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "http://localhost:8000/api";
-      const response = await fetch(`${apiUrl}/user`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const user = data.user || data;
-        const userRole = user.role;
-
-        // Only allow auctioneer/admin roles
-        if (!ALLOWED_ROLES.includes(userRole)) {
-          // Buyer role trying to access auctioneer/admin routes
-          const loginUrl = new URL("/login", request.url);
-          loginUrl.searchParams.set("error", "unauthorized_role");
-          return NextResponse.redirect(loginUrl);
-        }
-
-        // Role is valid, allow request
-        return NextResponse.next();
-      } else if (response.status === 401) {
-        // Token is invalid, redirect to login
-        const loginUrl = new URL("/login", request.url);
-        loginUrl.searchParams.set("redirect", pathname);
-        return NextResponse.redirect(loginUrl);
-      }
-    } catch (error) {
-      // If API call fails, allow request to proceed
-      // The API interceptor in the client will handle errors
-      return NextResponse.next();
+  if (token && isAuctioneerRoute) {
+    if (userRole === "admin" || userRole === "superadmin") {
+      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+    }
+    if (isApprovedAuctioneerRoute && !canAccess) {
+      return NextResponse.redirect(new URL("/auctioneer/application-status", request.url));
+    }
+    if (auctioneerStatusRoutes.some((route) => pathname.startsWith(route)) && canAccess) {
+      return NextResponse.redirect(new URL("/auctioneer/dashboard", request.url));
     }
   }
 
-  // Allow public routes
-  if (isPublicRoute) {
-    return NextResponse.next();
+  if (!token && !isPublicRoute && pathname.startsWith("/auctioneer")) {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Default: allow request
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
-

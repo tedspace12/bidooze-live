@@ -3,7 +3,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,8 +35,6 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  Zap,
-  Globe,
   Upload,
   Eye,
   Trash2,
@@ -63,8 +60,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+type ManagedUser = {
+  name: string;
+  email: string;
+  role: string;
+};
+
 export default function Miscellaneous() {
-  const [dismissedNotices, setDismissedNotices] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("overview");
   const [emailNotifications, setEmailNotifications] = useState({
     auctionUpdates: true,
@@ -83,38 +85,8 @@ export default function Miscellaneous() {
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [isDeleteUserOpen, setIsDeleteUserOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<ManagedUser | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  const systemNotices = [
-    {
-      id: "notice-1",
-      timestamp: "2024-01-15 10:30 AM",
-      type: "maintenance",
-      title: "Scheduled Maintenance",
-      message: "System maintenance scheduled for January 20, 2024 from 2:00 AM to 4:00 AM EST. Some features may be temporarily unavailable.",
-    },
-    {
-      id: "notice-2",
-      timestamp: "2024-01-10 3:45 PM",
-      type: "update",
-      title: "Policy Update",
-      message: "Our refund policy has been updated. Please review the new terms in the Auction Rules section.",
-    },
-    {
-      id: "notice-3",
-      timestamp: "2024-01-05 9:15 AM",
-      type: "feature",
-      title: "New Feature Release",
-      message: "Enhanced reporting features are now available. Check the Reports section for new export options.",
-    },
-  ];
-
-  const handleDismissNotice = (id: string) => {
-    setDismissedNotices([...dismissedNotices, id]);
-  };
-
-  const visibleNotices = systemNotices.filter(notice => !dismissedNotices.includes(notice.id));
 
   return (
     <div className="space-y-6 pb-8">

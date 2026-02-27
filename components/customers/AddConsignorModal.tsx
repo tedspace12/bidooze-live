@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Consignor, KYCDocument } from "@/data";
 import {
   Dialog,
@@ -10,13 +10,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, X, CheckCircle, Clock } from "lucide-react";
@@ -42,7 +35,12 @@ export function AddConsignorModal({
     commission: "15",
   });
   const [kycDocuments, setKycDocuments] = useState<KYCDocument[]>([]);
-  const [uploadedFiles, setUploadedFiles] = useState<Record<string, File>>({});
+  const idCounterRef = useRef(0);
+
+  const nextId = (prefix: string) => {
+    idCounterRef.current += 1;
+    return `${prefix}-${idCounterRef.current}`;
+  };
 
   const handleBasicInfoChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -50,7 +48,7 @@ export function AddConsignorModal({
 
   const handleFileUpload = (
     e: React.ChangeEvent<HTMLInputElement>,
-    docType: string
+    docType: KYCDocument["type"]
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -61,15 +59,14 @@ export function AddConsignorModal({
     }
 
     const doc: KYCDocument = {
-      id: `kyc-${Date.now()}`,
-      type: docType as any,
+      id: nextId("kyc"),
+      type: docType,
       fileName: file.name,
       uploadedAt: new Date(),
       status: "pending",
     };
 
     setKycDocuments((prev) => [...prev, doc]);
-    setUploadedFiles((prev) => ({ ...prev, [docType]: file }));
     toast.success(`${file.name} uploaded successfully`);
   };
 
@@ -104,7 +101,7 @@ export function AddConsignorModal({
 
   const handleSubmit = () => {
     const newConsignor: Consignor = {
-      id: `csg-${Date.now()}`,
+      id: nextId("csg"),
       companyName: formData.companyName,
       contactName: formData.contactName,
       email: formData.email,
@@ -124,7 +121,7 @@ export function AddConsignorModal({
       payments: [],
       notes: [
         {
-          id: `note-${Date.now()}`,
+          id: nextId("note"),
           text: `Consignor added by auctioneer. KYC documents submitted for review.`,
           createdAt: new Date(),
           createdBy: "Auctioneer",
@@ -146,17 +143,22 @@ export function AddConsignorModal({
       commission: "15",
     });
     setKycDocuments([]);
-    setUploadedFiles({});
     setStep("basic");
     onOpenChange(false);
   };
 
-  const docTypes = [
+  const docTypes: Array<{ value: KYCDocument["type"]; label: string }> = [
     { value: "id", label: "Government ID" },
     { value: "proof-of-address", label: "Proof of Address" },
     { value: "business-license", label: "Business License" },
     { value: "tax-id", label: "Tax ID / EIN" },
   ];
+
+  const handleStepChange = (value: string) => {
+    if (value === "basic" || value === "kyc" || value === "review") {
+      setStep(value);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -168,7 +170,7 @@ export function AddConsignorModal({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={step} onValueChange={(v) => setStep(v as any)}>
+        <Tabs value={step} onValueChange={handleStepChange}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="basic">Basic Info</TabsTrigger>
             <TabsTrigger value="kyc" disabled={step === "basic"}>

@@ -1,13 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { registrationService } from "../services/registrationService";
-import type {
-  StepOnePayload,
-  StepTwoPayload,
-  StepThreePayload,
-  StepFourPayload,
-  StepFivePayload,
-  SubmitRegistrationPayload,
-} from "../types";
 
 export const useRegistration = () => {
   const stepOne = useMutation({
@@ -35,10 +27,6 @@ export const useRegistration = () => {
     mutationKey: ["registration", "step-five"],
   });
 
-  const submitRegistration = useMutation({
-    mutationFn: registrationService.submitRegistration,
-    mutationKey: ["registration", "submit"],
-  });
 
   const useRegistrationProgress = (registrationToken: string | null) => {
     return useQuery({
@@ -64,8 +52,6 @@ export const useRegistration = () => {
     stepThree,
     stepFour,
     stepFive,
-    submitRegistration,
     useRegistrationProgress,
   };
 };
-

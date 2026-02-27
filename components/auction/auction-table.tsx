@@ -5,7 +5,6 @@ import { AuctionStatusBadge } from "./auction-status-badge";
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { IconFolderCode } from "@tabler/icons-react"
 import {
@@ -32,11 +31,6 @@ export const AuctionTable: React.FC<AuctionTableProps> = ({
   onSelectionChange,
 }) => {
   const allSelected = auctions.length > 0 && selectedIds.length === auctions.length;
-  const someSelected = selectedIds.length > 0 && selectedIds.length < auctions.length;
-
-  const selectAllState: boolean | "indeterminate" =
-  allSelected ? true : someSelected ? "indeterminate" : false;
-
 
   const handleSelectAll = (checked: boolean | "indeterminate") => {
     if (checked === true) {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { User, Store, DollarSign, Package, Truck, FileText, Check, X } from "lucide-react";
+import { User, Store, DollarSign, Package, Truck, FileText, Check } from "lucide-react";
 import { PremiumTable } from "../PremiumTable";
 import { StatusBadge } from "../StatusBadge";
 import { PremiumButton } from "../PremiumButton";

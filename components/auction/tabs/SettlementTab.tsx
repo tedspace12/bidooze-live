@@ -1,4 +1,4 @@
-	import { Auction } from "@/data";
+import { AuctionOverviewResponse } from "@/features/auction/types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,14 +7,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CreditCard, Download, Send, Check, Clock, DollarSign, FileText, AlertCircle } from "lucide-react";
 
 interface SettlementTabProps {
-  auction: Auction;
+  auction: AuctionOverviewResponse;
 }
 
 import { formatCurrency } from "@/lib/utils";
 
 	export default function SettlementTab({ auction }: SettlementTabProps) {
-	  const soldLots = auction.lots.filter(l => l.status === "Sold");
-	  const totalSales = soldLots.reduce((sum, lot) => sum + lot.highestBid, 0);
+	  const currency = auction.auction.currency || "USD";
+	  const soldLots: { lotNumber: string; title: string; highestBid: number }[] = [];
+	  const totalSales = 0;
 	  const commissionRate = 0.10;
 	  const commission = totalSales * commissionRate;
 	  const netPayout = totalSales - commission;
@@ -22,7 +23,7 @@ import { formatCurrency } from "@/lib/utils";
 	  const invoices = soldLots.map((lot, index) => ({
 	    id: `INV-${String(index + 1).padStart(4, '0')}`,
 	    lot,
-	    buyer: auction.bidders[index % auction.bidders.length]?.name || "Unknown",
+	    buyer: "Unknown",
 	    amount: lot.highestBid,
 	    commission: lot.highestBid * commissionRate,
 	    status: index === 0 ? "paid" as const : "pending" as const,
@@ -49,9 +50,9 @@ import { formatCurrency } from "@/lib/utils";
 	      {/* Bidder Settlement Tab Content */}
 	      <TabsContent value="bidder" className="space-y-6">
 	        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-	          <Card className="border border-border shadow-soft"><CardContent className="p-4"><div className="flex items-center gap-3 mb-3"><div className="w-8 h-8 rounded-lg gradient-gold flex items-center justify-center"><DollarSign className="w-4 h-4 text-accent-foreground" /></div></div><p className="text-xs text-muted-foreground font-body uppercase tracking-wide mb-1">Total Sales</p><p className="text-xl font-semibold font-body text-accent tabular-nums">{formatCurrency(totalSales, auction.currency)}</p></CardContent></Card>
-	          <Card className="border border-border shadow-soft"><CardContent className="p-4"><div className="flex items-center gap-3 mb-3"><div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center"><CreditCard className="w-4 h-4 text-muted-foreground" /></div></div><p className="text-xs text-muted-foreground font-body uppercase tracking-wide mb-1">Commission (10%)</p><p className="text-xl font-semibold font-body text-foreground tabular-nums">{formatCurrency(commission, auction.currency)}</p></CardContent></Card>
-	          <Card className="border border-border shadow-soft"><CardContent className="p-4"><div className="flex items-center gap-3 mb-3"><div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center"><Check className="w-4 h-4 text-success" /></div></div><p className="text-xs text-muted-foreground font-body uppercase tracking-wide mb-1">Net Payout</p><p className="text-xl font-semibold font-body text-success tabular-nums">{formatCurrency(netPayout, auction.currency)}</p></CardContent></Card>
+	          <Card className="border border-border shadow-soft"><CardContent className="p-4"><div className="flex items-center gap-3 mb-3"><div className="w-8 h-8 rounded-lg gradient-gold flex items-center justify-center"><DollarSign className="w-4 h-4 text-accent-foreground" /></div></div><p className="text-xs text-muted-foreground font-body uppercase tracking-wide mb-1">Total Sales</p><p className="text-xl font-semibold font-body text-accent tabular-nums">{formatCurrency(totalSales, currency)}</p></CardContent></Card>
+	          <Card className="border border-border shadow-soft"><CardContent className="p-4"><div className="flex items-center gap-3 mb-3"><div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center"><CreditCard className="w-4 h-4 text-muted-foreground" /></div></div><p className="text-xs text-muted-foreground font-body uppercase tracking-wide mb-1">Commission (10%)</p><p className="text-xl font-semibold font-body text-foreground tabular-nums">{formatCurrency(commission, currency)}</p></CardContent></Card>
+	          <Card className="border border-border shadow-soft"><CardContent className="p-4"><div className="flex items-center gap-3 mb-3"><div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center"><Check className="w-4 h-4 text-success" /></div></div><p className="text-xs text-muted-foreground font-body uppercase tracking-wide mb-1">Net Payout</p><p className="text-xl font-semibold font-body text-success tabular-nums">{formatCurrency(netPayout, currency)}</p></CardContent></Card>
 	          <Card className="border border-border shadow-soft"><CardContent className="p-4"><div className="flex items-center gap-3 mb-3"><div className="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center"><Clock className="w-4 h-4 text-warning" /></div></div><p className="text-xs text-muted-foreground font-body uppercase tracking-wide mb-1">Pending</p><p className="text-xl font-semibold font-body text-foreground tabular-nums">{invoices.filter(i => i.status === "pending").length} invoices</p></CardContent></Card>
 	        </div>
 	
@@ -71,7 +72,7 @@ import { formatCurrency } from "@/lib/utils";
 	                  <TableCell className="font-body font-medium text-foreground">{invoice.id}</TableCell>
 	                  <TableCell><p className="font-body font-medium text-foreground">Lot {invoice.lot.lotNumber}</p><p className="text-xs text-muted-foreground truncate max-w-48">{invoice.lot.title}</p></TableCell>
 	                  <TableCell className="font-body text-foreground">{invoice.buyer}</TableCell>
-	                  <TableCell className="font-body font-semibold text-accent tabular-nums">{formatCurrency(invoice.amount, auction.currency)}</TableCell>
+	                  <TableCell className="font-body font-semibold text-accent tabular-nums">{formatCurrency(invoice.amount, currency)}</TableCell>
 	                  <TableCell><Badge variant={invoice.status === "paid" ? "default" : "secondary"} className="font-body text-xs gap-1">{invoice.status === "paid" ? <Check className="w-3 h-3" /> : <Clock className="w-3 h-3" />}{invoice.status === "paid" ? "Paid" : "Pending"}</Badge></TableCell>
 	                  <TableCell><Button variant="ghost" size="sm" className="font-body text-xs">View</Button></TableCell>
 	                </TableRow>
@@ -109,8 +110,8 @@ import { formatCurrency } from "@/lib/utils";
 	                <TableRow key={payout.id} className="hover:bg-secondary/30">
 	                  <TableCell className="font-body font-medium text-foreground">{payout.name}</TableCell>
 	                  <TableCell className="font-body text-foreground">{payout.lots}</TableCell>
-	                  <TableCell className="font-body font-semibold text-accent tabular-nums">{formatCurrency(payout.totalSale, auction.currency)}</TableCell>
-	                  <TableCell className="font-body font-semibold text-success tabular-nums">{formatCurrency(payout.payout, auction.currency)}</TableCell>
+	                  <TableCell className="font-body font-semibold text-accent tabular-nums">{formatCurrency(payout.totalSale, currency)}</TableCell>
+	                  <TableCell className="font-body font-semibold text-success tabular-nums">{formatCurrency(payout.payout, currency)}</TableCell>
 	                  <TableCell>
 	                    <Badge variant={payout.status === "paid" ? "default" : "secondary"} className="font-body text-xs gap-1">
 	                      {payout.status === "paid" ? <Check className="w-3 h-3" /> : <Clock className="w-3 h-3" />}

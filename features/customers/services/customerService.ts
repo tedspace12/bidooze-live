@@ -1,5 +1,26 @@
 import { withAuth } from "@/services/api";
 
+type ApiErrorLike = {
+  response?: {
+    data?: unknown;
+  };
+  message?: string;
+};
+
+const extractArrayData = <T>(payload: unknown): T[] => {
+  if (Array.isArray(payload)) return payload as T[];
+  if (payload && typeof payload === "object") {
+    const data = (payload as { data?: unknown }).data;
+    if (Array.isArray(data)) return data as T[];
+  }
+  return [];
+};
+
+const rethrowApiError = (error: unknown): never => {
+  const err = error as ApiErrorLike;
+  throw err?.response?.data || { message: err?.message || "Request failed" };
+};
+
 export interface Consignor {
   id: string | number;
   name: string;
@@ -15,7 +36,7 @@ export interface Consignor {
   totalLots?: number;
   totalValue?: number;
   registrationDate?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface Bidder {
@@ -28,7 +49,7 @@ export interface Bidder {
   status: "active" | "inactive" | "blocked";
   registrationDate?: string;
   totalBids?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export const customerService = {
@@ -44,12 +65,9 @@ export const customerService = {
   }): Promise<Consignor[]> {
     try {
       const res = await withAuth.get<Consignor[]>("/consignors", { params });
-      const data: any = res.data;
-      if (Array.isArray(data)) return data;
-      if (Array.isArray(data?.data)) return data.data;
-      return [];
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+      return extractArrayData<Consignor>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
     }
   },
 
@@ -60,8 +78,8 @@ export const customerService = {
     try {
       const res = await withAuth.get<Consignor>(`/consignors/${id}`);
       return res.data as Consignor;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
     }
   },
 
@@ -72,8 +90,8 @@ export const customerService = {
     try {
       const res = await withAuth.post<Consignor>("/consignors", data);
       return res.data as Consignor;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
     }
   },
 
@@ -84,8 +102,8 @@ export const customerService = {
     try {
       const res = await withAuth.put<Consignor>(`/consignors/${id}`, data);
       return res.data as Consignor;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
     }
   },
 
@@ -100,12 +118,9 @@ export const customerService = {
   }): Promise<Bidder[]> {
     try {
       const res = await withAuth.get<Bidder[]>("/bidders", { params });
-      const data: any = res.data;
-      if (Array.isArray(data)) return data;
-      if (Array.isArray(data?.data)) return data.data;
-      return [];
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+      return extractArrayData<Bidder>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
     }
   },
 
@@ -116,9 +131,10 @@ export const customerService = {
     try {
       const res = await withAuth.get<Bidder>(`/bidders/${id}`);
       return res.data as Bidder;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
     }
   },
 };
+
 

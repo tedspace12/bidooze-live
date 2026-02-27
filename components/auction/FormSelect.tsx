@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 interface FormSelectProps {
   label: string;
+  name?: string;
   hint?: string;
   error?: string;
   options: { value: string; label: string }[];
@@ -14,20 +15,26 @@ interface FormSelectProps {
   value?: string;
   defaultValue?: string;
   onValueChange?: (value: string) => void;
-  name?: string;
+  disabled?: boolean;
 }
 
 export const FormSelect = forwardRef<HTMLButtonElement, FormSelectProps>(
-  ({ label, hint, error, options, placeholder = "Select...", className, value, defaultValue, onValueChange, name }, ref) => {
+  ({ label, name, hint, error, options, placeholder = "Select...", className, value, defaultValue, onValueChange, disabled }, ref) => {
+    const triggerId = name || undefined;
+
     return (
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-muted-foreground">{label}</label>
+        <label htmlFor={triggerId} className="text-xs font-medium text-muted-foreground">{label}</label>
 
-        <Select value={value} defaultValue={defaultValue} onValueChange={onValueChange} name={name as any}>
+        <Select value={value} defaultValue={defaultValue} onValueChange={onValueChange} disabled={disabled}>
           <SelectTrigger
             ref={ref}
+            id={triggerId}
+            name={name}
+            disabled={disabled}
             className={cn(
               "h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm",
+              disabled && "opacity-50 cursor-not-allowed",
               error && "border-destructive focus:border-destructive focus:ring-destructive/10",
               className
             )}

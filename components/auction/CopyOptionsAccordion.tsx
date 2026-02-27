@@ -47,6 +47,12 @@ export function CopyOptionsAccordion({ options, onOptionChange }: CopyOptionsAcc
                 key={option.id}
                 className="flex items-center gap-3 cursor-pointer group"
               >
+                <input
+                  type="checkbox"
+                  checked={option.checked}
+                  onChange={(event) => onOptionChange(option.id, event.target.checked)}
+                  className="sr-only"
+                />
                 <div className={cn(
                   "h-5 w-5 rounded border-2 flex items-center justify-center transition-all duration-150",
                   option.checked 

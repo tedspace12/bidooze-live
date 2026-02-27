@@ -1,4 +1,5 @@
 'use client'
+import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -9,19 +10,21 @@ import {
     FieldSeparator,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { useRouter } from "next/navigation"
+import { useAuth } from "@/features/auth/hooks/useAuth"
 
 export function LoginForm({
     className,
     ...props
 }: React.ComponentProps<"form">) {
-    const router = useRouter();
+    const { loginAuctioneer } = useAuth();
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        router.push("/otp-verification");
-        // Handle login logic here
+        await loginAuctioneer.mutateAsync({ email, password });
     }
+
     return (
         <form className={cn("flex flex-col gap-6", className)} {...props} onSubmit={handleSubmit}>
             <FieldGroup>
@@ -33,12 +36,25 @@ export function LoginForm({
                 </div>
                 <Field>
                     <FieldLabel htmlFor="email">Email</FieldLabel>
-                    <Input id="email" type="email" placeholder="m@example.com" required />
+                    <Input
+                        id="email"
+                        type="email"
+                        placeholder="m@example.com"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                    />
                 </Field>
                 <Field>
                     <FieldLabel htmlFor="password">Password</FieldLabel>
-
-                    <Input id="password" type="password" required />
+                    <Input
+                        id="password"
+                        type="password"
+                        placeholder="********"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                    />
                     <div className="flex items-center justify-end">
                         <a
                             href="/forgot-password"
@@ -49,7 +65,9 @@ export function LoginForm({
                     </div>
                 </Field>
                 <Field>
-                    <Button type="submit">Login</Button>
+                    <Button type="submit" disabled={loginAuctioneer.isPending}>
+                        {loginAuctioneer.isPending ? "Logging in..." : "Login"}
+                    </Button>
                 </Field>
                 <FieldSeparator>Or continue with</FieldSeparator>
                 <Field>
@@ -73,7 +91,7 @@ export function LoginForm({
                     </Button>
                     <FieldDescription className="text-center">
                         Don&apos;t have an account?{" "}
-                        <a href="/register" className="underline underline-offset-4">
+                        <a href="/auctioneer/register" className="underline underline-offset-4">
                             Sign up
                         </a>
                     </FieldDescription>

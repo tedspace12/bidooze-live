@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -11,8 +12,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
-
 
 const stepOneSchema = z.object({
   companyName: z.string().trim().min(1, "First name is required").max(50),
@@ -32,6 +31,8 @@ interface StepOneProps {
 }
 
 export const StepOne = ({ onNext, defaultValues, isLoading }: StepOneProps) => {
+  const [specializationInput, setSpecializationInput] = useState("");
+
   const form = useForm<StepOneData>({
     resolver: zodResolver(stepOneSchema),
     defaultValues: defaultValues || {
@@ -40,7 +41,7 @@ export const StepOne = ({ onNext, defaultValues, isLoading }: StepOneProps) => {
       tin: "",
       businessType: "",
       specialization: [],
-      yearsInBusiness: ""
+      yearsInBusiness: "",
     },
   });
 
@@ -69,6 +70,7 @@ export const StepOne = ({ onNext, defaultValues, isLoading }: StepOneProps) => {
               </FormItem>
             )}
           />
+
           <div className="grid grid-cols-2 gap-4">
             <FormField
               control={form.control}
@@ -117,21 +119,19 @@ export const StepOne = ({ onNext, defaultValues, isLoading }: StepOneProps) => {
               control={form.control}
               name="specialization"
               render={({ field }) => {
-                const [inputValue, setInputValue] = useState("")
-
                 const addValue = (value: string) => {
-                  const trimmed = value.trim()
-                  if (!trimmed) return
-                  if (field.value?.includes(trimmed)) return
+                  const trimmed = value.trim();
+                  if (!trimmed) return;
+                  if (field.value?.includes(trimmed)) return;
 
-                  field.onChange([...(field.value || []), trimmed])
-                  setInputValue("")
-                }
+                  field.onChange([...(field.value || []), trimmed]);
+                  setSpecializationInput("");
+                };
 
                 const removeValue = (index: number) => {
-                  const updated = field.value.filter((_: any, i: number) => i !== index)
-                  field.onChange(updated)
-                }
+                  const updated = (field.value || []).filter((_, i) => i !== index);
+                  field.onChange(updated);
+                };
 
                 return (
                   <FormItem>
@@ -139,9 +139,9 @@ export const StepOne = ({ onNext, defaultValues, isLoading }: StepOneProps) => {
 
                     <FormControl>
                       <div className="flex flex-wrap gap-2 border rounded-md p-1">
-                        {field.value?.map((item: string, index: number) => (
+                        {(field.value || []).map((item: string, index: number) => (
                           <span
-                            key={index}
+                            key={`${item}-${index}`}
                             className="flex items-center gap-1 bg-muted py-0.5 px-2 rounded-md text-xs"
                           >
                             {item}
@@ -150,21 +150,21 @@ export const StepOne = ({ onNext, defaultValues, isLoading }: StepOneProps) => {
                               onClick={() => removeValue(index)}
                               className="text-xs text-red-500"
                             >
-                              ✕
+                              x
                             </button>
                           </span>
                         ))}
 
                         <Input
-                          value={inputValue}
+                          value={specializationInput}
                           placeholder="e.g Jewelry, Fashion, Tech"
                           className="border-none flex-1 focus-visible:ring-0 shadow-none"
-                          onChange={(e) => setInputValue(e.target.value)}
-                          onBlur={() => addValue(inputValue)}
+                          onChange={(e) => setSpecializationInput(e.target.value)}
+                          onBlur={() => addValue(specializationInput)}
                           onKeyDown={(e) => {
                             if (e.key === " " || e.key === "Enter") {
-                              e.preventDefault()
-                              addValue(inputValue)
+                              e.preventDefault();
+                              addValue(specializationInput);
                             }
                           }}
                         />
@@ -173,7 +173,7 @@ export const StepOne = ({ onNext, defaultValues, isLoading }: StepOneProps) => {
 
                     <FormMessage />
                   </FormItem>
-                )
+                );
               }}
             />
 

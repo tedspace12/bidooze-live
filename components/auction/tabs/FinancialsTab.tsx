@@ -1,26 +1,13 @@
-import { useState } from "react";
-import { Auction } from "@/data";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMemo, useState } from "react";
 import { DollarSign, Receipt, TrendingUp } from "lucide-react";
+import { toast } from "sonner";
+import { AuctionOverviewResponse } from "@/features/auction/types";
+import { useAuctionFinancials } from "@/features/auction/hooks/useAuctionFinancials";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -29,279 +16,284 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { toast } from "sonner";
 
 interface FinancialsTabProps {
-  auction: Auction;
+  auction: AuctionOverviewResponse;
 }
 
-interface Expense {
-  id: string;
-  description: string;
-  category: string;
-  amount: number;
-  date: string;
+interface FinancialSettingsForm {
+  commission_percentage: number;
+  buyer_premium_percentage: number;
+  buyer_tax_percentage: number;
+  seller_tax_percentage: number;
+  buyer_lot_charge_1: number;
+  buyer_lot_charge_2: number;
+  minimum_bid_amount: number;
+  tax_exempt_all: boolean;
+}
+
+const DEFAULT_FINANCIAL_FORM_DATA: FinancialSettingsForm = {
+  commission_percentage: 0,
+  buyer_premium_percentage: 0,
+  buyer_tax_percentage: 0,
+  seller_tax_percentage: 0,
+  buyer_lot_charge_1: 0,
+  buyer_lot_charge_2: 0,
+  minimum_bid_amount: 0,
+  tax_exempt_all: false,
+};
+
+interface LotFinancialRow {
+  lot_id: number | string;
+  lot_number: string | number;
+  title: string;
+  final_price?: number | string | null;
+  commission?: number | string | null;
+  buyer_premium?: number | string | null;
+  seller_payout?: number | string | null;
+  seller_name?: string | null;
+}
+
+interface FinancialSummary {
+  total_revenue: number;
+  total_commission: number;
+  total_payouts: number;
+}
+
+const extractNestedObject = (payload: unknown): Record<string, unknown> => {
+  if (!payload || typeof payload !== "object") return {};
+  const raw = payload as Record<string, unknown>;
+  const nested = raw["data"];
+  if (nested && typeof nested === "object") {
+    return nested as Record<string, unknown>;
+  }
+  return raw;
+};
+
+const toNumber = (value: unknown, fallback = 0): number =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
+function formatCurrency(amount: number, currency: AuctionOverviewResponse["auction"]["currency"]) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  }).format(amount);
 }
 
 export default function FinancialsTab({ auction }: FinancialsTabProps) {
-  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [expenses, setExpenses] = useState<Expense[]>([
-    { id: "1", description: "Digital Marketing Campaign", category: "Marketing", amount: 500000, date: "2025-11-20" },
-    { id: "2", description: "Venue Rental Fee", category: "Logistics", amount: 1200000, date: "2025-12-01" },
-    { id: "3", description: "Catalog Printing", category: "Marketing", amount: 150000, date: "2025-11-25" },
-  ]);
-  const [expenseForm, setExpenseForm] = useState({
-    description: "",
-    category: "",
-    amount: "",
-    date: new Date().toISOString().split('T')[0],
-  });
+  const { summary, lots, settings, updateSettings } = useAuctionFinancials(auction.auction.id);
+  const [draft, setDraft] = useState<Partial<FinancialSettingsForm>>({});
 
-  const handleAddExpense = async () => {
-    if (!expenseForm.description || !expenseForm.category || !expenseForm.amount) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    const newExpense: Expense = {
-      id: `expense-${Date.now()}`,
-      description: expenseForm.description,
-      category: expenseForm.category,
-      amount: parseFloat(expenseForm.amount),
-      date: expenseForm.date,
+  const remoteFormData = useMemo<FinancialSettingsForm>(() => {
+    const data = extractNestedObject(settings.data) as Partial<FinancialSettingsForm>;
+    return {
+      ...DEFAULT_FINANCIAL_FORM_DATA,
+      ...data,
+      tax_exempt_all: !!data.tax_exempt_all,
     };
-    setExpenses([...expenses, newExpense]);
-    setExpenseForm({ description: "", category: "", amount: "", date: new Date().toISOString().split('T')[0] });
-    setIsAddExpenseOpen(false);
-    setIsLoading(false);
-    toast.success("Expense added successfully", {
-      description: `${expenseForm.description} has been added.`,
-    });
+  }, [settings.data]);
+
+  const formData = useMemo<FinancialSettingsForm>(
+    () => ({ ...remoteFormData, ...draft }),
+    [remoteFormData, draft]
+  );
+
+  const handleChange = <K extends keyof FinancialSettingsForm>(field: K, value: FinancialSettingsForm[K]) => {
+    setDraft((prev) => ({ ...prev, [field]: value }));
   };
 
-  const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+  const handleSave = async () => {
+    try {
+      await updateSettings.mutateAsync(formData);
+      setDraft({});
+      toast.success("Financial settings updated.");
+    } catch (error: unknown) {
+      toast.error("Failed to update financial settings", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
+  };
+
+  const summaryData = useMemo<FinancialSummary>(() => {
+    const raw = extractNestedObject(summary.data);
+    return {
+      total_revenue: toNumber(raw["total_revenue"]),
+      total_commission: toNumber(raw["total_commission"]),
+      total_payouts: toNumber(raw["total_payouts"]),
+    };
+  }, [summary.data]);
+
+  const lotRows = useMemo<LotFinancialRow[]>(() => {
+    const raw = extractNestedObject(lots.data);
+    const rows = raw["lots"];
+    return Array.isArray(rows) ? (rows as LotFinancialRow[]) : [];
+  }, [lots.data]);
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-semibold tracking-tight">Financial Management</h2>
-      <p className="text-muted-foreground">Manage all financial aspects of the auction, including expenses, revenue, and payouts.</p>
+      <p className="text-muted-foreground">
+        Track auction revenue, commissions, and per-lot financials.
+      </p>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Revenue (Est.)
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₦{auction.totalBid.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              Based on current highest bids
-            </p>
+            <div className="text-2xl font-bold">
+              {formatCurrency(summaryData.total_revenue || 0, auction.auction.currency)}
+            </div>
+            <p className="text-xs text-muted-foreground">From sold lots</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Expenses
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total Commission</CardTitle>
             <Receipt className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₦{totalExpenses.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              Marketing, logistics, and operational costs
-            </p>
+            <div className="text-2xl font-bold">
+              {formatCurrency(summaryData.total_commission || 0, auction.auction.currency)}
+            </div>
+            <p className="text-xs text-muted-foreground">Auctioneer earnings</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Net Profit (Est.)
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total Payouts</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₦{(auction.totalBid - totalExpenses).toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              Revenue minus expenses
-            </p>
+            <div className="text-2xl font-bold">
+              {formatCurrency(summaryData.total_payouts || 0, auction.auction.currency)}
+            </div>
+            <p className="text-xs text-muted-foreground">Consignor payouts</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Detailed Expenses Management */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Expenses Management</CardTitle>
-          <Button 
-            size="sm" 
-            className="gap-2"
-            onClick={() => setIsAddExpenseOpen(true)}
-            disabled={isLoading}
-          >
-            <Receipt className="w-4 h-4" />
-            Add Expense
+          <CardTitle>Financial Settings</CardTitle>
+          <Button size="sm" onClick={handleSave} disabled={updateSettings.isPending}>
+            {updateSettings.isPending ? "Saving..." : "Save Settings"}
           </Button>
         </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <Label>Commission (%)</Label>
+            <Input
+              type="number"
+              value={formData.commission_percentage}
+              onChange={(e) => handleChange("commission_percentage", Number(e.target.value))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Buyer Premium (%)</Label>
+            <Input
+              type="number"
+              value={formData.buyer_premium_percentage}
+              onChange={(e) => handleChange("buyer_premium_percentage", Number(e.target.value))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Buyer Tax (%)</Label>
+            <Input
+              type="number"
+              value={formData.buyer_tax_percentage}
+              onChange={(e) => handleChange("buyer_tax_percentage", Number(e.target.value))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Seller Tax (%)</Label>
+            <Input
+              type="number"
+              value={formData.seller_tax_percentage}
+              onChange={(e) => handleChange("seller_tax_percentage", Number(e.target.value))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Buyer Lot Charge 1</Label>
+            <Input
+              type="number"
+              value={formData.buyer_lot_charge_1}
+              onChange={(e) => handleChange("buyer_lot_charge_1", Number(e.target.value))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Buyer Lot Charge 2</Label>
+            <Input
+              type="number"
+              value={formData.buyer_lot_charge_2}
+              onChange={(e) => handleChange("buyer_lot_charge_2", Number(e.target.value))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Minimum Bid Amount</Label>
+            <Input
+              type="number"
+              value={formData.minimum_bid_amount}
+              onChange={(e) => handleChange("minimum_bid_amount", Number(e.target.value))}
+            />
+          </div>
+          <div className="flex items-center justify-between p-4 bg-secondary/50 rounded-lg md:col-span-2">
+            <div>
+              <Label className="font-body font-medium">Tax Exempt All</Label>
+              <p className="text-xs text-muted-foreground">Apply tax exemption to all lots</p>
+            </div>
+            <Switch
+              checked={formData.tax_exempt_all}
+              onCheckedChange={(value) => handleChange("tax_exempt_all", value)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Lot Financials</CardTitle>
+        </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground mb-4">Track all operational costs associated with this auction (e.g., marketing, logistics, venue rental).</p>
-          
-          {/* Expenses Table */}
           <div className="border rounded-lg overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/50 hover:bg-secondary/50">
-                  <TableHead>Description</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="w-12"></TableHead>
+                  <TableHead>Lot #</TableHead>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Final Price</TableHead>
+                  <TableHead>Commission</TableHead>
+                  <TableHead>Buyer Premium</TableHead>
+                  <TableHead>Seller Payout</TableHead>
+                  <TableHead>Seller</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.length > 0 ? (
-                  expenses.map((expense) => (
-                    <TableRow key={expense.id}>
-                      <TableCell className="font-medium">{expense.description}</TableCell>
-                      <TableCell>{expense.category}</TableCell>
-                      <TableCell>₦{expense.amount.toLocaleString()}</TableCell>
-                      <TableCell>{expense.date}</TableCell>
-                      <TableCell>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => {
-                            toast.info("Edit expense", {
-                              description: `Editing ${expense.description}`,
-                            });
-                          }}
-                        >
-                          Edit
-                        </Button>
-                      </TableCell>
+                {lotRows.length > 0 ? (
+                  lotRows.map((lot) => (
+                    <TableRow key={lot.lot_id}>
+                      <TableCell>{lot.lot_number}</TableCell>
+                      <TableCell>{lot.title}</TableCell>
+                      <TableCell>{formatCurrency(Number(lot.final_price || 0), auction.auction.currency)}</TableCell>
+                      <TableCell>{formatCurrency(Number(lot.commission || 0), auction.auction.currency)}</TableCell>
+                      <TableCell>{formatCurrency(Number(lot.buyer_premium || 0), auction.auction.currency)}</TableCell>
+                      <TableCell>{formatCurrency(Number(lot.seller_payout || 0), auction.auction.currency)}</TableCell>
+                      <TableCell>{lot.seller_name || "-"}</TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      No expenses recorded yet
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      No financials available yet
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Add Expense Dialog */}
-      <Dialog open={isAddExpenseOpen} onOpenChange={setIsAddExpenseOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Add New Expense</DialogTitle>
-            <DialogDescription>
-              Record a new expense for this auction. This will be included in the financial calculations.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="expense-description">Description *</Label>
-              <Input
-                id="expense-description"
-                value={expenseForm.description}
-                onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
-                placeholder="e.g., Digital Marketing Campaign"
-                required
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="expense-category">Category *</Label>
-                <Select
-                  value={expenseForm.category}
-                  onValueChange={(value) => setExpenseForm({ ...expenseForm, category: value })}
-                >
-                  <SelectTrigger id="expense-category">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Marketing">Marketing</SelectItem>
-                    <SelectItem value="Logistics">Logistics</SelectItem>
-                    <SelectItem value="Venue">Venue</SelectItem>
-                    <SelectItem value="Staff">Staff</SelectItem>
-                    <SelectItem value="Equipment">Equipment</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="expense-amount">Amount (₦) *</Label>
-                <Input
-                  id="expense-amount"
-                  type="number"
-                  value={expenseForm.amount}
-                  onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                  placeholder="0.00"
-                  required
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="expense-date">Date *</Label>
-              <Input
-                id="expense-date"
-                type="date"
-                value={expenseForm.date}
-                onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
-                required
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddExpenseOpen(false)} disabled={isLoading}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddExpense} disabled={isLoading}>
-              {isLoading ? "Adding..." : "Add Expense"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Payout Workflow Structure */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Consignor Payouts</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-muted-foreground">Manage the final settlement and payment to consignors after all bidder payments have been collected.</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-success/10 border-success/50">
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Ready for Payout</p>
-                <p className="text-xl font-semibold text-success">₦{auction.totalBid.toLocaleString()}</p>
-              </CardContent>
-            </Card>
-            <Card className="bg-warning/10 border-warning/50">
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Pending Consignor Info</p>
-                <p className="text-xl font-semibold text-warning">2 Consignors</p>
-              </CardContent>
-            </Card>
-            <Card className="bg-secondary/50 border-border">
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Total Payouts Made</p>
-                <p className="text-xl font-semibold text-foreground">₦0</p>
-              </CardContent>
-            </Card>
-          </div>
-          <p className="text-sm text-muted-foreground italic">
-            * Payouts are calculated based on total sales minus commission and any applicable fees.
-          </p>
         </CardContent>
       </Card>
     </div>

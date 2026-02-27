@@ -1,18 +1,40 @@
 import { withAuth, withoutAuth, getToken, setToken, removeToken } from "@/services/api";
+import type { AuthUser, AuctioneerProfile } from "../types";
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: "auctioneer" | "admin" | "superadmin";
-  avatar?: string;
-}
+type ApiErrorLike = {
+  response?: {
+    data?: unknown;
+  };
+  message?: string;
+};
 
-export interface LoginResponse {
+const rethrowApiError = (error: unknown): never => {
+  const err = error as ApiErrorLike;
+  throw err?.response?.data || { message: err?.message || "Request failed" };
+};
+
+export interface LoginSuccessResponse {
   message: string;
-  user: User;
+  user: AuthUser;
+  auctioneer: AuctioneerProfile | null;
+  can_access_auctioneer_features: boolean;
   token: string;
   token_type: string;
+}
+
+export interface LoginMfaRequiredResponse {
+  mfa_required: true;
+  mfa_channel?: string;
+  expires_in?: number;
+  message: string;
+}
+
+export type LoginResponse = LoginSuccessResponse | LoginMfaRequiredResponse;
+
+export interface CurrentUserResponse {
+  user: AuthUser;
+  auctioneer?: AuctioneerProfile | null;
+  can_access_auctioneer_features?: boolean;
 }
 
 export const authService = {
@@ -21,19 +43,13 @@ export const authService = {
    */
   async loginAuctioneer(email: string, password: string): Promise<LoginResponse> {
     try {
-      const res = await withoutAuth.post<LoginResponse>("/auctioneer/login", {
-        email,
-        password,
-      });
-
-      // Store token in cookie
-      if (res.data.token) {
+      const res = await withoutAuth.post<LoginResponse>("/auctioneer/login", { email, password });
+      if ("token" in res.data && res.data.token) {
         setToken(res.data.token);
       }
-
       return res.data;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+    } catch (error: unknown) {
+      return rethrowApiError(error);
     }
   },
 
@@ -42,19 +58,43 @@ export const authService = {
    */
   async loginAdmin(email: string, password: string): Promise<LoginResponse> {
     try {
-      const res = await withoutAuth.post<LoginResponse>("/admin/login", {
-        email,
-        password,
-      });
+      const res = await withoutAuth.post<LoginResponse>("/admin/login", { email, password });
+      if ("token" in res.data && res.data.token) {
+        setToken(res.data.token);
+      }
+      return res.data;
+    } catch (error: unknown) {
+      return rethrowApiError(error);
+    }
+  },
 
-      // Store token in cookie
+  /**
+   * Verify MFA
+   */
+  async verifyMfa(payload: { email: string; otp: string }): Promise<LoginSuccessResponse> {
+    try {
+      const res = await withoutAuth.post<LoginSuccessResponse>("/auth/mfa/verify", payload);
       if (res.data.token) {
         setToken(res.data.token);
       }
-
       return res.data;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+    } catch (error: unknown) {
+      return rethrowApiError(error);
+    }
+  },
+
+  /**
+   * Resend MFA Code
+   */
+  async resendMfa(payload: { email: string }): Promise<{ message: string; expires_in?: number }> {
+    try {
+      const res = await withoutAuth.post<{ message: string; expires_in?: number }>(
+        "/auth/mfa/resend",
+        payload
+      );
+      return res.data;
+    } catch (error: unknown) {
+      return rethrowApiError(error);
     }
   },
 
@@ -64,7 +104,7 @@ export const authService = {
   async logout(): Promise<void> {
     try {
       await withAuth.post("/logout");
-    } catch (error) {
+    } catch {
       // Continue even if logout fails
     } finally {
       removeToken();
@@ -74,12 +114,12 @@ export const authService = {
   /**
    * Get Current User
    */
-  async getCurrentUser(): Promise<User> {
+  async getCurrentUser(): Promise<CurrentUserResponse> {
     try {
-      const res = await withAuth.get<{ user: User }>("/user");
-      return res.data.user || res.data;
-    } catch (error: any) {
-      throw error?.response?.data || { message: error.message };
+      const res = await withAuth.get<CurrentUserResponse>("/user");
+      return res.data;
+    } catch (error: unknown) {
+      return rethrowApiError(error);
     }
   },
 
@@ -90,4 +130,3 @@ export const authService = {
     return !!getToken();
   },
 };
-

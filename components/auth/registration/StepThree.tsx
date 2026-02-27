@@ -31,7 +31,7 @@ interface StepThreeProps {
   registrationToken?: string | null;
 }
 
-export const StepThree = ({ onNext, onBack, defaultValues, isLoading, registrationToken }: StepThreeProps) => {
+export const StepThree = ({ onNext, onBack, defaultValues, isLoading }: StepThreeProps) => {
   const form = useForm<StepThreeData>({
     resolver: zodResolver(stepThreeSchema),
     defaultValues: defaultValues || {

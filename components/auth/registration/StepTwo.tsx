@@ -42,7 +42,7 @@ interface StepTwoProps {
   registrationToken?: string | null;
 }
 
-export const StepTwo = ({ onNext, onBack, defaultValues, isLoading, registrationToken }: StepTwoProps) => {
+export const StepTwo = ({ onNext, onBack, defaultValues, isLoading }: StepTwoProps) => {
   const form = useForm<StepTwoData>({
     resolver: zodResolver(stepTwoSchema),
     defaultValues: defaultValues || {

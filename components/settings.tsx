@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { CurrencySelect } from "@/components/ui/currency-select";
 import {
   Select,
   SelectContent,
@@ -12,16 +13,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ChevronDown, Save, X } from "lucide-react";
+import { Save, X } from "lucide-react";
+
+type SettingsFormData = {
+  auctionName: string;
+  description: string;
+  category: string;
+  currency: string;
+  allowAbsentee: boolean;
+  allowProxy: boolean;
+  enableNotifications: boolean;
+  commissionRate: number;
+};
 
 export default function SettingsTab() {
   const [hasChanges, setHasChanges] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<SettingsFormData>({
     auctionName: "Modern Art & Collectibles Auction",
     description: "A curated collection of modern art and rare collectibles",
     category: "art",
@@ -32,7 +39,7 @@ export default function SettingsTab() {
     commissionRate: 10,
   });
 
-  const handleChange = (field: string, value: any) => {
+  const handleChange = <K extends keyof SettingsFormData>(field: K, value: SettingsFormData[K]) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -115,20 +122,13 @@ export default function SettingsTab() {
               <Label htmlFor="currency" className="text-sm font-medium">
                 Currency
               </Label>
-              <Select
-                value={formData.currency}
-                onValueChange={(value) => handleChange("currency", value)}
-              >
-                <SelectTrigger id="currency" className="mt-2">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USD">USD ($)</SelectItem>
-                  <SelectItem value="EUR">EUR (€)</SelectItem>
-                  <SelectItem value="GBP">GBP (£)</SelectItem>
-                  <SelectItem value="JPY">JPY (¥)</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="mt-2">
+                <CurrencySelect
+                  name="currency"
+                  value={formData.currency}
+                  onChange={(value) => handleChange("currency", value || formData.currency)}
+                />
+              </div>
             </div>
           </div>
         </CardContent>

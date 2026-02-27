@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { Auction } from "@/data";
-import { getAuctionStatus, formatCurrency } from "@/lib/utils";
+import React, { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { AuctionOverviewResponse } from "@/features/auction/types";
+import { auctionService } from "@/features/auction/services/auctionService";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -30,8 +31,10 @@ import {
   MapPin, 
   Edit3, 
   Play, 
+  Pause,
   Square, 
   Trash2,
+  Check,
   Clock,
   Users,
   Gavel,
@@ -39,20 +42,30 @@ import {
 } from "lucide-react";
 
 interface AuctionHeaderProps {
-  auction: Auction;
+  auction: AuctionOverviewResponse;
 }
 
-function getStatusConfig(status: Auction["status"]) {
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+};
+
+function getStatusConfig(status: AuctionOverviewResponse["auction"]["status"]) {
   switch (status) {
-    case "Draft":
+    case "draft":
       return { label: "Draft", variant: "secondary" as const, dot: "bg-muted-foreground" };
-    case "Scheduled":
+    case "scheduled":
       return { label: "Scheduled", variant: "outline" as const, dot: "bg-warning" };
-    case "Live":
+    case "live":
       return { label: "Live Now", variant: "default" as const, dot: "bg-success" };
-    case "Closed":
+    case "paused":
+      return { label: "Paused", variant: "outline" as const, dot: "bg-warning" };
+    case "closed":
       return { label: "Closed", variant: "destructive" as const, dot: "bg-destructive" };
-    case "Completed":
+    case "completed":
       return { label: "Completed", variant: "secondary" as const, dot: "bg-muted-foreground" };
     default:
       return { label: status, variant: "default" as const, dot: "bg-muted-foreground" };
@@ -62,25 +75,29 @@ function getStatusConfig(status: Auction["status"]) {
 
 
 export default function AuctionHeader({ auction }: AuctionHeaderProps) {
+  const queryClient = useQueryClient();
   const [countdown, setCountdown] = useState("");
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isGoLiveOpen, setIsGoLiveOpen] = useState(false);
-  const [isEndAuctionOpen, setIsEndAuctionOpen] = useState(false);
+  const [isPublishOpen, setIsPublishOpen] = useState(false);
+  const [isPauseOpen, setIsPauseOpen] = useState(false);
+  const [isResumeOpen, setIsResumeOpen] = useState(false);
+  const [isCloseOpen, setIsCloseOpen] = useState(false);
+  const [isCompleteOpen, setIsCompleteOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [editForm, setEditForm] = useState({
-    title: auction.title,
-    description: auction.description,
-    location: auction.location,
+    title: auction.auction.name,
+    description: auction.auction.description,
+    location: auction.auction.address_line_1 || "",
   });
   
-  // Calculate real-time status
-  const currentStatus = useMemo(() => getAuctionStatus(auction), [auction]);
+  const currentStatus = auction.auction.status;
   
-  const isLive = currentStatus === "Live";
-  const isScheduled = currentStatus === "Scheduled";
-  const isDraft = currentStatus === "Draft";
-  const isClosed = currentStatus === "Closed";
+  const isLive = currentStatus === "live";
+  const isScheduled = currentStatus === "scheduled";
+  const isDraft = currentStatus === "draft";
+  const isClosed = currentStatus === "closed";
+  const isPaused = currentStatus === "paused";
   
   const statusConfig = getStatusConfig(currentStatus);
 
@@ -95,40 +112,118 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
     });
   };
 
-  const handleGoLive = async () => {
+  const handlePublishAuction = async () => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    setIsGoLiveOpen(false);
-    toast.success("Auction is now live!", {
-      description: "Bidders can now place bids on your auction.",
-    });
+    try {
+      await auctionService.publishAuction(auction.auction.id);
+      setIsPublishOpen(false);
+      toast.success("Auction published", {
+        description: "Your auction is published and will start automatically.",
+      });
+      await queryClient.invalidateQueries({ queryKey: ["auction", auction.auction.id] });
+      await queryClient.invalidateQueries({ queryKey: ["auction-overview", auction.auction.id] });
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, "Failed to publish auction.");
+      toast.error("Unable to publish auction", { description: message });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleEndAuction = async () => {
+  const handlePauseAuction = async () => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    setIsEndAuctionOpen(false);
-    toast.success("Auction ended", {
-      description: "The auction has been closed. No new bids will be accepted.",
-    });
+    try {
+      await auctionService.pauseAuction(auction.auction.id);
+      setIsPauseOpen(false);
+      toast.success("Auction paused", {
+        description: "Bidding is paused until you resume the auction.",
+      });
+      await queryClient.invalidateQueries({ queryKey: ["auction", auction.auction.id] });
+      await queryClient.invalidateQueries({ queryKey: ["auction-overview", auction.auction.id] });
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, "Failed to pause auction.");
+      toast.error("Unable to pause auction", { description: message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResumeAuction = async () => {
+    setIsLoading(true);
+    try {
+      await auctionService.resumeAuction(auction.auction.id);
+      setIsResumeOpen(false);
+      toast.success("Auction resumed", {
+        description: "Bidding is live again.",
+      });
+      await queryClient.invalidateQueries({ queryKey: ["auction", auction.auction.id] });
+      await queryClient.invalidateQueries({ queryKey: ["auction-overview", auction.auction.id] });
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, "Failed to resume auction.");
+      toast.error("Unable to resume auction", { description: message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCloseAuction = async () => {
+    setIsLoading(true);
+    try {
+      await auctionService.closeAuction(auction.auction.id);
+      setIsCloseOpen(false);
+      toast.success("Auction closed", {
+        description: "The auction has been closed. No new bids will be accepted.",
+      });
+      await queryClient.invalidateQueries({ queryKey: ["auction", auction.auction.id] });
+      await queryClient.invalidateQueries({ queryKey: ["auction-overview", auction.auction.id] });
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, "Failed to close auction.");
+      toast.error("Unable to close auction", { description: message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCompleteAuction = async () => {
+    setIsLoading(true);
+    try {
+      await auctionService.completeAuction(auction.auction.id);
+      setIsCompleteOpen(false);
+      toast.success("Auction completed", {
+        description: "The auction has been completed.",
+      });
+      await queryClient.invalidateQueries({ queryKey: ["auction", auction.auction.id] });
+      await queryClient.invalidateQueries({ queryKey: ["auction-overview", auction.auction.id] });
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, "Failed to complete auction.");
+      toast.error("Unable to complete auction", { description: message });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDeleteAuction = async () => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsLoading(false);
-    setIsDeleteOpen(false);
-    toast.success("Auction deleted", {
-      description: "The auction has been permanently deleted.",
-    });
+    try {
+      await auctionService.deleteAuction(auction.auction.id);
+      setIsDeleteOpen(false);
+      toast.success("Auction deleted", {
+        description: "The auction has been permanently deleted.",
+      });
+      await queryClient.invalidateQueries({ queryKey: ["auctions"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-auctions"] });
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, "Failed to delete auction.");
+      toast.error("Unable to delete auction", { description: message });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
     const updateCountdown = () => {
       const now = Date.now();
-      const targetDate = isLive ? new Date(auction.endDate) : new Date(auction.startDate);
+      const targetDate = isLive ? new Date(auction.auction.end_at) : new Date(auction.auction.start_at);
       const diff = Math.max(0, targetDate.getTime() - now);
       
       const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -146,7 +241,7 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
-  }, [auction.endDate, auction.startDate, isLive]);
+  }, [auction.auction.end_at, auction.auction.start_at, isLive]);
 
   return (
     <header className="animate-in fade-in duration-300">
@@ -165,18 +260,18 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
             </Badge>
             <Badge variant="outline" className="font-body text-xs gap-1.5">
               <Radio className="w-3 h-3" />
-              {auction.type}
+              {auction.auction.bidding_type}
             </Badge>
-            <span className="text-sm text-muted-foreground font-body">{auction.category}</span>
+            <span className="text-sm text-muted-foreground font-body">{auction.auction.categories}</span>
           </div>
 
           {/* Title and description */}
           <div className="mb-6">
             <h1 className="text-3xl lg:text-4xl font-display font-semibold text-foreground tracking-tight mb-2">
-              {auction.title}
+              {auction.auction.name}
             </h1>
             <p className="text-muted-foreground font-body text-base max-w-2xl">
-              {auction.description}
+              {auction.auction.description}
             </p>
           </div>
 
@@ -188,7 +283,11 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground font-body uppercase tracking-wide">Location</p>
-                <p className="text-sm font-medium text-foreground font-body">{auction.location}</p>
+                <p className="text-sm font-medium text-foreground font-body">
+                  {[auction.auction.address_line_1, auction.auction.city, auction.auction.state, auction.auction.country]
+                    .filter(Boolean)
+                    .join(', ') || 'N/A'}
+                </p>
               </div>
             </div>
 
@@ -201,7 +300,7 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
                   {isLive ? "Ends" : "Starts"}
                 </p>
                 <p className="text-sm font-medium text-foreground font-body">
-                  {new Date(isLive ? auction.endDate : auction.startDate).toLocaleDateString('en-US', { 
+                  {new Date(isLive ? auction.auction.end_at : auction.auction.start_at).toLocaleDateString('en-US', { 
                     month: 'short', 
                     day: 'numeric',
                     year: 'numeric'
@@ -216,7 +315,7 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground font-body uppercase tracking-wide">Total Lots</p>
-                <p className="text-sm font-medium text-foreground font-body">{auction.lots.length}</p>
+                <p className="text-sm font-medium text-foreground font-body">{auction.stats.lots_total}</p>
               </div>
             </div>
 
@@ -226,7 +325,7 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground font-body uppercase tracking-wide">Bidders</p>
-                <p className="text-sm font-medium text-foreground font-body">{auction.bidders.length}</p>
+                <p className="text-sm font-medium text-foreground font-body">{auction.stats.bidders_total}</p>
               </div>
             </div>
           </div>
@@ -252,43 +351,94 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
 
             {/* Actions */}
             <div className="flex flex-wrap items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="gap-2 font-body"
-                onClick={() => setIsEditOpen(true)}
-                disabled={isLoading}
-              >
-                <Edit3 className="w-4 h-4" />
-                Edit Auction
-              </Button>
-              
-              {(isScheduled || isDraft) && !isLive && !isClosed && (
+              {(isDraft || isScheduled) && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-2 font-body"
+                  onClick={() => setIsEditOpen(true)}
+                  disabled={isLoading}
+                >
+                  <Edit3 className="w-4 h-4" />
+                  Edit Auction
+                </Button>
+              )}
+
+              {isDraft && (
                 <Button 
                   size="sm" 
                   className="gap-2 font-body gradient-gold border-0 text-accent-foreground hover:opacity-90"
-                  onClick={() => setIsGoLiveOpen(true)}
+                  onClick={() => setIsPublishOpen(true)}
                   disabled={isLoading}
                 >
                   <Play className="w-4 h-4" />
-                  Go Live
+                  Publish
                 </Button>
               )}
-              
+
               {isLive && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2 font-body"
+                    onClick={() => setIsPauseOpen(true)}
+                    disabled={isLoading}
+                  >
+                    <Pause className="w-4 h-4" />
+                    Pause
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    className="gap-2 font-body"
+                    onClick={() => setIsCloseOpen(true)}
+                    disabled={isLoading}
+                  >
+                    <Square className="w-4 h-4" />
+                    Close
+                  </Button>
+                </>
+              )}
+
+              {isPaused && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2 font-body"
+                    onClick={() => setIsResumeOpen(true)}
+                    disabled={isLoading}
+                  >
+                    <Play className="w-4 h-4" />
+                    Resume
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    className="gap-2 font-body"
+                    onClick={() => setIsCloseOpen(true)}
+                    disabled={isLoading}
+                  >
+                    <Square className="w-4 h-4" />
+                    Close
+                  </Button>
+                </>
+              )}
+
+              {isClosed && (
                 <Button 
-                  variant="destructive" 
                   size="sm" 
                   className="gap-2 font-body"
-                  onClick={() => setIsEndAuctionOpen(true)}
+                  onClick={() => setIsCompleteOpen(true)}
                   disabled={isLoading}
                 >
-                  <Square className="w-4 h-4" />
-                  End Auction
+                  <Check className="w-4 h-4" />
+                  Complete
                 </Button>
               )}
               
-              {auction.bidCount === 0 && (
+              {isDraft && auction.stats.total_bids === 0 && (
                 <Button 
                   variant="ghost" 
                   size="sm" 
@@ -355,38 +505,91 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Go Live Confirmation */}
-      <AlertDialog open={isGoLiveOpen} onOpenChange={setIsGoLiveOpen}>
+      {/* Publish Auction Confirmation */}
+      <AlertDialog open={isPublishOpen} onOpenChange={setIsPublishOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Go Live with Auction?</AlertDialogTitle>
+            <AlertDialogTitle>Publish Auction?</AlertDialogTitle>
             <AlertDialogDescription>
-              Once you go live, bidders will be able to place bids. Make sure all lots and settings are configured correctly.
-              This action cannot be undone easily.
+              Publishing makes the auction visible to bidders. It will automatically start at the scheduled time.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleGoLive} disabled={isLoading}>
-              {isLoading ? "Going Live..." : "Go Live"}
+            <AlertDialogAction onClick={handlePublishAuction} disabled={isLoading}>
+              {isLoading ? "Publishing..." : "Publish"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* End Auction Confirmation */}
-      <AlertDialog open={isEndAuctionOpen} onOpenChange={setIsEndAuctionOpen}>
+      {/* Pause Auction Confirmation */}
+      <AlertDialog open={isPauseOpen} onOpenChange={setIsPauseOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>End Auction?</AlertDialogTitle>
+            <AlertDialogTitle>Pause Auction?</AlertDialogTitle>
             <AlertDialogDescription>
-              Ending the auction will close bidding immediately. All pending bids will be finalized. This action cannot be undone.
+              Pausing the auction will temporarily stop bidding. You can resume at any time.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleEndAuction} disabled={isLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {isLoading ? "Ending..." : "End Auction"}
+            <AlertDialogAction onClick={handlePauseAuction} disabled={isLoading}>
+              {isLoading ? "Pausing..." : "Pause"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Resume Auction Confirmation */}
+      <AlertDialog open={isResumeOpen} onOpenChange={setIsResumeOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Resume Auction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Resuming will allow bidders to place bids again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResumeAuction} disabled={isLoading}>
+              {isLoading ? "Resuming..." : "Resume"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Close Auction Confirmation */}
+      <AlertDialog open={isCloseOpen} onOpenChange={setIsCloseOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Close Auction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Closing the auction will stop bidding immediately. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCloseAuction} disabled={isLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isLoading ? "Closing..." : "Close Auction"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Complete Auction Confirmation */}
+      <AlertDialog open={isCompleteOpen} onOpenChange={setIsCompleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Complete Auction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Completing the auction will finalize the results and end the lifecycle.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCompleteAuction} disabled={isLoading}>
+              {isLoading ? "Completing..." : "Complete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

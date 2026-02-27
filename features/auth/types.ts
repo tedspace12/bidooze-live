@@ -53,7 +53,7 @@ export interface StepFivePayload {
 export interface StepOneResponse {
   message?: string;
   registration_token: string;
-  data?: any;
+  data?: unknown;
 }
 
 export interface RegistrationCompleteResponse {
@@ -64,11 +64,35 @@ export interface RegistrationCompleteResponse {
     name: string;
     role: string;
   };
-  data?: any;
+  data?: unknown;
 }
 
 export interface SubmitRegistrationPayload {
   registration_token: string;
+}
+
+export interface AuthUser {
+  id: number;
+  name: string;
+  email: string;
+  role: "auctioneer" | "admin" | "superadmin";
+  account_status: string;
+  avatar?: string | null;
+  avatar_url?: string | null;
+}
+
+export interface AuctioneerProfile {
+  id: number;
+  status: string;
+  registration_step: number;
+  company_name: string | null;
+}
+
+export interface AuthSession {
+  token: string | null;
+  user: AuthUser | null;
+  auctioneer: AuctioneerProfile | null;
+  can_access_auctioneer_features: boolean;
 }
 
 export interface RegistrationProgressResponse {
@@ -105,4 +129,3 @@ export interface RegistrationProgressResponse {
   };
   can_submit: boolean;
 }
-

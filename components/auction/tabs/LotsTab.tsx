@@ -1,5 +1,8 @@
-import { useState } from "react";
-import { Auction, Lot } from "@/data";
+import { useMemo, useState } from "react";
+import Image from "next/image";
+import { AuctionOverviewResponse } from "@/features/auction/types";
+import { useAuctionLots } from "@/features/auction/hooks/useAuctionLots";
+import { formatCurrency } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,265 +42,275 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
-  Plus, 
-  Search, 
-  MoreHorizontal, 
-  Edit3, 
-  Trash2, 
+import {
+  Plus,
+  Search,
+  MoreHorizontal,
+  Edit3,
+  Trash2,
   Eye,
   Package,
-  ArrowUpDown,
   LayoutGrid,
   List,
-  Eye as EyeIcon,
-  Image as ImageIcon
+  Image as ImageIcon,
 } from "lucide-react";
-import Image from "next/image";
-import { FormInput } from "../FormInput";
-import { FormSelect } from "../FormSelect";
-import { FormTextarea } from "../FormTextarea";
 
 interface LotsTabProps {
-  auction: Auction;
+  auction: AuctionOverviewResponse;
 }
 
-function getStatusBadge(status: Lot["status"]) {
+type LotImage = {
+  id: number;
+  image_url: string;
+};
+
+type LotRecord = {
+  id: number;
+  lot_number: string;
+  title: string;
+  description: string | null;
+  quantity: number | null;
+  starting_bid: string | number | null;
+  reserve_price: string | number | null;
+  estimate_low: string | number | null;
+  estimate_high: string | number | null;
+  commission_percentage: string | number | null;
+  buyer_premium_percentage: string | number | null;
+  buyer_tax_percentage: string | number | null;
+  seller_tax_percentage: string | number | null;
+  status: "pending" | "active" | "sold" | "passed" | "cancelled";
+  images?: LotImage[];
+};
+
+function getStatusBadge(status: LotRecord["status"]) {
   const config = {
-    Pending: { label: "Pending", variant: "secondary" as const },
-    Active: { label: "Active", variant: "default" as const },
-    Sold: { label: "Sold", variant: "outline" as const },
-    Unsold: { label: "Unsold", variant: "destructive" as const },
+    pending: { label: "Pending", variant: "secondary" as const },
+    active: { label: "Active", variant: "default" as const },
+    sold: { label: "Sold", variant: "outline" as const },
+    passed: { label: "Passed", variant: "secondary" as const },
+    cancelled: { label: "Cancelled", variant: "destructive" as const },
   };
-  return config[status || "Pending"] || config.Pending;
+  return config[status] || config.pending;
 }
 
-function formatCurrency(amount: number, currency: Auction["currency"]) {
-  const symbol = currency === "NGN" ? "₦" : "$";
-  return `${symbol}${amount.toLocaleString()}`;
-}
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+};
+
+const extractLotRecords = (payload: unknown): LotRecord[] => {
+  if (Array.isArray(payload)) {
+    return payload as LotRecord[];
+  }
+
+  if (payload && typeof payload === "object" && "data" in payload) {
+    const nested = (payload as { data?: unknown }).data;
+
+    if (Array.isArray(nested)) {
+      return nested as LotRecord[];
+    }
+
+    if (nested && typeof nested === "object" && "data" in nested) {
+      const doubleNested = (nested as { data?: unknown }).data;
+      if (Array.isArray(doubleNested)) {
+        return doubleNested as LotRecord[];
+      }
+    }
+  }
+
+  return [];
+};
 
 export default function LotsTab({ auction }: LotsTabProps) {
+  const { lots, createLot, updateLot, deleteLot } = useAuctionLots(auction.auction.id);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
-  const [sortField, setSortField] = useState<keyof Lot>("lotNumber");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [isAddLotOpen, setIsAddLotOpen] = useState(false);
   const [isEditLotOpen, setIsEditLotOpen] = useState(false);
   const [isDeleteLotOpen, setIsDeleteLotOpen] = useState(false);
   const [isViewLotOpen, setIsViewLotOpen] = useState(false);
-  const [selectedLot, setSelectedLot] = useState<Lot | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [lots, setLots] = useState<Lot[]>(auction.lots);
-  // Initialize metadata for existing lots (empty seller/quantity for existing lots)
-  const [lotMetadata, setLotMetadata] = useState<Record<string, { seller: string; quantity: string }>>(() => {
-    const initial: Record<string, { seller: string; quantity: string }> = {};
-    auction.lots.forEach(lot => {
-      initial[lot.id] = { seller: "", quantity: "1" };
-    });
-    return initial;
-  });
+  const [selectedLot, setSelectedLot] = useState<LotRecord | null>(null);
   const [lotForm, setLotForm] = useState({
+    lot_number: "",
     title: "",
     description: "",
-    startingBid: "",
-    lotNumber: "",
-    seller: "",
     quantity: "1",
-    image: null as File | null,
-    imagePreview: "" as string | null,
+    starting_bid: "",
+    reserve_price: "",
+    estimate_low: "",
+    estimate_high: "",
+    commission_percentage: "",
+    buyer_premium_percentage: "",
+    buyer_tax_percentage: "",
+    seller_tax_percentage: "",
+    images: [] as File[],
+    imagePreviews: [] as string[],
   });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.type.startsWith('image/')) {
-        setLotForm({
-          ...lotForm,
-          image: file,
-          imagePreview: URL.createObjectURL(file),
-        });
-      } else {
-        toast.error("Please select a valid image file");
-      }
-    }
-  };
+  const lotList: LotRecord[] = useMemo(() => {
+    return extractLotRecords(lots.data);
+  }, [lots.data]);
 
-  const handleImageDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      setLotForm({
-        ...lotForm,
-        image: file,
-        imagePreview: URL.createObjectURL(file),
-      });
-    } else {
-      toast.error("Please drop a valid image file");
-    }
-  };
+  const filteredLots = lotList.filter((lot) => {
+    return (
+      lot.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      lot.lot_number.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
-  const handleImageRemove = () => {
-    if (lotForm.imagePreview && lotForm.imagePreview.startsWith('blob:')) {
-      URL.revokeObjectURL(lotForm.imagePreview);
-    }
+  const resetForm = () => {
     setLotForm({
-      ...lotForm,
-      image: null,
-      imagePreview: null,
+      lot_number: "",
+      title: "",
+      description: "",
+      quantity: "1",
+      starting_bid: "",
+      reserve_price: "",
+      estimate_low: "",
+      estimate_high: "",
+      commission_percentage: "",
+      buyer_premium_percentage: "",
+      buyer_tax_percentage: "",
+      seller_tax_percentage: "",
+      images: [],
+      imagePreviews: [],
     });
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (!files.length) return;
+    const previews = files.map((file) => URL.createObjectURL(file));
+    setLotForm((prev) => ({
+      ...prev,
+      images: files,
+      imagePreviews: previews,
+    }));
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setLotForm((prev) => {
+      const nextImages = prev.images.filter((_, i) => i !== index);
+      const nextPreviews = prev.imagePreviews.filter((_, i) => i !== index);
+      return { ...prev, images: nextImages, imagePreviews: nextPreviews };
+    });
+  };
   const handleAddLot = async () => {
-    if (!lotForm.title || !lotForm.startingBid || !lotForm.seller) {
-      toast.error("Please fill in all required fields");
+    if (!lotForm.lot_number || !lotForm.title) {
+      toast.error("Lot number and title are required.");
       return;
     }
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Generate a mock image URL from the uploaded file
-    const imageUrl = lotForm.imagePreview || "/images/lots/placeholder.jpg";
-    
-    const newLot: Lot = {
-      id: `lot-${Date.now()}`,
-      lotNumber: parseInt(lotForm.lotNumber) || lots.length + 1,
-      title: lotForm.title,
-      description: lotForm.description,
-      startingBid: parseFloat(lotForm.startingBid),
-      highestBid: 0,
-      status: "Pending",
-      watchers: 0,
-      image: imageUrl,
-    };
-    setLots([...lots, newLot]);
-    setLotMetadata({
-      ...lotMetadata,
-      [newLot.id]: {
-        seller: lotForm.seller,
-        quantity: lotForm.quantity,
-      },
-    });
-    setLotForm({ title: "", description: "", startingBid: "", lotNumber: "", seller: "", quantity: "1", image: null, imagePreview: null });
-    setIsAddLotOpen(false);
-    setIsLoading(false);
-    toast.success("Lot added successfully", {
-      description: `${newLot.title} has been added to the auction.`,
-    });
+    try {
+      await createLot.mutateAsync({
+        lot_number: lotForm.lot_number,
+        title: lotForm.title,
+        description: lotForm.description || null,
+        quantity: Number(lotForm.quantity) || 1,
+        starting_bid: Number(lotForm.starting_bid) || 0,
+        reserve_price: lotForm.reserve_price ? Number(lotForm.reserve_price) : null,
+        estimate_low: lotForm.estimate_low ? Number(lotForm.estimate_low) : null,
+        estimate_high: lotForm.estimate_high ? Number(lotForm.estimate_high) : null,
+        commission_percentage: lotForm.commission_percentage ? Number(lotForm.commission_percentage) : null,
+        buyer_premium_percentage: lotForm.buyer_premium_percentage ? Number(lotForm.buyer_premium_percentage) : null,
+        buyer_tax_percentage: lotForm.buyer_tax_percentage ? Number(lotForm.buyer_tax_percentage) : null,
+        seller_tax_percentage: lotForm.seller_tax_percentage ? Number(lotForm.seller_tax_percentage) : null,
+        images: lotForm.images,
+      });
+      setIsAddLotOpen(false);
+      resetForm();
+      toast.success("Lot created successfully.");
+    } catch (error: unknown) {
+      toast.error("Failed to create lot", { description: getErrorMessage(error, "Please try again.") });
+    }
   };
 
-  const handleEditLot = (lot: Lot) => {
+  const handleEditLot = (lot: LotRecord) => {
     setSelectedLot(lot);
-    const metadata = lotMetadata[lot.id] || { seller: "", quantity: "1" };
     setLotForm({
+      lot_number: lot.lot_number,
       title: lot.title,
-      description: lot.description,
-      startingBid: lot.startingBid.toString(),
-      lotNumber: lot.lotNumber.toString(),
-      seller: metadata.seller,
-      quantity: metadata.quantity,
-      image: null,
-      imagePreview: lot.image || null,
+      description: lot.description || "",
+      quantity: String(lot.quantity ?? 1),
+      starting_bid: String(lot.starting_bid ?? ""),
+      reserve_price: String(lot.reserve_price ?? ""),
+      estimate_low: String(lot.estimate_low ?? ""),
+      estimate_high: String(lot.estimate_high ?? ""),
+      commission_percentage: String(lot.commission_percentage ?? ""),
+      buyer_premium_percentage: String(lot.buyer_premium_percentage ?? ""),
+      buyer_tax_percentage: String(lot.buyer_tax_percentage ?? ""),
+      seller_tax_percentage: String(lot.seller_tax_percentage ?? ""),
+      images: [],
+      imagePreviews: [],
     });
     setIsEditLotOpen(true);
   };
 
   const handleUpdateLot = async () => {
-    if (!selectedLot || !lotForm.title || !lotForm.startingBid || !lotForm.seller) {
-      toast.error("Please fill in all required fields");
-      return;
+    if (!selectedLot) return;
+    try {
+      await updateLot.mutateAsync({
+        lotId: selectedLot.id,
+        payload: {
+          lot_number: lotForm.lot_number,
+          title: lotForm.title,
+          description: lotForm.description || undefined,
+          quantity: Number(lotForm.quantity) || 1,
+          starting_bid: lotForm.starting_bid ? Number(lotForm.starting_bid) : undefined,
+          reserve_price: lotForm.reserve_price ? Number(lotForm.reserve_price) : null,
+          estimate_low: lotForm.estimate_low ? Number(lotForm.estimate_low) : null,
+          estimate_high: lotForm.estimate_high ? Number(lotForm.estimate_high) : null,
+          commission_percentage: lotForm.commission_percentage ? Number(lotForm.commission_percentage) : null,
+          buyer_premium_percentage: lotForm.buyer_premium_percentage ? Number(lotForm.buyer_premium_percentage) : null,
+          buyer_tax_percentage: lotForm.buyer_tax_percentage ? Number(lotForm.buyer_tax_percentage) : null,
+          seller_tax_percentage: lotForm.seller_tax_percentage ? Number(lotForm.seller_tax_percentage) : null,
+          images: lotForm.images,
+        },
+      });
+      setIsEditLotOpen(false);
+      setSelectedLot(null);
+      resetForm();
+      toast.success("Lot updated successfully.");
+    } catch (error: unknown) {
+      toast.error("Failed to update lot", { description: getErrorMessage(error, "Please try again.") });
     }
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const imageUrl = lotForm.imagePreview || selectedLot.image || "";
-    
-    setLots(lots.map(lot => 
-      lot.id === selectedLot.id 
-        ? { ...lot, title: lotForm.title, description: lotForm.description, startingBid: parseFloat(lotForm.startingBid), image: imageUrl }
-        : lot
-    ));
-    setLotMetadata({
-      ...lotMetadata,
-      [selectedLot.id]: {
-        seller: lotForm.seller,
-        quantity: lotForm.quantity,
-      },
-    });
-    setIsEditLotOpen(false);
-    setSelectedLot(null);
-    // Clean up image preview URL if it's a blob URL
-    if (lotForm.imagePreview && lotForm.imagePreview.startsWith('blob:')) {
-      URL.revokeObjectURL(lotForm.imagePreview);
-    }
-    setIsLoading(false);
-    toast.success("Lot updated successfully", {
-      description: "The lot has been updated.",
-    });
   };
 
   const handleDeleteLot = async () => {
     if (!selectedLot) return;
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setLots(lots.filter(lot => lot.id !== selectedLot.id));
-    setIsDeleteLotOpen(false);
-    setSelectedLot(null);
-    setIsLoading(false);
-    toast.success("Lot deleted", {
-      description: "The lot has been removed from the auction.",
-    });
-  };
-
-  const filteredLots = lots
-    .filter((lot) =>
-      lot.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lot.lotNumber.toString().includes(searchQuery)
-    )
-    .sort((a, b) => {
-      const aVal = a[sortField];
-      const bVal = b[sortField];
-      if (typeof aVal === "number" && typeof bVal === "number") {
-        return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
-      }
-      return sortOrder === "asc"
-        ? String(aVal).localeCompare(String(bVal))
-        : String(bVal).localeCompare(String(aVal));
-    });
-
-  const handleSort = (field: keyof Lot) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortOrder("asc");
+    try {
+      await deleteLot.mutateAsync(selectedLot.id);
+      setIsDeleteLotOpen(false);
+      setSelectedLot(null);
+      toast.success("Lot deleted.");
+    } catch (error: unknown) {
+      toast.error("Failed to delete lot", { description: getErrorMessage(error, "Please try again.") });
     }
   };
 
+  const getPrimaryImage = (lot: LotRecord) => lot.images?.[0]?.image_url || "";
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-display font-semibold text-foreground">Lots</h2>
-          <p className="text-sm text-muted-foreground font-body mt-1">
-            Manage auction lots and inventory
-          </p>
+          <p className="text-sm text-muted-foreground font-body mt-1">Manage auction lots and inventory</p>
         </div>
-        <Button 
+        <Button
           className="gap-2 font-body gradient-gold border-0 text-accent-foreground hover:opacity-90"
           onClick={() => {
-            setLotForm({ title: "", description: "", startingBid: "", lotNumber: "", seller: "", quantity: "1", image: null, imagePreview: null });
+            resetForm();
             setIsAddLotOpen(true);
           }}
-          disabled={isLoading}
         >
           <Plus className="w-4 h-4" />
           Add Lot
         </Button>
       </div>
 
-      {/* Search and view toggle */}
       <Card className="border border-border shadow-soft">
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
@@ -333,103 +346,53 @@ export default function LotsTab({ auction }: LotsTabProps) {
           </div>
         </CardContent>
       </Card>
-
-      {/* Grid View */}
       {viewMode === "grid" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredLots.length > 0 ? (
-            filteredLots.map((lot, index) => {
+            filteredLots.map((lot) => {
               const statusConfig = getStatusBadge(lot.status);
-              
+              const primaryImage = getPrimaryImage(lot);
+
               return (
-                <Card 
-                  key={lot.id} 
-                  className="group border border-border shadow-soft hover:shadow-medium transition-all overflow-hidden animate-in fade-in duration-300 pt-0 pb-0"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  {/* Image placeholder */}
+                <Card key={lot.id} className="group border border-border shadow-soft hover:shadow-medium transition-all overflow-hidden pt-0 pb-0">
                   <div className="aspect-4/3 bg-secondary relative overflow-hidden">
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        {lot.image ? (
-                            <Image src={lot.image} alt={lot.title} className="object-cover w-full h-full" fill />
-                        ) : (
-                      <Package className="w-12 h-12 text-muted-foreground/30" />
-                        )}
-                    </div>
-                    {/* Lot number badge */}
+                    {primaryImage ? (
+                      <Image src={primaryImage} alt={lot.title} className="object-cover w-full h-full" fill />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Package className="w-12 h-12 text-muted-foreground/30" />
+                      </div>
+                    )}
                     <div className="absolute top-3 left-3">
                       <Badge variant="secondary" className="font-body text-xs bg-background/90 backdrop-blur-sm">
-                        Lot {lot.lotNumber}
+                        Lot {lot.lot_number}
                       </Badge>
                     </div>
-                    {/* Status badge */}
                     <div className="absolute top-3 right-3">
                       <Badge variant={statusConfig.variant} className="font-body text-xs">
                         {statusConfig.label}
                       </Badge>
                     </div>
-                    {/* Quick actions on hover */}
                     <div className="absolute inset-0 bg-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                      <Button 
-                        size="sm" 
-                        variant="secondary" 
-                        className="font-body gap-1"
-                        onClick={() => {
-                          setSelectedLot(lot);
-                          setIsViewLotOpen(true);
-                        }}
-                      >
+                      <Button size="sm" variant="secondary" className="font-body gap-1" onClick={() => { setSelectedLot(lot); setIsViewLotOpen(true); }}>
                         <Eye className="w-3 h-3" />
                         View
                       </Button>
-                      <Button 
-                        size="sm" 
-                        variant="secondary" 
-                        className="font-body gap-1"
-                        onClick={() => handleEditLot(lot)}
-                        disabled={isLoading}
-                      >
+                      <Button size="sm" variant="secondary" className="font-body gap-1" onClick={() => handleEditLot(lot)}>
                         <Edit3 className="w-3 h-3" />
                         Edit
                       </Button>
                     </div>
                   </div>
-                  
+
                   <CardContent className="p-4">
-                    {/* Title */}
-                    <h3 className="font-body font-semibold text-foreground line-clamp-1 mb-1">
-                      {lot.title}
-                    </h3>
-                    <p className="text-xs text-muted-foreground font-body line-clamp-1 mb-3">
-                      {lot.description}
-                    </p>
-                    
-                    {/* Starting bid */}
+                    <h3 className="font-body font-semibold text-foreground line-clamp-1 mb-1">{lot.title}</h3>
+                    <p className="text-xs text-muted-foreground font-body line-clamp-1 mb-3">{lot.description}</p>
                     <div className="mb-3">
                       <p className="text-xs text-muted-foreground font-body uppercase tracking-wide">Starting Bid</p>
                       <p className="text-sm font-body text-foreground">
-                        {formatCurrency(lot.startingBid, auction.currency)}
+                        {formatCurrency(Number(lot.starting_bid || 0), auction.auction.currency)}
                       </p>
-                    </div>
-                    
-                    {/* Current bid */}
-                    <div className="flex items-center justify-between pt-3 border-t border-border">
-                      <div>
-                        <p className="text-xs text-muted-foreground font-body uppercase tracking-wide">Highest Bid</p>
-                        {lot.highestBid > 0 ? (
-                          <p className="text-lg font-semibold text-accent font-body tabular-nums">
-                            {formatCurrency(lot.highestBid, auction.currency)}
-                          </p>
-                        ) : (
-                          <p className="text-sm text-muted-foreground font-body">No bids yet</p>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <EyeIcon className="w-3 h-3" />
-                          <span className="text-sm font-body">{lot.watchers}</span>
-                        </div>
-                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -448,41 +411,14 @@ export default function LotsTab({ auction }: LotsTabProps) {
         </div>
       )}
 
-      {/* Table View */}
       {viewMode === "table" && (
         <Card className="border border-border shadow-soft overflow-hidden pt-0 pb-0">
           <Table>
             <TableHeader>
               <TableRow className="bg-secondary/50 hover:bg-secondary/50">
-                <TableHead 
-                  className="font-body font-semibold text-foreground cursor-pointer"
-                  onClick={() => handleSort("lotNumber")}
-                >
-                  <div className="flex items-center gap-1">
-                    Lot #
-                    <ArrowUpDown className="w-3 h-3" />
-                  </div>
-                </TableHead>
+                <TableHead className="font-body font-semibold text-foreground">Lot #</TableHead>
                 <TableHead className="font-body font-semibold text-foreground">Item</TableHead>
                 <TableHead className="font-body font-semibold text-foreground">Starting Bid</TableHead>
-                <TableHead 
-                  className="font-body font-semibold text-foreground cursor-pointer"
-                  onClick={() => handleSort("highestBid")}
-                >
-                  <div className="flex items-center gap-1">
-                    Highest Bid
-                    <ArrowUpDown className="w-3 h-3" />
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="font-body font-semibold text-foreground cursor-pointer"
-                  onClick={() => handleSort("watchers")}
-                >
-                  <div className="flex items-center gap-1">
-                    Watchers
-                    <ArrowUpDown className="w-3 h-3" />
-                  </div>
-                </TableHead>
                 <TableHead className="font-body font-semibold text-foreground">Status</TableHead>
                 <TableHead className="font-body font-semibold text-foreground w-12"></TableHead>
               </TableRow>
@@ -491,50 +427,31 @@ export default function LotsTab({ auction }: LotsTabProps) {
               {filteredLots.length > 0 ? (
                 filteredLots.map((lot) => {
                   const statusConfig = getStatusBadge(lot.status);
+                  const primaryImage = getPrimaryImage(lot);
+
                   return (
                     <TableRow key={lot.id} className="group hover:bg-secondary/30">
-                      <TableCell className="font-body font-medium text-foreground">
-                        {lot.lotNumber}
-                      </TableCell>
+                      <TableCell className="font-body font-medium text-foreground">{lot.lot_number}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
-                            {lot.image ? (
-                              <Image 
-                                src={lot.image} 
-                                alt={lot.title}
-                                width={48}
-                                height={48}
-                                className="w-full h-full object-cover"
-                              />
+                            {primaryImage ? (
+                              <Image src={primaryImage} alt={lot.title} width={48} height={48} className="w-full h-full object-cover" />
                             ) : (
                               <Package className="w-5 h-5 text-muted-foreground" />
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-body font-medium text-foreground truncate">
-                              {lot.title}
-                            </p>
-                            <p className="font-body text-xs text-muted-foreground truncate">
-                              {lot.description}
+                            <p className="font-body font-medium text-foreground truncate">{lot.title}</p>
+                            <p className="text-xs text-muted-foreground font-body truncate">
+                              {(lot.description || "").slice(0, 60)}
+                              {(lot.description || "").length > 60 ? "..." : ""}
                             </p>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="font-body tabular-nums text-muted-foreground">
-                        {formatCurrency(lot.startingBid, auction.currency)}
-                      </TableCell>
-                      <TableCell className="font-body tabular-nums">
-                        {lot.highestBid > 0 ? (
-                          <span className="font-semibold text-accent">
-                            {formatCurrency(lot.highestBid, auction.currency)}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">No bids</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-body tabular-nums">
-                        {lot.watchers}
+                      <TableCell className="font-body">
+                        {formatCurrency(Number(lot.starting_bid || 0), auction.auction.currency)}
                       </TableCell>
                       <TableCell>
                         <Badge variant={statusConfig.variant} className="font-body text-xs">
@@ -549,32 +466,15 @@ export default function LotsTab({ auction }: LotsTabProps) {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="font-body">
-                            <DropdownMenuItem 
-                              className="gap-2"
-                              onClick={() => {
-                                setSelectedLot(lot);
-                                setIsViewLotOpen(true);
-                              }}
-                            >
+                            <DropdownMenuItem className="gap-2" onClick={() => { setSelectedLot(lot); setIsViewLotOpen(true); }}>
                               <Eye className="w-4 h-4" />
-                              View Details
+                              View
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              className="gap-2"
-                              onClick={() => handleEditLot(lot)}
-                              disabled={isLoading}
-                            >
+                            <DropdownMenuItem className="gap-2" onClick={() => handleEditLot(lot)}>
                               <Edit3 className="w-4 h-4" />
-                              Edit Lot
+                              Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              className="gap-2 text-destructive"
-                              onClick={() => {
-                                setSelectedLot(lot);
-                                setIsDeleteLotOpen(true);
-                              }}
-                              disabled={isLoading}
-                            >
+                            <DropdownMenuItem className="gap-2 text-destructive" onClick={() => { setSelectedLot(lot); setIsDeleteLotOpen(true); }}>
                               <Trash2 className="w-4 h-4" />
                               Delete
                             </DropdownMenuItem>
@@ -586,7 +486,7 @@ export default function LotsTab({ auction }: LotsTabProps) {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12">
+                  <TableCell colSpan={5} className="text-center py-12">
                     <Package className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
                     <p className="text-muted-foreground font-body">No lots found</p>
                   </TableCell>
@@ -597,296 +497,243 @@ export default function LotsTab({ auction }: LotsTabProps) {
         </Card>
       )}
 
-      {/* Add Lot Dialog */}
       <Dialog open={isAddLotOpen} onOpenChange={setIsAddLotOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Add New Lot</DialogTitle>
-            <DialogDescription>
-              Add a new lot to this auction. Fill in the required information.
-            </DialogDescription>
+            <DialogDescription>Add a new lot to this auction.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-3">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <FormInput 
-                label="Lot Number" 
-                placeholder="001"
-                value={lotForm.lotNumber}
-                onChange={(e) => setLotForm({ ...lotForm, lotNumber: e.target.value })}
-              />
-              <FormSelect
-                label="Seller"
-                options={[
-                  { value: "seller1", label: "John Smith" },
-                  { value: "seller2", label: "Jane Doe" },
-                  { value: "seller3", label: "Robert Johnson" },
-                ]}
-                placeholder="Select seller..."
-                value={lotForm.seller}
-                onValueChange={(value) => setLotForm({ ...lotForm, seller: value })}
-              />
-              <FormInput 
-                label="Quantity" 
-                type="number" 
-                placeholder="1" 
-                value={lotForm.quantity}
-                onChange={(e) => setLotForm({ ...lotForm, quantity: e.target.value })}
-              />
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Lot Number</Label>
+                <Input value={lotForm.lot_number} onChange={(e) => setLotForm({ ...lotForm, lot_number: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Quantity</Label>
+                <Input value={lotForm.quantity} onChange={(e) => setLotForm({ ...lotForm, quantity: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Starting Bid</Label>
+                <Input value={lotForm.starting_bid} onChange={(e) => setLotForm({ ...lotForm, starting_bid: e.target.value })} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input value={lotForm.title} onChange={(e) => setLotForm({ ...lotForm, title: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea value={lotForm.description} onChange={(e) => setLotForm({ ...lotForm, description: e.target.value })} rows={4} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Reserve Price</Label>
+                <Input value={lotForm.reserve_price} onChange={(e) => setLotForm({ ...lotForm, reserve_price: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Estimate Low</Label>
+                <Input value={lotForm.estimate_low} onChange={(e) => setLotForm({ ...lotForm, estimate_low: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Estimate High</Label>
+                <Input value={lotForm.estimate_high} onChange={(e) => setLotForm({ ...lotForm, estimate_high: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label>Commission %</Label>
+                <Input value={lotForm.commission_percentage} onChange={(e) => setLotForm({ ...lotForm, commission_percentage: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Buyer Premium %</Label>
+                <Input value={lotForm.buyer_premium_percentage} onChange={(e) => setLotForm({ ...lotForm, buyer_premium_percentage: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Buyer Tax %</Label>
+                <Input value={lotForm.buyer_tax_percentage} onChange={(e) => setLotForm({ ...lotForm, buyer_tax_percentage: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Seller Tax %</Label>
+                <Input value={lotForm.seller_tax_percentage} onChange={(e) => setLotForm({ ...lotForm, seller_tax_percentage: e.target.value })} />
+              </div>
             </div>
 
             <div>
-              <FormInput 
-                label="Title" 
-                placeholder="Enter lot title"
-                value={lotForm.title}
-                onChange={(e) => setLotForm({ ...lotForm, title: e.target.value })}
+              <p className="text-xs font-medium text-muted-foreground mb-3">Lot Images</p>
+              <input
+                id="lot-image-upload"
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleImageChange}
               />
-            </div>
-
-            <div>
-              <FormTextarea 
-                label="Description" 
-                placeholder="Describe this lot..." 
-                rows={4}
-                value={lotForm.description}
-                onChange={(e) => setLotForm({ ...lotForm, description: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-6">
-              <FormInput 
-                label="Starting Bid" 
-                type="number" 
-                placeholder="0.00"
-                value={lotForm.startingBid}
-                onChange={(e) => setLotForm({ ...lotForm, startingBid: e.target.value })}
-              />
-            </div>
-
-            {/* Lot Media */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-3">Lot Media</p>
-              {lotForm.imagePreview ? (
-                <div className="relative border border-border rounded-xl overflow-hidden">
-                  <div className="relative w-full h-40 bg-muted overflow-hidden">
-                    {lotForm.imagePreview.startsWith('blob:') ? (
-                      <img
-                        src={lotForm.imagePreview}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Image
-                        src={lotForm.imagePreview}
-                        alt="Preview"
-                        fill
-                        className="object-cover"
-                      />
-                    )}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {lotForm.imagePreviews.map((src, index) => (
+                  <div key={src} className="relative border border-border rounded-lg overflow-hidden">
+                    <Image
+                      src={src}
+                      alt="Preview"
+                      width={240}
+                      height={96}
+                      unoptimized
+                      className="w-full h-24 object-cover"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-1 right-1 h-7 w-7"
+                      onClick={() => handleRemoveImage(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-2 right-2 z-10"
-                    onClick={handleImageRemove}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div
-                  className="border-2 border-dashed border-border-subtle rounded-xl p-6 text-center hover:border-primary/50 transition-colors cursor-pointer group"
-                  onDrop={handleImageDrop}
-                  onDragOver={(e) => e.preventDefault()}
-                  onClick={() => document.getElementById('lot-image-upload')?.click()}
+                ))}
+                <button
+                  type="button"
+                  className="border-2 border-dashed border-border rounded-lg h-24 flex flex-col items-center justify-center text-muted-foreground"
+                  onClick={() => document.getElementById("lot-image-upload")?.click()}
                 >
-                  <input
-                    id="lot-image-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageChange}
-                  />
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="h-10 w-10 rounded-lg bg-primary-muted flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                      <ImageIcon className="h-5 w-5 text-green-700" strokeWidth={1.5} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Upload images</p>
-                      <p className="text-xs text-muted-foreground">Drag & drop or click to browse</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+                  <ImageIcon className="h-5 w-5 mb-1" />
+                  <span className="text-xs">Upload</span>
+                </button>
+              </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddLotOpen(false)} disabled={isLoading}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddLot} disabled={isLoading}>
-              {isLoading ? "Adding..." : "Add Lot"}
+            <Button variant="outline" onClick={() => setIsAddLotOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddLot} disabled={createLot.isPending}>
+              {createLot.isPending ? "Adding..." : "Add Lot"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Edit Lot Dialog */}
       <Dialog open={isEditLotOpen} onOpenChange={setIsEditLotOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Edit Lot</DialogTitle>
-            <DialogDescription>
-              Update lot information. Changes will be saved immediately.
-            </DialogDescription>
+            <DialogDescription>Update lot details.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-3">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <FormInput 
-                label="Lot Number" 
-                placeholder="001"
-                value={lotForm.lotNumber}
-                onChange={(e) => setLotForm({ ...lotForm, lotNumber: e.target.value })}
-              />
-              <FormSelect
-                label="Seller"
-                options={[
-                  { value: "seller1", label: "John Smith" },
-                  { value: "seller2", label: "Jane Doe" },
-                  { value: "seller3", label: "Robert Johnson" },
-                ]}
-                placeholder="Select seller..."
-                value={lotForm.seller}
-                onValueChange={(value) => setLotForm({ ...lotForm, seller: value })}
-              />
-              <FormInput 
-                label="Quantity" 
-                type="number" 
-                placeholder="1" 
-                value={lotForm.quantity}
-                onChange={(e) => setLotForm({ ...lotForm, quantity: e.target.value })}
-              />
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Lot Number</Label>
+                <Input value={lotForm.lot_number} onChange={(e) => setLotForm({ ...lotForm, lot_number: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Quantity</Label>
+                <Input value={lotForm.quantity} onChange={(e) => setLotForm({ ...lotForm, quantity: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Starting Bid</Label>
+                <Input value={lotForm.starting_bid} onChange={(e) => setLotForm({ ...lotForm, starting_bid: e.target.value })} />
+              </div>
             </div>
-
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input value={lotForm.title} onChange={(e) => setLotForm({ ...lotForm, title: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea value={lotForm.description} onChange={(e) => setLotForm({ ...lotForm, description: e.target.value })} rows={4} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Reserve Price</Label>
+                <Input value={lotForm.reserve_price} onChange={(e) => setLotForm({ ...lotForm, reserve_price: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Estimate Low</Label>
+                <Input value={lotForm.estimate_low} onChange={(e) => setLotForm({ ...lotForm, estimate_low: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Estimate High</Label>
+                <Input value={lotForm.estimate_high} onChange={(e) => setLotForm({ ...lotForm, estimate_high: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label>Commission %</Label>
+                <Input value={lotForm.commission_percentage} onChange={(e) => setLotForm({ ...lotForm, commission_percentage: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Buyer Premium %</Label>
+                <Input value={lotForm.buyer_premium_percentage} onChange={(e) => setLotForm({ ...lotForm, buyer_premium_percentage: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Buyer Tax %</Label>
+                <Input value={lotForm.buyer_tax_percentage} onChange={(e) => setLotForm({ ...lotForm, buyer_tax_percentage: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Seller Tax %</Label>
+                <Input value={lotForm.seller_tax_percentage} onChange={(e) => setLotForm({ ...lotForm, seller_tax_percentage: e.target.value })} />
+              </div>
+            </div>
             <div>
-              <FormInput 
-                label="Title" 
-                placeholder="Enter lot title"
-                value={lotForm.title}
-                onChange={(e) => setLotForm({ ...lotForm, title: e.target.value })}
+              <p className="text-xs font-medium text-muted-foreground mb-3">Add Images</p>
+              <input
+                id="lot-image-upload-edit"
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleImageChange}
               />
-            </div>
-
-            <div>
-              <FormTextarea 
-                label="Description" 
-                placeholder="Describe this lot..." 
-                rows={4}
-                value={lotForm.description}
-                onChange={(e) => setLotForm({ ...lotForm, description: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-6">
-              <FormInput 
-                label="Starting Bid" 
-                type="number" 
-                placeholder="0.00"
-                value={lotForm.startingBid}
-                onChange={(e) => setLotForm({ ...lotForm, startingBid: e.target.value })}
-              />
-            </div>
-
-            {/* Lot Media */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-3">Lot Media</p>
-              {lotForm.imagePreview ? (
-                <div className="relative border border-border rounded-xl overflow-hidden">
-                  <div className="relative w-full h-40 bg-muted overflow-hidden">
-                    {lotForm.imagePreview.startsWith('blob:') ? (
-                      <img
-                        src={lotForm.imagePreview}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Image
-                        src={lotForm.imagePreview}
-                        alt="Preview"
-                        fill
-                        className="object-cover"
-                      />
-                    )}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {lotForm.imagePreviews.map((src, index) => (
+                  <div key={src} className="relative border border-border rounded-lg overflow-hidden">
+                    <Image
+                      src={src}
+                      alt="Preview"
+                      width={240}
+                      height={96}
+                      unoptimized
+                      className="w-full h-24 object-cover"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-1 right-1 h-7 w-7"
+                      onClick={() => handleRemoveImage(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-2 right-2 z-10"
-                    onClick={handleImageRemove}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div
-                  className="border-2 border-dashed border-border-subtle rounded-xl p-6 text-center hover:border-primary/50 transition-colors cursor-pointer group"
-                  onDrop={handleImageDrop}
-                  onDragOver={(e) => e.preventDefault()}
-                  onClick={() => document.getElementById('edit-lot-image-upload')?.click()}
+                ))}
+                <button
+                  type="button"
+                  className="border-2 border-dashed border-border rounded-lg h-24 flex flex-col items-center justify-center text-muted-foreground"
+                  onClick={() => document.getElementById("lot-image-upload-edit")?.click()}
                 >
-                  <input
-                    id="edit-lot-image-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageChange}
-                  />
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="h-10 w-10 rounded-lg bg-primary-muted flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                      <ImageIcon className="h-5 w-5 text-green-700" strokeWidth={1.5} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Upload images</p>
-                      <p className="text-xs text-muted-foreground">Drag & drop or click to browse</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+                  <ImageIcon className="h-5 w-5 mb-1" />
+                  <span className="text-xs">Upload</span>
+                </button>
+              </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditLotOpen(false)} disabled={isLoading}>
-              Cancel
-            </Button>
-            <Button onClick={handleUpdateLot} disabled={isLoading}>
-              {isLoading ? "Saving..." : "Save Changes"}
+            <Button variant="outline" onClick={() => setIsEditLotOpen(false)}>Cancel</Button>
+            <Button onClick={handleUpdateLot} disabled={updateLot.isPending}>
+              {updateLot.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* View Lot Details Dialog */}
       <Dialog open={isViewLotOpen} onOpenChange={setIsViewLotOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Lot Details</DialogTitle>
-            <DialogDescription>
-              View complete information for this lot
-            </DialogDescription>
+            <DialogDescription>View complete information for this lot</DialogDescription>
           </DialogHeader>
           {selectedLot && (
             <div className="space-y-6 py-4">
-              {/* Lot Image */}
               <div className="relative w-full h-64 rounded-lg overflow-hidden bg-secondary">
-                {selectedLot.image ? (
-                  <Image
-                    src={selectedLot.image}
-                    alt={selectedLot.title}
-                    fill
-                    className="object-cover"
-                  />
+                {getPrimaryImage(selectedLot) ? (
+                  <Image src={getPrimaryImage(selectedLot)} alt={selectedLot.title} fill className="object-cover" />
                 ) : (
                   <div className="flex items-center justify-center h-full">
                     <Package className="w-16 h-16 text-muted-foreground/30" />
@@ -894,7 +741,7 @@ export default function LotsTab({ auction }: LotsTabProps) {
                 )}
                 <div className="absolute top-4 left-4">
                   <Badge variant="secondary" className="font-body text-sm bg-background/90 backdrop-blur-sm">
-                    Lot {selectedLot.lotNumber}
+                    Lot {selectedLot.lot_number}
                   </Badge>
                 </div>
                 <div className="absolute top-4 right-4">
@@ -903,77 +750,6 @@ export default function LotsTab({ auction }: LotsTabProps) {
                   </Badge>
                 </div>
               </div>
-
-              {/* Lot Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardContent className="p-4 space-y-3">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Title</p>
-                      <p className="text-base font-semibold text-foreground">{selectedLot.title}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Lot Number</p>
-                      <p className="text-sm text-foreground">{selectedLot.lotNumber}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Seller</p>
-                      <p className="text-sm text-foreground">
-                        {lotMetadata[selectedLot.id]?.seller 
-                          ? (() => {
-                              const sellerOptions = [
-                                { value: "seller1", label: "John Smith" },
-                                { value: "seller2", label: "Jane Doe" },
-                                { value: "seller3", label: "Robert Johnson" },
-                              ];
-                              return sellerOptions.find(s => s.value === lotMetadata[selectedLot.id].seller)?.label || lotMetadata[selectedLot.id].seller;
-                            })()
-                          : "Not assigned"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Quantity</p>
-                      <p className="text-sm text-foreground">{lotMetadata[selectedLot.id]?.quantity || "1"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Starting Bid</p>
-                      <p className="text-lg font-semibold text-foreground tabular-nums">
-                        {formatCurrency(selectedLot.startingBid, auction.currency)}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4 space-y-3">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Highest Bid</p>
-                      {selectedLot.highestBid > 0 ? (
-                        <p className="text-lg font-semibold text-accent tabular-nums">
-                          {formatCurrency(selectedLot.highestBid, auction.currency)}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No bids yet</p>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Watchers</p>
-                      <div className="flex items-center gap-2">
-                        <EyeIcon className="w-4 h-4 text-muted-foreground" />
-                        <p className="text-sm text-foreground">{selectedLot.watchers}</p>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Status</p>
-                      <Badge variant={getStatusBadge(selectedLot.status).variant} className="font-body">
-                        {getStatusBadge(selectedLot.status).label}
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Description */}
               {selectedLot.description && (
                 <Card>
                   <CardContent className="p-4">
@@ -984,8 +760,20 @@ export default function LotsTab({ auction }: LotsTabProps) {
                   </CardContent>
                 </Card>
               )}
-
-              {/* Quick Actions */}
+              {selectedLot.images && selectedLot.images.length > 1 && (
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Images</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {selectedLot.images.map((img) => (
+                        <div key={img.id} className="relative w-full h-24 rounded-lg overflow-hidden bg-secondary">
+                          <Image src={img.image_url} alt="Lot image" fill className="object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               <div className="flex items-center justify-end gap-3 pt-4 border-t">
                 <Button
                   variant="outline"
@@ -1019,23 +807,18 @@ export default function LotsTab({ auction }: LotsTabProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Lot Confirmation */}
       <AlertDialog open={isDeleteLotOpen} onOpenChange={setIsDeleteLotOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Lot?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete "{selectedLot?.title}" from the auction. This action cannot be undone.
+              This will permanently delete the lot. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeleteLot} 
-              disabled={isLoading}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isLoading ? "Deleting..." : "Delete"}
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteLot} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleteLot.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,5 +1,3 @@
-import { GalleryVerticalEnd } from "lucide-react"
-
 import { LoginForm } from "@/components/auth/login/login-form"
 import Image from "next/image"
 
@@ -25,10 +23,12 @@ export default function LoginPage() {
         </div>
       </div>
       <div className="bg-muted relative hidden lg:block order-1">
-        <img
+        <Image
           src="/login-banner5.png"
-          alt="Image"
-          className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
+          alt="Login banner"
+          fill
+          sizes="50vw"
+          className="object-cover dark:brightness-[0.2] dark:grayscale"
         />
         <div className="absolute inset-0 bg-black/40" />
       </div>

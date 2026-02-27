@@ -1,25 +1,32 @@
-import { Auction } from "@/data";
+import { AuctionOverviewResponse } from "@/features/auction/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BarChart3, Download, TrendingUp, Package, DollarSign, Clock, Target } from "lucide-react";
 
 interface ReportsTabProps {
-  auction: Auction;
+  auction: AuctionOverviewResponse;
 }
 
-function formatCurrency(amount: number, currency: Auction["currency"]) {
-  const symbol = currency === "NGN" ? "₦" : "$";
-  return `${symbol}${amount.toLocaleString()}`;
+function formatCurrency(amount: number, currency: AuctionOverviewResponse["auction"]["currency"]) {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    return `${currency} ${amount.toLocaleString()}`;
+  }
 }
 
 export default function ReportsTab({ auction }: ReportsTabProps) {
-  const totalLots = auction.lots.length;
-  const soldLots = auction.lots.filter(l => l.status === "Sold").length;
-  const totalWatchers = auction.lots.reduce((acc, lot) => acc + lot.watchers, 0);
-  const totalBids = auction.bidCount;
+  const totalLots = auction.stats.lots_total || 0;
+  const soldLots = auction.stats.lots_sold || 0;
+  const totalBids = auction.stats.total_bids || 0;
   const avgBidsPerLot = totalLots > 0 ? (totalBids / totalLots).toFixed(1) : "0";
   const sellThroughRate = totalLots > 0 ? Math.round((soldLots / totalLots) * 100) : 0;
-  const totalRevenue = auction.totalBid;
+  const totalRevenue = auction.stats.total_revenue || 0;
   const avgLotPrice = soldLots > 0 ? Math.round(totalRevenue / soldLots) : 0;
 
   const reports = [
@@ -39,9 +46,9 @@ export default function ReportsTab({ auction }: ReportsTabProps) {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="border border-border shadow-soft"><CardContent className="p-4"><div className="flex items-center gap-3 mb-3"><div className="w-8 h-8 rounded-lg gradient-gold flex items-center justify-center"><DollarSign className="w-4 h-4 text-accent-foreground" /></div></div><p className="text-xs text-muted-foreground font-body uppercase tracking-wide mb-1">Total Revenue</p><p className="text-xl font-semibold font-body text-accent tabular-nums">{formatCurrency(totalRevenue, auction.currency)}</p></CardContent></Card>
+        <Card className="border border-border shadow-soft"><CardContent className="p-4"><div className="flex items-center gap-3 mb-3"><div className="w-8 h-8 rounded-lg gradient-gold flex items-center justify-center"><DollarSign className="w-4 h-4 text-accent-foreground" /></div></div><p className="text-xs text-muted-foreground font-body uppercase tracking-wide mb-1">Total Revenue</p><p className="text-xl font-semibold font-body text-accent tabular-nums">{formatCurrency(totalRevenue, auction.auction.currency)}</p></CardContent></Card>
         <Card className="border border-border shadow-soft"><CardContent className="p-4"><div className="flex items-center gap-3 mb-3"><div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center"><Target className="w-4 h-4 text-muted-foreground" /></div></div><p className="text-xs text-muted-foreground font-body uppercase tracking-wide mb-1">Sell-Through Rate</p><p className="text-xl font-semibold font-body text-foreground tabular-nums">{sellThroughRate}%</p></CardContent></Card>
-        <Card className="border border-border shadow-soft"><CardContent className="p-4"><div className="flex items-center gap-3 mb-3"><div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center"><TrendingUp className="w-4 h-4 text-muted-foreground" /></div></div><p className="text-xs text-muted-foreground font-body uppercase tracking-wide mb-1">Avg Lot Price</p><p className="text-xl font-semibold font-body text-foreground tabular-nums">{formatCurrency(avgLotPrice, auction.currency)}</p></CardContent></Card>
+        <Card className="border border-border shadow-soft"><CardContent className="p-4"><div className="flex items-center gap-3 mb-3"><div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center"><TrendingUp className="w-4 h-4 text-muted-foreground" /></div></div><p className="text-xs text-muted-foreground font-body uppercase tracking-wide mb-1">Avg Lot Price</p><p className="text-xl font-semibold font-body text-foreground tabular-nums">{formatCurrency(avgLotPrice, auction.auction.currency)}</p></CardContent></Card>
         <Card className="border border-border shadow-soft"><CardContent className="p-4"><div className="flex items-center gap-3 mb-3"><div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center"><Clock className="w-4 h-4 text-muted-foreground" /></div></div><p className="text-xs text-muted-foreground font-body uppercase tracking-wide mb-1">Avg Bids/Lot</p><p className="text-xl font-semibold font-body text-foreground tabular-nums">{avgBidsPerLot}</p></CardContent></Card>
       </div>
 
@@ -69,3 +76,4 @@ export default function ReportsTab({ auction }: ReportsTabProps) {
     </div>
   );
 }
+

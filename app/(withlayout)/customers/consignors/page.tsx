@@ -18,7 +18,6 @@ import {
   Users,
   CheckCircle,
   Clock,
-  TrendingUp,
   Plus,
   Filter,
   Download,
@@ -28,35 +27,111 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCustomer } from "@/features/customers/hooks/useCustomer";
-import { Consignor } from "@/features/customers/services/customerService";
+import type { Consignor as ApiConsignor } from "@/features/customers/services/customerService";
+import type { Consignor as UiConsignor } from "@/data";
 import { Skeleton } from "@/components/ui/skeleton";
+
+type ConsignorFilters = {
+  status: string[];
+  kycStatus: string[];
+  highValue: boolean;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+const mapStatusToUi = (status: ApiConsignor["status"]): UiConsignor["status"] => {
+  switch (status) {
+    case "active":
+      return "verified";
+    case "pending":
+      return "pending";
+    case "inactive":
+    case "suspended":
+    default:
+      return "suspended";
+  }
+};
+
+const mapKycStatusToUi = (status?: ApiConsignor["kycStatus"]): UiConsignor["kycStatus"] => {
+  switch (status) {
+    case "verified":
+      return "complete";
+    case "rejected":
+      return "incomplete";
+    case "pending":
+    default:
+      return "pending";
+  }
+};
+
+const toUiConsignor = (consignor: ApiConsignor): UiConsignor => {
+  const totalValue = typeof consignor.totalValue === "number" ? consignor.totalValue : 0;
+  const companyName = consignor.name || `Consignor ${consignor.id}`;
+  const contactName =
+    (typeof consignor.contactName === "string" && consignor.contactName.trim()) || companyName;
+  const joinDateRaw = consignor.registrationDate ? new Date(consignor.registrationDate) : new Date();
+  const joinDate = Number.isNaN(joinDateRaw.getTime()) ? new Date() : joinDateRaw;
+
+  const tags: UiConsignor["tags"] = [];
+  if (totalValue >= 1_500_000) tags.push("high-value");
+  if (consignor.status === "pending") tags.push("new");
+
+  return {
+    id: String(consignor.id),
+    companyName,
+    contactName,
+    email: consignor.email,
+    phone: consignor.phone,
+    avatar: typeof consignor.avatar === "string" ? consignor.avatar : undefined,
+    status: mapStatusToUi(consignor.status),
+    tags,
+    itemsCount: typeof consignor.totalLots === "number" ? consignor.totalLots : 0,
+    totalValue,
+    commission: typeof consignor.commission === "string" ? consignor.commission : "0%",
+    joinDate,
+    kycStatus: mapKycStatusToUi(consignor.kycStatus),
+    kycDocuments: [],
+    bankAccount: undefined,
+    currentBalance:
+      typeof consignor.currentBalance === "number" ? consignor.currentBalance : 0,
+    outstandingPayments:
+      typeof consignor.outstandingPayments === "number" ? consignor.outstandingPayments : 0,
+    items: [],
+    payments: [],
+    notes: [],
+    manager: typeof consignor.manager === "string" ? consignor.manager : undefined,
+  };
+};
 
 export default function Consignors() {
   const { useConsignors } = useCustomer();
   
   // Fetch consignors from API
   const { data: consignors = [], isLoading, error } = useConsignors();
-  const [selectedConsignor, setSelectedConsignor] = useState<Consignor | null>(null);
+  const uiConsignors = useMemo(
+    () => consignors.map((consignor) => toUiConsignor(consignor as ApiConsignor)),
+    [consignors]
+  );
+  const [selectedConsignor, setSelectedConsignor] = useState<UiConsignor | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [addConsignorOpen, setAddConsignorOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<ConsignorFilters>({
     status: [] as string[],
     kycStatus: [] as string[],
     highValue: false,
-    dateFrom: undefined as string | undefined,
-    dateTo: undefined as string | undefined,
   });
 
   const filteredConsignors = useMemo(() => {
-    if (!consignors || consignors.length === 0) return [];
+    if (!uiConsignors || uiConsignors.length === 0) return [];
     
-    return consignors.filter((consignor: Consignor) => {
+    return uiConsignors.filter((consignor) => {
       const matchesSearch =
-        consignor.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        consignor.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        consignor.contactName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         consignor.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         consignor.phone?.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -79,27 +154,27 @@ export default function Consignors() {
         return false;
       }
 
-      if (filters.dateFrom && consignor.registrationDate) {
+      if (filters.dateFrom) {
         const fromDate = new Date(filters.dateFrom);
-        const regDate = new Date(consignor.registrationDate);
+        const regDate = consignor.joinDate;
         if (regDate < fromDate) return false;
       }
-      if (filters.dateTo && consignor.registrationDate) {
+      if (filters.dateTo) {
         const toDate = new Date(filters.dateTo);
-        const regDate = new Date(consignor.registrationDate);
+        const regDate = consignor.joinDate;
         if (regDate > toDate) return false;
       }
 
       return matchesSearch;
     });
-  }, [consignors, searchQuery, filters]);
+  }, [uiConsignors, searchQuery, filters]);
 
   // Calculate stats from real data
   const stats = useMemo(() => {
-    const total = consignors.length;
-    const active = consignors.filter((c: Consignor) => c.status === "active").length;
-    const pending = consignors.filter((c: Consignor) => c.status === "pending").length;
-    const verified = consignors.filter((c: Consignor) => c.kycStatus === "verified").length;
+    const total = uiConsignors.length;
+    const active = uiConsignors.filter((c) => c.status === "verified").length;
+    const pending = uiConsignors.filter((c) => c.status === "pending").length;
+    const verified = uiConsignors.filter((c) => c.kycStatus === "complete").length;
     
     return {
       total,
@@ -107,27 +182,27 @@ export default function Consignors() {
       pending,
       verified,
     };
-  }, [consignors]);
+  }, [uiConsignors]);
   
-  const pendingConsignors = consignors.filter(
-    (c: Consignor) => c.status === "pending"
+  const pendingConsignors = uiConsignors.filter(
+    (c) => c.status === "pending"
   ).length;
-  const highValueConsignors = consignors.filter(
-    (c: Consignor) => (c.totalValue || 0) > 1500000
+  const highValueConsignors = uiConsignors.filter(
+    (c) => (c.totalValue || 0) > 1500000
   ).length;
 
-  const handleViewProfile = (consignor: Consignor) => {
+  const handleViewProfile = (consignor: UiConsignor) => {
     setSelectedConsignor(consignor);
     setDetailModalOpen(true);
   };
 
-  const handleEdit = (consignor: Consignor) => {
+  const handleEdit = (consignor: UiConsignor) => {
     toast.success(`Edit mode for ${consignor.companyName} (coming soon)`);
   };
 
-  const handleDelete = (consignor: Consignor) => {
+  const handleDelete = (consignor: UiConsignor) => {
     // TODO: Implement delete mutation when backend endpoint is available
-    toast.success(`${consignor.name || consignor.id} deactivated`);
+    toast.success(`${consignor.companyName || consignor.id} deactivated`);
   };
 
   const handleBulkApprove = () => {
@@ -355,8 +430,7 @@ export default function Consignors() {
       <AddConsignorModal
         open={addConsignorOpen}
         onOpenChange={setAddConsignorOpen}
-        onAddConsignor={(newConsignor) => {
-          setConsignors([newConsignor, ...consignors]);
+        onAddConsignor={() => {
           setAddConsignorOpen(false);
         }}
       />

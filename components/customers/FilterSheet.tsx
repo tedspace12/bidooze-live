@@ -9,17 +9,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
+type CustomerFilters = {
+  status: string[];
+  kycStatus: string[];
+  highValue: boolean;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
 interface FilterSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  filters: {
-    status: string[];
-    kycStatus: string[];
-    highValue: boolean;
-    dateFrom?: string;
-    dateTo?: string;
-  };
-  onFilterChange: (filters: any) => void;
+  filters: CustomerFilters;
+  onFilterChange: (filters: CustomerFilters) => void;
 }
 
 export function FilterSheet({

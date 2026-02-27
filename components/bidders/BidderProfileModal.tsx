@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { BidderType, REPUTATION_CONFIG } from '@/types/bidder';
+import { BidderType } from '@/types/bidder';
 import { BidderAvatar } from './BidderAvatar';
 import { ReputationBadge } from './ReputationBadge';
 import { StatusBadge } from './StatusBadge';
