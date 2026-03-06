@@ -35,7 +35,7 @@ export function BidderProfileModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto bg-card border-border max-w-2xl">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto border-border bg-card sm:max-h-[85vh]">
         <DialogHeader>
           <DialogTitle className="sr-only">Bidder Profile</DialogTitle>
         </DialogHeader>
@@ -49,7 +49,7 @@ export function BidderProfileModal({
             size="lg"
           />
           <div className="flex-1">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-xl font-semibold text-foreground">
                 {bidder.firstName} {bidder.lastName}
               </h2>
@@ -65,16 +65,16 @@ export function BidderProfileModal({
         <Separator className="bg-border" />
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-lg bg-muted/50 p-4 text-center">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          <div className="rounded-lg bg-muted/50 p-2 text-center sm:p-4">
             <p className="text-2xl font-bold text-foreground">{bidder.totalBids}</p>
             <p className="text-xs text-muted-foreground">Total Bids</p>
           </div>
-          <div className="rounded-lg bg-muted/50 p-4 text-center">
+          <div className="rounded-lg bg-muted/50 p-2 text-center sm:p-4">
             <p className="text-2xl font-bold text-foreground">{bidder.wonAuctions}</p>
             <p className="text-xs text-muted-foreground">Auctions Won</p>
           </div>
-          <div className="rounded-lg bg-muted/50 p-4 text-center">
+          <div className="rounded-lg bg-muted/50 p-2 text-center sm:p-4">
             <p className="text-2xl font-bold text-foreground">{bidder.winRate}%</p>
             <p className="text-xs text-muted-foreground">Win Rate</p>
           </div>
@@ -82,11 +82,23 @@ export function BidderProfileModal({
 
         {/* Tabs */}
         <Tabs defaultValue="profile" className="mt-2">
-          <TabsList className="w-full justify-start bg-muted">
-            <TabsTrigger value="profile">Profile Info</TabsTrigger>
-            <TabsTrigger value="reputation">Reputation History</TabsTrigger>
-            <TabsTrigger value="bidding">Bidding History</TabsTrigger>
-            <TabsTrigger value="controls">Block Controls</TabsTrigger>
+          <TabsList className="w-full justify-start gap-1 overflow-x-auto bg-muted">
+            <TabsTrigger value="profile" className="shrink-0 text-xs sm:text-sm">
+              <span className="sm:hidden">Profile</span>
+              <span className="hidden sm:inline">Profile Info</span>
+            </TabsTrigger>
+            <TabsTrigger value="reputation" className="shrink-0 text-xs sm:text-sm">
+              <span className="sm:hidden">Reputation</span>
+              <span className="hidden sm:inline">Reputation History</span>
+            </TabsTrigger>
+            <TabsTrigger value="bidding" className="shrink-0 text-xs sm:text-sm">
+              <span className="sm:hidden">Bidding</span>
+              <span className="hidden sm:inline">Bidding History</span>
+            </TabsTrigger>
+            <TabsTrigger value="controls" className="shrink-0 text-xs sm:text-sm">
+              <span className="sm:hidden">Controls</span>
+              <span className="hidden sm:inline">Block Controls</span>
+            </TabsTrigger>
           </TabsList>
 
           {/* Profile Info Tab */}
@@ -158,7 +170,7 @@ export function BidderProfileModal({
                 {bidder.biddingHistory.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-4"
+                    className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="flex-1">
                       <p className="font-medium text-foreground">{item.auctionTitle}</p>
@@ -185,7 +197,7 @@ export function BidderProfileModal({
           {/* Block Controls Tab */}
           <TabsContent value="controls" className="mt-4">
             <div className="rounded-lg border border-border bg-muted/30 p-6">
-              <div className="flex items-start gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
                 <div
                   className={cn(
                     'rounded-full p-3',

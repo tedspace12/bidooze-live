@@ -13,12 +13,11 @@ interface ReputationBadgeProps {
 }
 
 const reputationStyles: Record<ReputationStatus, string> = {
-  excellent: 'bg-green-100 text-green-700',
-  good: 'bg-blue-100 text-blue-700',
+  low_trust: 'bg-red-100 text-red-700',
   neutral: 'bg-gray-100 text-gray-700',
-  warning: 'bg-yellow-300 text-yellow-700',
-  poor: 'bg-red-100 text-red-700',
-  banned: 'bg-red-300 text-red-900',
+  reliable: 'bg-blue-100 text-blue-700',
+  trusted: 'bg-emerald-100 text-emerald-700',
+  elite: 'bg-purple-100 text-purple-700',
 };
 
 

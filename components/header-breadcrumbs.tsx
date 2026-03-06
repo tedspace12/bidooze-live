@@ -9,7 +9,7 @@ export default function HeaderBreadcrumbs() {
     const { title } = useNavigation();
 
     return (
-        <header className="flex h-16 shrink-0 items-center gap-2 px-4">
+        <header className="flex min-h-14 shrink-0 items-center gap-2 px-3 sm:px-4 py-2">
             <SidebarTrigger />
             <Separator
                 orientation="vertical"
@@ -19,7 +19,9 @@ export default function HeaderBreadcrumbs() {
             <Breadcrumb>
                 <BreadcrumbList>
                     <BreadcrumbItem>
-                        <BreadcrumbPage>{title || "Dashboard"}</BreadcrumbPage>
+                        <BreadcrumbPage className="text-sm sm:text-base truncate max-w-[70vw]">
+                            {title || "Dashboard"}
+                        </BreadcrumbPage>
                     </BreadcrumbItem>
                 </BreadcrumbList>
             </Breadcrumb>

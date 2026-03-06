@@ -1,5 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { customerService, Consignor } from "../services/customerService";
+import {
+  customerService,
+  ConsignorBankAccountPayload,
+  ConsignorCreatePayload,
+  ConsignorStatusPayload,
+  ConsignorUpdatePayload,
+} from "../services/customerService";
 
 export const useCustomer = () => {
   const queryClient = useQueryClient();
@@ -12,16 +18,30 @@ export const useCustomer = () => {
     });
   };
 
-  const useConsignorById = (id: string | number) => {
+  const useConsignorNotes = (
+    consignorId: string | number,
+    params?: Parameters<typeof customerService.getConsignorNotes>[1]
+  ) => {
     return useQuery({
-      queryKey: ["consignor", id],
-      queryFn: () => customerService.getConsignorById(id),
-      enabled: !!id,
+      queryKey: ["consignors", consignorId, "notes", params],
+      queryFn: () => customerService.getConsignorNotes(consignorId, params),
+      enabled: !!consignorId,
+    });
+  };
+
+  const useConsignorActivity = (
+    consignorId: string | number,
+    params?: Parameters<typeof customerService.getConsignorActivity>[1]
+  ) => {
+    return useQuery({
+      queryKey: ["consignors", consignorId, "activity", params],
+      queryFn: () => customerService.getConsignorActivity(consignorId, params),
+      enabled: !!consignorId,
     });
   };
 
   const createConsignor = useMutation({
-    mutationFn: (data: Partial<Consignor>) => customerService.createConsignor(data),
+    mutationFn: (data: ConsignorCreatePayload) => customerService.createConsignor(data),
     mutationKey: ["create-consignor"],
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["consignors"] });
@@ -29,7 +49,7 @@ export const useCustomer = () => {
   });
 
   const updateConsignor = useMutation({
-    mutationFn: ({ id, data }: { id: string | number; data: Partial<Consignor> }) =>
+    mutationFn: ({ id, data }: { id: string | number; data: ConsignorUpdatePayload }) =>
       customerService.updateConsignor(id, data),
     mutationKey: ["update-consignor"],
     onSuccess: () => {
@@ -37,31 +57,79 @@ export const useCustomer = () => {
     },
   });
 
+  const updateConsignorBankAccount = useMutation({
+    mutationFn: ({ id, data }: { id: string | number; data: ConsignorBankAccountPayload }) =>
+      customerService.updateConsignorBankAccount(id, data),
+    mutationKey: ["update-consignor-bank-account"],
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["consignors"] });
+      queryClient.invalidateQueries({ queryKey: ["consignors", variables.id, "activity"] });
+    },
+  });
+
+  const updateConsignorStatus = useMutation({
+    mutationFn: ({ id, data }: { id: string | number; data: ConsignorStatusPayload }) =>
+      customerService.updateConsignorStatus(id, data),
+    mutationKey: ["update-consignor-status"],
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["consignors"] });
+      queryClient.invalidateQueries({ queryKey: ["consignors", variables.id, "activity"] });
+    },
+  });
+
+  const addConsignorNote = useMutation({
+    mutationFn: ({ id, content }: { id: string | number; content: string }) =>
+      customerService.addConsignorNote(id, { content }),
+    mutationKey: ["add-consignor-note"],
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["consignors"] });
+      queryClient.invalidateQueries({ queryKey: ["consignors", variables.id, "notes"] });
+      queryClient.invalidateQueries({ queryKey: ["consignors", variables.id, "activity"] });
+    },
+  });
+
   // Bidders
   const useBidders = (params?: Parameters<typeof customerService.getBidders>[0]) => {
     return useQuery({
-      queryKey: ["bidders", params],
+      queryKey: ["customers", "bidders", params],
       queryFn: () => customerService.getBidders(params),
+      placeholderData: (previousData) => previousData,
     });
   };
 
   const useBidderById = (id: string | number) => {
     return useQuery({
-      queryKey: ["bidder", id],
+      queryKey: ["customers", "bidder", id],
       queryFn: () => customerService.getBidderById(id),
       enabled: !!id,
     });
   };
 
+  const blockBidder = useMutation({
+    mutationFn: ({ bidderId, reason }: { bidderId: string | number; reason?: string }) =>
+      customerService.blockBidder(bidderId, reason),
+  });
+
+  const unblockBidder = useMutation({
+    mutationFn: ({ bidderId }: { bidderId: string | number }) =>
+      customerService.unblockBidder(bidderId),
+  });
+
   return {
     // Consignors
     useConsignors,
-    useConsignorById,
+    useConsignorNotes,
+    useConsignorActivity,
     createConsignor,
     updateConsignor,
+    updateConsignorBankAccount,
+    updateConsignorStatus,
+    addConsignorNote,
     // Bidders
     useBidders,
     useBidderById,
+    blockBidder,
+    unblockBidder,
   };
 };
 

@@ -1,4 +1,4 @@
-export type ReputationStatus = 'excellent' | 'good' | 'neutral' | 'warning' | 'poor' | 'banned';
+export type ReputationStatus = 'low_trust' | 'neutral' | 'reliable' | 'trusted' | 'elite';
 
 export interface BidderType {
   id: string;
@@ -37,29 +37,25 @@ export interface BiddingHistoryItem {
 }
 
 export const REPUTATION_CONFIG: Record<ReputationStatus, { label: string; description: string }> = {
-  excellent: {
-    label: 'Excellent',
-    description: 'Outstanding bidder with perfect payment history and high activity',
-  },
-  good: {
-    label: 'Good',
-    description: 'Reliable bidder with consistent positive track record',
+  low_trust: {
+    label: 'Low Trust',
+    description: '0-40 score. Requires closer review due to weak trust signals.',
   },
   neutral: {
     label: 'Neutral',
-    description: 'New or average bidder with limited history',
+    description: '41-60 score. Default level for new bidders (score 50, status provisional).',
   },
-  warning: {
-    label: 'Warning',
-    description: 'Bidder with some concerning behaviors or payment delays',
+  reliable: {
+    label: 'Reliable',
+    description: '61-75 score. Consistent participation and acceptable bidder behavior.',
   },
-  poor: {
-    label: 'Poor',
-    description: 'Bidder with multiple issues or unpaid bids',
+  trusted: {
+    label: 'Trusted',
+    description: '76-90 score. Strong trust profile and stable transaction history.',
   },
-  banned: {
-    label: 'Banned',
-    description: 'Platform-wide ban due to serious violations',
+  elite: {
+    label: 'Elite',
+    description: '91-100 score. Top-performing bidder with excellent reliability.',
   },
 };
 

@@ -327,15 +327,6 @@ export interface PaymentRecord {
   method: string;
 }
 
-export interface KYCDocument {
-  id: string;
-  type: "id" | "proof-of-address" | "business-license" | "tax-id";
-  fileName: string;
-  uploadedAt: Date;
-  status: "pending" | "approved" | "rejected";
-  notes?: string;
-}
-
 export interface Consignor {
   id: string;
   companyName: string;
@@ -349,8 +340,6 @@ export interface Consignor {
   totalValue: number;
   commission: string;
   joinDate: Date;
-  kycStatus: "complete" | "incomplete" | "pending";
-  kycDocuments: KYCDocument[];
   bankAccount?: {
     accountHolder: string;
     accountNumber: string;
@@ -362,7 +351,6 @@ export interface Consignor {
   items: ConsignedItem[];
   payments: PaymentRecord[];
   notes: ConsignorNote[];
-  manager?: string;
 }
 
 const mockConsignors: Consignor[] = [
@@ -379,23 +367,6 @@ const mockConsignors: Consignor[] = [
     totalValue: 2850000,
     commission: "15%",
     joinDate: new Date("2023-01-15"),
-    kycStatus: "complete",
-    kycDocuments: [
-      {
-        id: "kyc-001",
-        type: "id",
-        fileName: "sarah_mitchell_id.pdf",
-        uploadedAt: new Date("2023-01-10"),
-        status: "approved",
-      },
-      {
-        id: "kyc-002",
-        type: "proof-of-address",
-        fileName: "proof_of_address.pdf",
-        uploadedAt: new Date("2023-01-10"),
-        status: "approved",
-      },
-    ],
     bankAccount: {
       accountHolder: "Sarah Mitchell",
       accountNumber: "****5678",
@@ -439,7 +410,6 @@ const mockConsignors: Consignor[] = [
         createdBy: "Admin",
       },
     ],
-    manager: "John Smith",
   },
   {
     id: "csg-002",
@@ -454,16 +424,6 @@ const mockConsignors: Consignor[] = [
     totalValue: 1650000,
     commission: "12%",
     joinDate: new Date("2023-06-22"),
-    kycStatus: "complete",
-    kycDocuments: [
-      {
-        id: "kyc-003",
-        type: "id",
-        fileName: "marcus_johnson_id.pdf",
-        uploadedAt: new Date("2023-06-15"),
-        status: "approved",
-      },
-    ],
     bankAccount: {
       accountHolder: "Marcus Johnson",
       accountNumber: "****9012",
@@ -492,7 +452,6 @@ const mockConsignors: Consignor[] = [
       },
     ],
     notes: [],
-    manager: "Emily Davis",
   },
   {
     id: "csg-003",
@@ -507,16 +466,6 @@ const mockConsignors: Consignor[] = [
     totalValue: 125000,
     commission: "18%",
     joinDate: new Date("2024-12-01"),
-    kycStatus: "pending",
-    kycDocuments: [
-      {
-        id: "kyc-004",
-        type: "id",
-        fileName: "david_chen_id.pdf",
-        uploadedAt: new Date("2024-12-01"),
-        status: "pending",
-      },
-    ],
     currentBalance: 0,
     outstandingPayments: 0,
     items: [
@@ -533,7 +482,7 @@ const mockConsignors: Consignor[] = [
     notes: [
       {
         id: "note-002",
-        text: "Awaiting KYC verification. Documents submitted on 12/1/2024.",
+        text: "Onboarding is in progress. Profile submitted on 12/1/2024.",
         createdAt: new Date("2024-12-02"),
         createdBy: "Admin",
       },
@@ -552,16 +501,6 @@ const mockConsignors: Consignor[] = [
     totalValue: 3200000,
     commission: "10%",
     joinDate: new Date("2022-03-10"),
-    kycStatus: "complete",
-    kycDocuments: [
-      {
-        id: "kyc-005",
-        type: "id",
-        fileName: "isabella_romano_id.pdf",
-        uploadedAt: new Date("2022-03-05"),
-        status: "approved",
-      },
-    ],
     bankAccount: {
       accountHolder: "Isabella Romano",
       accountNumber: "****3456",
@@ -581,7 +520,6 @@ const mockConsignors: Consignor[] = [
       },
     ],
     notes: [],
-    manager: "John Smith",
   },
   {
     id: "csg-005",
@@ -596,16 +534,6 @@ const mockConsignors: Consignor[] = [
     totalValue: 45000,
     commission: "20%",
     joinDate: new Date("2023-09-05"),
-    kycStatus: "complete",
-    kycDocuments: [
-      {
-        id: "kyc-006",
-        type: "id",
-        fileName: "robert_williams_id.pdf",
-        uploadedAt: new Date("2023-09-01"),
-        status: "approved",
-      },
-    ],
     currentBalance: 8500,
     outstandingPayments: 2000,
     items: [],
@@ -632,16 +560,6 @@ const mockConsignors: Consignor[] = [
     totalValue: 2100000,
     commission: "14%",
     joinDate: new Date("2024-11-20"),
-    kycStatus: "incomplete",
-    kycDocuments: [
-      {
-        id: "kyc-007",
-        type: "id",
-        fileName: "patricia_gold_id.pdf",
-        uploadedAt: new Date("2024-11-20"),
-        status: "pending",
-      },
-    ],
     currentBalance: 0,
     outstandingPayments: 0,
     items: [],
@@ -685,9 +603,7 @@ export function getConsignorStats() {
 }
 
 
-import { BidderType } from '@/types/bidder';
-
-export const mockBidders: BidderType[] = [
+export const mockBidders = [
   {
     id: '1',
     firstName: 'Sarah',

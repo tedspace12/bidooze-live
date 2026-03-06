@@ -202,18 +202,18 @@ export function StepFour({
                     />
 
                     {/* Buttons */}
-                    <div className="flex gap-3 pt-4">
+                    <div className="flex flex-col-reverse md:flex-row gap-3 pt-4">
                         <Button
                             type="button"
                             variant="outline"
                             onClick={onBack}
-                            className="flex-1"
+                            className="w-full md:w-auto h-12 md:h-10 md:min-w-32 md:flex-none"
                             size="lg"
                             disabled={isLoading}
                         >
                             Back
                         </Button>
-                        <Button type="submit" className="flex-1" size="lg" disabled={isLoading}>
+                        <Button type="submit" className="w-full h-12 md:h-10 md:flex-1" size="lg" disabled={isLoading}>
                             {isLoading ? "Submitting..." : "Next"}
                         </Button>
                     </div>

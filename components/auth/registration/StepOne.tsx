@@ -71,7 +71,7 @@ export const StepOne = ({ onNext, defaultValues, isLoading }: StepOneProps) => {
             )}
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}
               name="registerationNumber"
@@ -114,7 +114,7 @@ export const StepOne = ({ onNext, defaultValues, isLoading }: StepOneProps) => {
             )}
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}
               name="specialization"
@@ -192,7 +192,7 @@ export const StepOne = ({ onNext, defaultValues, isLoading }: StepOneProps) => {
             />
           </div>
 
-          <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+          <Button type="submit" className="w-full h-12 md:h-10" size="lg" disabled={isLoading}>
             {isLoading ? "Submitting..." : "Next"}
           </Button>
         </form>

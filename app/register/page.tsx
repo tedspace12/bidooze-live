@@ -1,6 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { RegistrationSidebar } from "@/components/auth/registration/RegistrationSidebar";
+import {
+  RegistrationSidebar,
+  REGISTRATION_STEPS,
+} from "@/components/auth/registration/RegistrationSidebar";
 import { StepOne, StepOneData } from "@/components/auth/registration/StepOne";
 import { StepTwo, StepTwoData } from "@/components/auth/registration/StepTwo";
 import { StepThree, StepThreeData } from "@/components/auth/registration/StepThree";
@@ -10,8 +13,10 @@ import { useRegistration } from "@/features/auth/hooks/useRegistration";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle } from "lucide-react";
+import { Check, CheckCircle } from "lucide-react";
 import { useRouter } from "@bprogress/next/app";
+import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 interface RegistrationData {
   stepOne?: StepOneData;
@@ -20,6 +25,86 @@ interface RegistrationData {
   stepFour?: StepFourData;
   stepFive?: StepFiveData;
 }
+
+type StepState = "completed" | "active" | "upcoming";
+
+const getStepState = (currentStep: number, stepId: number): StepState => {
+  if (currentStep > stepId) return "completed";
+  if (currentStep === stepId) return "active";
+  return "upcoming";
+};
+
+const MobileStepIndicator = ({
+  currentStep,
+  onStepClick,
+}: {
+  currentStep: number;
+  onStepClick?: (stepId: number) => void;
+}) => {
+  const currentStepName =
+    REGISTRATION_STEPS.find((step) => step.id === currentStep)?.title ?? "Verification";
+
+  return (
+    <div className="w-full max-w-4xl md:hidden">
+      <div className="rounded-lg bg-card px-4 py-3 shadow-sm">
+        <div className="mb-3 flex items-center justify-center">
+          <Image
+            src="/logo/Bidooze.svg"
+            alt="Bidooze Logo"
+            width={130}
+            height={36}
+            className="h-8 w-auto"
+            priority
+          />
+        </div>
+        <div className="flex items-center">
+          {REGISTRATION_STEPS.map((step, index) => {
+            const stepState = getStepState(currentStep, step.id);
+            const isCompleted = stepState === "completed";
+            const isClickable = isCompleted && Boolean(onStepClick);
+
+            return (
+              <div key={step.id} className="flex flex-1 items-center last:flex-none">
+                <button
+                  type="button"
+                  onClick={() => isClickable && onStepClick?.(step.id)}
+                  disabled={!isClickable}
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-full border-2 transition-colors duration-300",
+                    isCompleted && "border-[#3F6B2D] bg-[#3F6B2D] text-white",
+                    stepState === "active" && "border-[#CEF17B] bg-[#CEF17B] text-[#445E72]",
+                    stepState === "upcoming" && "border-border bg-transparent text-muted-foreground",
+                    isClickable ? "cursor-pointer" : "cursor-default"
+                  )}
+                  aria-current={stepState === "active" ? "step" : undefined}
+                  aria-label={isClickable ? `Go to ${step.title}` : step.title}
+                >
+                  {isCompleted ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <span className="text-[11px] font-semibold">{step.id}</span>
+                  )}
+                </button>
+                {index < REGISTRATION_STEPS.length - 1 && (
+                  <div
+                    className={cn(
+                      "mx-1.5 h-0.5 flex-1 rounded-full transition-colors duration-300",
+                      currentStep > step.id ? "bg-[#CEF17B]" : "bg-border"
+                    )}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-xs font-medium text-muted-foreground">
+          Step {currentStep} of {REGISTRATION_STEPS.length} &middot;{" "}
+          <span className="text-foreground">{currentStepName}</span>
+        </p>
+      </div>
+    </div>
+  );
+};
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (error && typeof error === "object") {
@@ -81,6 +166,12 @@ const Registration = () => {
       setHasResumedFromProgress(true);
     }
   }, [progressData, isCompleted, hasResumedFromProgress]);
+
+  const handleStepIndicatorClick = (stepId: number) => {
+    if (stepId < currentStep) {
+      setCurrentStep(stepId);
+    }
+  };
 
   const handleStepOneSubmit = async (data: StepOneData) => {
     try {
@@ -166,14 +257,17 @@ const Registration = () => {
     }
 
     try {
-      // Data already matches backend snake_case for bank fields
+      const routingNumber = data.bankIdentifiers?.routing_number || "";
+
       const payload = {
         registration_token: registrationToken,
+        country: data.country,
         bank_name: data.bankName,
         account_name: data.accountHolderName,
-        account_number: data.accountNumber,
-        routing_number: data.routingNumber,
+        account_number: data.accountNumber || "",
+        routing_number: routingNumber,
         account_type: data.accountType,
+        bank_identifiers: data.bankIdentifiers,
       };
 
       await stepThree.mutateAsync(payload);
@@ -272,11 +366,11 @@ const Registration = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
-      <RegistrationSidebar currentStep={currentStep} />
+      <RegistrationSidebar currentStep={currentStep} onStepClick={handleStepIndicatorClick} />
 
-      <main className="flex-1 flex items-center justify-center p-8 bg-muted md:ml-96">
+      <main className="flex-1 flex items-start md:items-center justify-center p-4 sm:p-6 md:p-8 bg-muted md:ml-[72px] lg:ml-96">
         {isCompleted ? (
-          <Card className="shadow-2xl border-0 backdrop-blur-xl bg-white/80 dark:bg-card/80 rounded-2xl">
+          <Card className="w-full max-w-3xl shadow-2xl border-0 backdrop-blur-xl bg-white/80 dark:bg-card/80 rounded-lg md:rounded-2xl">
             <CardHeader className="text-center pb-0">
               <CardTitle className="text-3xl font-extrabold text-[#3F6B2D] tracking-tight">
                 Registration Submitted!
@@ -345,7 +439,12 @@ const Registration = () => {
           </Card>
         ) : (
           <>
-            <div className="w-full max-w-4xl bg-card rounded-2xl shadow-2xl p-8 md:p-12">
+            <div className="w-full max-w-4xl space-y-4">
+              <MobileStepIndicator
+                currentStep={currentStep}
+                onStepClick={handleStepIndicatorClick}
+              />
+              <div className="w-full bg-card rounded-lg md:rounded-2xl shadow-2xl p-4 sm:p-6 md:p-12">
               {currentStep === 1 && (
                 <StepOne
                   onNext={handleStepOneSubmit}
@@ -389,6 +488,7 @@ const Registration = () => {
                   registrationToken={registrationToken}
                 />
               )}
+              </div>
             </div>
           </>
         )}
@@ -398,4 +498,3 @@ const Registration = () => {
 };
 
 export default Registration;
-

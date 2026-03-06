@@ -1,5 +1,6 @@
 'use client';
-import { useState, useMemo } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import { StatCard } from "@/components/customers/StatCard";
 import { ConsignorTable } from "@/components/customers/ConsignorTable";
 import { ConsignorDetailModal } from "@/components/customers/ConsignorDetailModal";
@@ -7,12 +8,6 @@ import { FilterSheet } from "@/components/customers/FilterSheet";
 import { AddConsignorModal } from "@/components/customers/AddConsignorModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Users,
@@ -21,227 +16,137 @@ import {
   Plus,
   Filter,
   Download,
-  Mail,
-  UserCheck,
   AlertTriangle,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCustomer } from "@/features/customers/hooks/useCustomer";
-import type { Consignor as ApiConsignor } from "@/features/customers/services/customerService";
-import type { Consignor as UiConsignor } from "@/data";
+import type {
+  ConsignorListItem,
+  ConsignorStatus,
+} from "@/features/customers/services/customerService";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type ConsignorFilters = {
-  status: string[];
-  kycStatus: string[];
-  highValue: boolean;
+  status?: ConsignorStatus;
   dateFrom?: string;
   dateTo?: string;
 };
 
-const mapStatusToUi = (status: ApiConsignor["status"]): UiConsignor["status"] => {
-  switch (status) {
-    case "active":
-      return "verified";
-    case "pending":
-      return "pending";
-    case "inactive":
-    case "suspended":
-    default:
-      return "suspended";
-  }
-};
-
-const mapKycStatusToUi = (status?: ApiConsignor["kycStatus"]): UiConsignor["kycStatus"] => {
-  switch (status) {
-    case "verified":
-      return "complete";
-    case "rejected":
-      return "incomplete";
-    case "pending":
-    default:
-      return "pending";
-  }
-};
-
-const toUiConsignor = (consignor: ApiConsignor): UiConsignor => {
-  const totalValue = typeof consignor.totalValue === "number" ? consignor.totalValue : 0;
-  const companyName = consignor.name || `Consignor ${consignor.id}`;
-  const contactName =
-    (typeof consignor.contactName === "string" && consignor.contactName.trim()) || companyName;
-  const joinDateRaw = consignor.registrationDate ? new Date(consignor.registrationDate) : new Date();
-  const joinDate = Number.isNaN(joinDateRaw.getTime()) ? new Date() : joinDateRaw;
-
-  const tags: UiConsignor["tags"] = [];
-  if (totalValue >= 1_500_000) tags.push("high-value");
-  if (consignor.status === "pending") tags.push("new");
-
-  return {
-    id: String(consignor.id),
-    companyName,
-    contactName,
-    email: consignor.email,
-    phone: consignor.phone,
-    avatar: typeof consignor.avatar === "string" ? consignor.avatar : undefined,
-    status: mapStatusToUi(consignor.status),
-    tags,
-    itemsCount: typeof consignor.totalLots === "number" ? consignor.totalLots : 0,
-    totalValue,
-    commission: typeof consignor.commission === "string" ? consignor.commission : "0%",
-    joinDate,
-    kycStatus: mapKycStatusToUi(consignor.kycStatus),
-    kycDocuments: [],
-    bankAccount: undefined,
-    currentBalance:
-      typeof consignor.currentBalance === "number" ? consignor.currentBalance : 0,
-    outstandingPayments:
-      typeof consignor.outstandingPayments === "number" ? consignor.outstandingPayments : 0,
-    items: [],
-    payments: [],
-    notes: [],
-    manager: typeof consignor.manager === "string" ? consignor.manager : undefined,
-  };
+const getErrorMessage = (error: unknown): string => {
+  if (!error || typeof error !== "object") return "Request failed.";
+  const message = (error as { message?: unknown }).message;
+  if (typeof message === "string" && message.trim()) return message;
+  const nested = (error as { error?: { message?: unknown } }).error?.message;
+  if (typeof nested === "string" && nested.trim()) return nested;
+  return "Request failed.";
 };
 
 export default function Consignors() {
-  const { useConsignors } = useCustomer();
-  
-  // Fetch consignors from API
-  const { data: consignors = [], isLoading, error } = useConsignors();
-  const uiConsignors = useMemo(
-    () => consignors.map((consignor) => toUiConsignor(consignor as ApiConsignor)),
-    [consignors]
+  const { useConsignors, createConsignor, updateConsignorStatus } = useCustomer();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filters, setFilters] = useState<ConsignorFilters>({});
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  const consignorQuery = useMemo(
+    () => ({
+      search: debouncedSearch || undefined,
+      joined_from: filters.dateFrom,
+      joined_to: filters.dateTo,
+      status: filters.status,
+      per_page: 100,
+    }),
+    [debouncedSearch, filters.dateFrom, filters.dateTo, filters.status]
   );
-  const [selectedConsignor, setSelectedConsignor] = useState<UiConsignor | null>(null);
+
+  const { data: consignorResponse, isLoading, error } = useConsignors(consignorQuery);
+  const consignors = useMemo(
+    () => consignorResponse?.data ?? [],
+    [consignorResponse?.data]
+  );
+  const [selectedConsignor, setSelectedConsignor] = useState<ConsignorListItem | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [addConsignorOpen, setAddConsignorOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const [filters, setFilters] = useState<ConsignorFilters>({
-    status: [] as string[],
-    kycStatus: [] as string[],
-    highValue: false,
-  });
-
-  const filteredConsignors = useMemo(() => {
-    if (!uiConsignors || uiConsignors.length === 0) return [];
-    
-    return uiConsignors.filter((consignor) => {
-      const matchesSearch =
-        consignor.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        consignor.contactName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        consignor.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        consignor.phone?.toLowerCase().includes(searchQuery.toLowerCase());
-
-      if (
-        filters.status.length > 0 &&
-        !filters.status.includes(consignor.status)
-      ) {
-        return false;
-      }
-
-      if (
-        filters.kycStatus.length > 0 &&
-        consignor.kycStatus &&
-        !filters.kycStatus.includes(consignor.kycStatus)
-      ) {
-        return false;
-      }
-
-      if (filters.highValue && (consignor.totalValue || 0) < 1000000) {
-        return false;
-      }
-
-      if (filters.dateFrom) {
-        const fromDate = new Date(filters.dateFrom);
-        const regDate = consignor.joinDate;
-        if (regDate < fromDate) return false;
-      }
-      if (filters.dateTo) {
-        const toDate = new Date(filters.dateTo);
-        const regDate = consignor.joinDate;
-        if (regDate > toDate) return false;
-      }
-
-      return matchesSearch;
-    });
-  }, [uiConsignors, searchQuery, filters]);
-
-  // Calculate stats from real data
   const stats = useMemo(() => {
-    const total = uiConsignors.length;
-    const active = uiConsignors.filter((c) => c.status === "verified").length;
-    const pending = uiConsignors.filter((c) => c.status === "pending").length;
-    const verified = uiConsignors.filter((c) => c.kycStatus === "complete").length;
-    
+    const total = consignors.length;
+    const active = consignors.filter((c) => c.status === "active").length;
+    const inactive = consignors.filter((c) => c.status === "inactive").length;
+    const suspended = consignors.filter((c) => c.status === "suspended").length;
+
     return {
       total,
       active,
-      pending,
-      verified,
+      inactive,
+      suspended,
     };
-  }, [uiConsignors]);
-  
-  const pendingConsignors = uiConsignors.filter(
-    (c) => c.status === "pending"
-  ).length;
-  const highValueConsignors = uiConsignors.filter(
-    (c) => (c.totalValue || 0) > 1500000
-  ).length;
+  }, [consignors]);
 
-  const handleViewProfile = (consignor: UiConsignor) => {
+  const handleViewProfile = (consignor: ConsignorListItem) => {
     setSelectedConsignor(consignor);
     setDetailModalOpen(true);
   };
 
-  const handleEdit = (consignor: UiConsignor) => {
-    toast.success(`Edit mode for ${consignor.companyName} (coming soon)`);
-  };
-
-  const handleDelete = (consignor: UiConsignor) => {
-    // TODO: Implement delete mutation when backend endpoint is available
-    toast.success(`${consignor.companyName || consignor.id} deactivated`);
-  };
-
-  const handleBulkApprove = () => {
-    if (selectedIds.size === 0) {
-      toast.error("Please select consignors to approve");
-      return;
+  const handleStatusChange = async (
+    consignor: ConsignorListItem,
+    status: ConsignorStatus,
+    reason?: string
+  ) => {
+    try {
+      const response = await updateConsignorStatus.mutateAsync({
+        id: consignor.id,
+        data: {
+          status,
+          reason: reason || undefined,
+        },
+      });
+      toast.success(response.message || "Consignor status updated.");
+      setSelectedConsignor((prev) =>
+        prev && prev.id === consignor.id ? { ...prev, status } : prev
+      );
+    } catch (mutationError) {
+      toast.error(getErrorMessage(mutationError));
+      throw mutationError;
     }
-    toast.success(`${selectedIds.size} consignors approved`);
-    setSelectedIds(new Set());
-  };
-
-  const handleBulkMessage = () => {
-    if (selectedIds.size === 0) {
-      toast.error("Please select consignors to message");
-      return;
-    }
-    toast.success(`Message sent to ${selectedIds.size} consignors`);
-    setSelectedIds(new Set());
-  };
-
-  const handleBulkAssign = () => {
-    if (selectedIds.size === 0) {
-      toast.error("Please select consignors to assign");
-      return;
-    }
-    toast.success(`Manager assigned to ${selectedIds.size} consignors`);
-    setSelectedIds(new Set());
   };
 
   const handleExport = () => {
     const csv = [
-      ["Company", "Contact", "Email", "Status", "Items", "Total Value"],
-      ...filteredConsignors.map((c) => [
-        c.companyName,
-        c.contactName,
+      [
+        "ID",
+        "Name",
+        "Email",
+        "Phone",
+        "Status",
+        "Commission Rate",
+        "Total Lots",
+        "Total Value",
+        "Current Balance",
+        "Outstanding Payments",
+        "Registration Date",
+        "Notes Count",
+      ],
+      ...consignors.map((c) => [
+        String(c.id),
+        c.name,
         c.email,
+        c.phone,
         c.status,
-        c.itemsCount,
-        `$${c.totalValue}`,
+        c.commission_rate,
+        c.total_lots,
+        c.total_value,
+        c.current_balance,
+        c.outstanding_payments,
+        c.registration_date,
+        c.notes_count,
       ]),
     ]
       .map((row) => row.join(","))
@@ -258,18 +163,18 @@ export default function Consignors() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 bg-background">
-        <div className="container py-6">
-          <div className="flex items-center justify-between">
+      <header className="sticky top-0 z-50 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="container py-4 sm:py-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-foreground">Consignors</h1>
+              <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Consignors</h1>
               <p className="text-muted-foreground mt-1">
-                Manage all sellers and consigned items
+                Manage consignors with backend-synced status, notes, and activity.
               </p>
             </div>
             <Button
               size="lg"
-              className="gap-2"
+              className="h-11 gap-2 self-start"
               onClick={() => setAddConsignorOpen(true)}
             >
               <Plus className="w-5 h-5" />
@@ -279,29 +184,29 @@ export default function Consignors() {
         </div>
       </header>
 
-      <main className="container py-8 space-y-8">
-        {pendingConsignors > 0 && (
+      <main className="container space-y-6 py-6 sm:space-y-8 sm:py-8">
+        {stats.inactive > 0 && (
           <Alert className="border-yellow-200 bg-yellow-50">
             <AlertTriangle className="h-4 w-4 text-yellow-600" />
-            <AlertDescription className="text-yellow-800">
-              <strong>{pendingConsignors} consignors pending verification</strong>
-              — Review and approve KYC documents to activate accounts.
+            <AlertDescription className="text-sm leading-relaxed text-yellow-800">
+              <strong>{stats.inactive} consignors are inactive</strong>
+              {" - "}Inactive consignors cannot be assigned new lots.
             </AlertDescription>
           </Alert>
         )}
 
-        {highValueConsignors > 0 && (
-          <Alert className="border-purple-200 bg-purple-50">
-            <AlertTriangle className="h-4 w-4 text-purple-600" />
-            <AlertDescription className="text-purple-800">
-              <strong>{highValueConsignors} high-value consignors</strong> flagged
-              for manual review — Ensure compliance and risk assessment.
+        {stats.suspended > 0 && (
+          <Alert className="border-red-200 bg-red-50">
+            <Ban className="h-4 w-4 text-red-600" />
+            <AlertDescription className="text-sm leading-relaxed text-red-800">
+              <strong>{stats.suspended} consignors are suspended</strong>
+              {" - "}Suspended consignors cannot be assigned lots and payouts are blocked.
             </AlertDescription>
           </Alert>
         )}
 
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <Skeleton className="h-24 w-full" />
             <Skeleton className="h-24 w-full" />
             <Skeleton className="h-24 w-full" />
@@ -315,7 +220,7 @@ export default function Consignors() {
             </AlertDescription>
           </Alert>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <StatCard
               label="Total Consignors"
               value={stats.total}
@@ -327,90 +232,61 @@ export default function Consignors() {
               icon={CheckCircle}
             />
             <StatCard
-              label="Pending Verification"
-              value={stats.pending}
+              label="Inactive Consignors"
+              value={stats.inactive}
               icon={Clock}
             />
             <StatCard
-              label="Verified Consignors"
-              value={stats.verified}
-              icon={UserCheck}
+              label="Suspended Consignors"
+              value={stats.suspended}
+              icon={Ban}
             />
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
-          <div className="flex-1">
-            <Input
-              placeholder="Search by company name, contact, or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10"
-            />
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setFilterSheetOpen(true)}
-            className="gap-2"
-          >
-            <Filter className="w-4 h-4" />
-            Filters
-          </Button>
-
-          {selectedIds.size > 0 && (
-            <div className="flex gap-2 items-center">
-              <span className="text-sm text-muted-foreground">
-                {selectedIds.size} selected
-              </span>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    Actions
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleBulkApprove}>
-                    <UserCheck className="w-4 h-4 mr-2" />
-                    Approve Consignors
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleBulkMessage}>
-                    <Mail className="w-4 h-4 mr-2" />
-                    Send Messages
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleBulkAssign}>
-                    <Users className="w-4 h-4 mr-2" />
-                    Assign Manager
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExport}>
-                    <Download className="w-4 h-4 mr-2" />
-                    Export List
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+        <div className="rounded-lg border border-border/60 bg-card p-3 sm:p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="lg:flex-1">
+              <Input
+                placeholder="Search by name, email, or phone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-10"
+              />
             </div>
-          )}
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setFilterSheetOpen(true)}
+                className="h-10 w-full gap-2 sm:w-auto"
+              >
+                <Filter className="w-4 h-4" />
+                Filters
+              </Button>
 
-          {selectedIds.size === 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              className="gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Export
-            </Button>
-          )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                className="h-10 w-full gap-2 sm:w-auto"
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </Button>
+            </div>
+          </div>
         </div>
 
         <ConsignorTable
-          consignors={filteredConsignors}
+          consignors={consignors}
           onViewProfile={handleViewProfile}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          selectedIds={selectedIds}
-          onSelectionChange={setSelectedIds}
+          onStatusChange={(consignor, status) => {
+            void handleStatusChange(consignor, status);
+          }}
+          statusUpdatingId={
+            updateConsignorStatus.isPending ? updateConsignorStatus.variables?.id : null
+          }
         />
       </main>
 
@@ -418,6 +294,8 @@ export default function Consignors() {
         consignor={selectedConsignor}
         open={detailModalOpen}
         onOpenChange={setDetailModalOpen}
+        onStatusChange={handleStatusChange}
+        isStatusUpdating={updateConsignorStatus.isPending}
       />
 
       <FilterSheet
@@ -430,8 +308,8 @@ export default function Consignors() {
       <AddConsignorModal
         open={addConsignorOpen}
         onOpenChange={setAddConsignorOpen}
-        onAddConsignor={() => {
-          setAddConsignorOpen(false);
+        onAddConsignor={async (payload) => {
+          await createConsignor.mutateAsync(payload);
         }}
       />
     </div>

@@ -5,14 +5,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type CustomerFilters = {
-  status: string[];
-  kycStatus: string[];
-  highValue: boolean;
+  status?: "active" | "inactive" | "suspended";
   dateFrom?: string;
   dateTo?: string;
 };
@@ -30,25 +28,9 @@ export function FilterSheet({
   filters,
   onFilterChange,
 }: FilterSheetProps) {
-  const handleStatusChange = (status: string, checked: boolean) => {
-    const newStatus = checked
-      ? [...filters.status, status]
-      : filters.status.filter((s) => s !== status);
-    onFilterChange({ ...filters, status: newStatus });
-  };
-
-  const handleKycStatusChange = (status: string, checked: boolean) => {
-    const newKycStatus = checked
-      ? [...filters.kycStatus, status]
-      : filters.kycStatus.filter((s) => s !== status);
-    onFilterChange({ ...filters, kycStatus: newKycStatus });
-  };
-
   const handleReset = () => {
     onFilterChange({
-      status: [],
-      kycStatus: [],
-      highValue: false,
+      status: undefined,
       dateFrom: undefined,
       dateTo: undefined,
     });
@@ -56,7 +38,7 @@ export function FilterSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-80 p-4">
+      <SheetContent className="w-full max-w-sm p-4 sm:w-96">
         <SheetHeader>
           <SheetTitle>Filters</SheetTitle>
         </SheetHeader>
@@ -65,49 +47,26 @@ export function FilterSheet({
           {/* Status Filter */}
           <div className="space-y-3">
             <h3 className="font-semibold text-foreground">Status</h3>
-            <div className="space-y-2">
-              {["verified", "pending", "suspended"].map((status) => (
-                <div key={status} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`status-${status}`}
-                    checked={filters.status.includes(status)}
-                    onCheckedChange={(checked) =>
-                      handleStatusChange(status, checked as boolean)
-                    }
-                  />
-                  <Label
-                    htmlFor={`status-${status}`}
-                    className="capitalize cursor-pointer"
-                  >
-                    {status}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* KYC Status Filter */}
-          <div className="space-y-3 border-t border-border pt-6">
-            <h3 className="font-semibold text-foreground">Verification State</h3>
-            <div className="space-y-2">
-              {["complete", "incomplete", "pending"].map((status) => (
-                <div key={status} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`kyc-${status}`}
-                    checked={filters.kycStatus.includes(status)}
-                    onCheckedChange={(checked) =>
-                      handleKycStatusChange(status, checked as boolean)
-                    }
-                  />
-                  <Label
-                    htmlFor={`kyc-${status}`}
-                    className="capitalize cursor-pointer"
-                  >
-                    {status}
-                  </Label>
-                </div>
-              ))}
-            </div>
+            <Select
+              value={filters.status ?? "all"}
+              onValueChange={(value) =>
+                onFilterChange({
+                  ...filters,
+                  status:
+                    value === "all" ? undefined : (value as "active" | "inactive" | "suspended"),
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Date Range Filter */}
@@ -143,24 +102,8 @@ export function FilterSheet({
             </div>
           </div>
 
-          {/* High Value Filter */}
-          <div className="space-y-3 border-t border-border pt-6">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="high-value"
-                checked={filters.highValue}
-                onCheckedChange={(checked) =>
-                  onFilterChange({ ...filters, highValue: checked as boolean })
-                }
-              />
-              <Label htmlFor="high-value" className="cursor-pointer">
-                High-Value Consignors Only
-              </Label>
-            </div>
-          </div>
-
           {/* Action Buttons */}
-          <div className="flex gap-2 border-t border-border pt-6">
+          <div className="flex flex-col gap-2 border-t border-border pt-6 sm:flex-row">
             <Button variant="outline" onClick={handleReset} className="flex-1">
               Reset
             </Button>

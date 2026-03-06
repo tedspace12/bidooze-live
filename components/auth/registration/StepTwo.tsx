@@ -194,7 +194,7 @@ export const StepTwo = ({ onNext, onBack, defaultValues, isLoading }: StepTwoPro
                       <FormLabel>Platform</FormLabel>
                       <FormControl>
                         <Select onValueChange={field.onChange}>
-                          <SelectTrigger>
+                          <SelectTrigger className="text-base md:text-sm">
                             <SelectValue placeholder="Select platform" />
                           </SelectTrigger>
                           <SelectContent>
@@ -246,11 +246,18 @@ export const StepTwo = ({ onNext, onBack, defaultValues, isLoading }: StepTwoPro
 
           </div>
 
-          <div className="flex gap-3">
-            <Button type="button" variant="outline" onClick={onBack} className="flex-1" size="lg" disabled={isLoading}>
+          <div className="flex flex-col-reverse md:flex-row gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onBack}
+              className="w-full md:w-auto h-12 md:h-10 md:min-w-32 md:flex-none"
+              size="lg"
+              disabled={isLoading}
+            >
               Back
             </Button>
-            <Button type="submit" className="flex-1" size="lg" disabled={isLoading}>
+            <Button type="submit" className="w-full h-12 md:h-10 md:flex-1" size="lg" disabled={isLoading}>
               {isLoading ? "Submitting..." : "Next"}
             </Button>
           </div>

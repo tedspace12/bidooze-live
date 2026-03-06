@@ -1,24 +1,32 @@
-import { useRef, useState } from "react";
-import { Consignor, KYCDocument } from "@/data";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, X, CheckCircle, Clock } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import type { ConsignorCreatePayload } from "@/features/customers/services/customerService";
+
+const getErrorMessage = (error: unknown): string => {
+  if (!error || typeof error !== "object") return "Failed to create consignor.";
+  const message = (error as { message?: unknown }).message;
+  if (typeof message === "string" && message.trim()) return message;
+  const nested = (error as { error?: { message?: unknown } }).error?.message;
+  if (typeof nested === "string" && nested.trim()) return nested;
+  return "Failed to create consignor.";
+};
 
 interface AddConsignorModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddConsignor: (consignor: Consignor) => void;
+  onAddConsignor: (payload: ConsignorCreatePayload) => void | Promise<void>;
 }
 
 export function AddConsignorModal({
@@ -26,61 +34,31 @@ export function AddConsignorModal({
   onOpenChange,
   onAddConsignor,
 }: AddConsignorModalProps) {
-  const [step, setStep] = useState<"basic" | "kyc" | "review">("basic");
+  const [step, setStep] = useState<"basic" | "review">("basic");
   const [formData, setFormData] = useState({
-    companyName: "",
-    contactName: "",
+    name: "",
     email: "",
     phone: "",
-    commission: "15",
+    address: "",
+    avatar_url: "",
+    commissionPercent: "15",
+    account_holder: "",
+    account_number: "",
+    routing_number: "",
+    bank_name: "",
   });
-  const [kycDocuments, setKycDocuments] = useState<KYCDocument[]>([]);
-  const idCounterRef = useRef(0);
-
-  const nextId = (prefix: string) => {
-    idCounterRef.current += 1;
-    return `${prefix}-${idCounterRef.current}`;
-  };
 
   const handleBasicInfoChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleFileUpload = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    docType: KYCDocument["type"]
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File size must be less than 5MB");
-      return;
-    }
-
-    const doc: KYCDocument = {
-      id: nextId("kyc"),
-      type: docType,
-      fileName: file.name,
-      uploadedAt: new Date(),
-      status: "pending",
-    };
-
-    setKycDocuments((prev) => [...prev, doc]);
-    toast.success(`${file.name} uploaded successfully`);
-  };
-
-  const handleRemoveDocument = (docId: string) => {
-    setKycDocuments((prev) => prev.filter((doc) => doc.id !== docId));
+  const toOptional = (value: string) => {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
   };
 
   const handleValidateBasicInfo = () => {
-    if (
-      !formData.companyName ||
-      !formData.contactName ||
-      !formData.email ||
-      !formData.phone
-    ) {
+    if (!formData.name || !formData.email || !formData.phone || !formData.commissionPercent) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -88,135 +66,92 @@ export function AddConsignorModal({
       toast.error("Please enter a valid email address");
       return;
     }
-    setStep("kyc");
-  };
-
-  const handleValidateKYC = () => {
-    if (kycDocuments.length === 0) {
-      toast.error("Please upload at least one KYC document");
+    const commissionPercent = Number(formData.commissionPercent);
+    if (!Number.isFinite(commissionPercent) || commissionPercent < 0 || commissionPercent > 100) {
+      toast.error("Commission rate must be between 0 and 100");
       return;
     }
     setStep("review");
   };
 
-  const handleSubmit = () => {
-    const newConsignor: Consignor = {
-      id: nextId("csg"),
-      companyName: formData.companyName,
-      contactName: formData.contactName,
-      email: formData.email,
-      phone: formData.phone,
-      avatar: undefined,
-      status: "pending",
-      tags: ["new"],
-      itemsCount: 0,
-      totalValue: 0,
-      commission: `${formData.commission}%`,
-      joinDate: new Date(),
-      kycStatus: "pending",
-      kycDocuments: kycDocuments,
-      currentBalance: 0,
-      outstandingPayments: 0,
-      items: [],
-      payments: [],
-      notes: [
-        {
-          id: nextId("note"),
-          text: `Consignor added by auctioneer. KYC documents submitted for review.`,
-          createdAt: new Date(),
-          createdBy: "Auctioneer",
-        },
-      ],
+  const handleSubmit = async () => {
+    const commissionPercent = Number(formData.commissionPercent);
+    const payload: ConsignorCreatePayload = {
+      name: formData.name.trim(),
+      email: formData.email.trim(),
+      phone: formData.phone.trim(),
+      commission_rate: Math.max(0, Math.min(1, commissionPercent / 100)),
+      address: toOptional(formData.address),
+      avatar_url: toOptional(formData.avatar_url),
+      account_holder: toOptional(formData.account_holder),
+      account_number: toOptional(formData.account_number),
+      routing_number: toOptional(formData.routing_number),
+      bank_name: toOptional(formData.bank_name),
     };
 
-    onAddConsignor(newConsignor);
-    toast.success(
-      `${formData.companyName} added successfully! Awaiting KYC verification.`
-    );
+    try {
+      await onAddConsignor(payload);
+      toast.success(`${formData.name} created successfully.`);
 
-    // Reset form
-    setFormData({
-      companyName: "",
-      contactName: "",
-      email: "",
-      phone: "",
-      commission: "15",
-    });
-    setKycDocuments([]);
-    setStep("basic");
-    onOpenChange(false);
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        address: "",
+        avatar_url: "",
+        commissionPercent: "15",
+        account_holder: "",
+        account_number: "",
+        routing_number: "",
+        bank_name: "",
+      });
+      setStep("basic");
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   };
 
-  const docTypes: Array<{ value: KYCDocument["type"]; label: string }> = [
-    { value: "id", label: "Government ID" },
-    { value: "proof-of-address", label: "Proof of Address" },
-    { value: "business-license", label: "Business License" },
-    { value: "tax-id", label: "Tax ID / EIN" },
-  ];
-
   const handleStepChange = (value: string) => {
-    if (value === "basic" || value === "kyc" || value === "review") {
+    if (value === "basic" || value === "review") {
       setStep(value);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Consignor</DialogTitle>
-          <DialogDescription>
-            Register a new seller and collect KYC verification documents
-          </DialogDescription>
+          <DialogDescription>Register a new seller profile.</DialogDescription>
         </DialogHeader>
 
         <Tabs value={step} onValueChange={handleStepChange}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="basic">Basic Info</TabsTrigger>
-            <TabsTrigger value="kyc" disabled={step === "basic"}>
-              KYC Documents
-            </TabsTrigger>
             <TabsTrigger value="review" disabled={step !== "review"}>
               Review
             </TabsTrigger>
           </TabsList>
 
-          {/* Basic Info Tab */}
           <TabsContent value="basic" className="space-y-4">
             <div className="space-y-4">
               <div>
-                <Label htmlFor="company" className="text-foreground font-medium">
-                  Company Name *
+                <Label htmlFor="company" className="font-medium text-foreground">
+                  Name *
                 </Label>
                 <Input
                   id="company"
-                  placeholder="e.g., Vintage Collectibles Co."
-                  value={formData.companyName}
-                  onChange={(e) =>
-                    handleBasicInfoChange("companyName", e.target.value)
-                  }
+                  placeholder="e.g., Estate Seller LLC"
+                  value={formData.name}
+                  onChange={(e) => handleBasicInfoChange("name", e.target.value)}
                   className="mt-1"
                 />
               </div>
 
-              <div>
-                <Label htmlFor="contact" className="text-foreground font-medium">
-                  Contact Name *
-                </Label>
-                <Input
-                  id="contact"
-                  placeholder="e.g., Sarah Mitchell"
-                  value={formData.contactName}
-                  onChange={(e) =>
-                    handleBasicInfoChange("contactName", e.target.value)
-                  }
-                  className="mt-1"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="email" className="text-foreground font-medium">
+                  <Label htmlFor="email" className="font-medium text-foreground">
                     Email *
                   </Label>
                   <Input
@@ -224,218 +159,172 @@ export function AddConsignorModal({
                     type="email"
                     placeholder="sarah@company.com"
                     value={formData.email}
-                    onChange={(e) =>
-                      handleBasicInfoChange("email", e.target.value)
-                    }
+                    onChange={(e) => handleBasicInfoChange("email", e.target.value)}
                     className="mt-1"
                   />
                 </div>
-
                 <div>
-                  <Label htmlFor="phone" className="text-foreground font-medium">
+                  <Label htmlFor="phone" className="font-medium text-foreground">
                     Phone *
                   </Label>
                   <Input
                     id="phone"
                     placeholder="+1 (555) 123-4567"
                     value={formData.phone}
-                    onChange={(e) =>
-                      handleBasicInfoChange("phone", e.target.value)
-                    }
+                    onChange={(e) => handleBasicInfoChange("phone", e.target.value)}
                     className="mt-1"
                   />
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="commission" className="text-foreground font-medium">
+                <Label htmlFor="commission" className="font-medium text-foreground">
                   Commission Rate (%) *
                 </Label>
                 <Input
                   id="commission"
                   type="number"
                   min="0"
-                  max="50"
+                  max="100"
                   placeholder="15"
-                  value={formData.commission}
-                  onChange={(e) =>
-                    handleBasicInfoChange("commission", e.target.value)
-                  }
+                  value={formData.commissionPercent}
+                  onChange={(e) => handleBasicInfoChange("commissionPercent", e.target.value)}
                   className="mt-1"
                 />
               </div>
 
+              <div>
+                <Label htmlFor="address" className="font-medium text-foreground">
+                  Address (Optional)
+                </Label>
+                <Input
+                  id="address"
+                  placeholder="123 Main St, Austin, TX"
+                  value={formData.address}
+                  onChange={(e) => handleBasicInfoChange("address", e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="avatar-url" className="font-medium text-foreground">
+                  Avatar URL (Optional)
+                </Label>
+                <Input
+                  id="avatar-url"
+                  placeholder="https://cdn.example.com/avatar.jpg"
+                  value={formData.avatar_url}
+                  onChange={(e) => handleBasicInfoChange("avatar_url", e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-border p-3">
+                <p className="text-sm font-medium text-foreground">Bank Account (Optional at Create)</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="account-holder" className="font-medium text-foreground">
+                      Account Holder
+                    </Label>
+                    <Input
+                      id="account-holder"
+                      value={formData.account_holder}
+                      onChange={(e) => handleBasicInfoChange("account_holder", e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="bank-name" className="font-medium text-foreground">
+                      Bank Name
+                    </Label>
+                    <Input
+                      id="bank-name"
+                      value={formData.bank_name}
+                      onChange={(e) => handleBasicInfoChange("bank_name", e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="account-number" className="font-medium text-foreground">
+                      Account Number
+                    </Label>
+                    <Input
+                      id="account-number"
+                      value={formData.account_number}
+                      onChange={(e) => handleBasicInfoChange("account_number", e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="routing-number" className="font-medium text-foreground">
+                      Routing Number
+                    </Label>
+                    <Input
+                      id="routing-number"
+                      value={formData.routing_number}
+                      onChange={(e) => handleBasicInfoChange("routing_number", e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <Button onClick={handleValidateBasicInfo} className="w-full">
-                Continue to KYC Documents
+                Review and Create
               </Button>
             </div>
           </TabsContent>
 
-          {/* KYC Documents Tab */}
-          <TabsContent value="kyc" className="space-y-4">
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Upload KYC verification documents. All documents must be clear
-                and legible.
-              </p>
-
-              {docTypes.map((docType) => (
-                <Card key={docType.value}>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">{docType.label}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {kycDocuments.find((d) => d.type === docType.value) ? (
-                      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                          <div>
-                            <p className="text-sm font-medium">
-                              {
-                                kycDocuments.find((d) => d.type === docType.value)
-                                  ?.fileName
-                              }
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Status: Pending Review
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            const doc = kycDocuments.find(
-                              (d) => d.type === docType.value
-                            );
-                            if (doc) handleRemoveDocument(doc.id);
-                          }}
-                          className="text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/30 transition-colors">
-                        <Upload className="w-5 h-5 text-muted-foreground mb-2" />
-                        <span className="text-sm font-medium text-foreground">
-                          Click to upload
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          PDF, JPG, or PNG (max 5MB)
-                        </span>
-                        <input
-                          type="file"
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          onChange={(e) => handleFileUpload(e, docType.value)}
-                          className="hidden"
-                        />
-                      </label>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setStep("basic")}
-                  className="flex-1"
-                >
-                  Back
-                </Button>
-                <Button onClick={handleValidateKYC} className="flex-1">
-                  Review Submission
-                </Button>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* Review Tab */}
           <TabsContent value="review" className="space-y-4">
-            <div className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Consignor Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-muted-foreground">Company Name</p>
-                      <p className="font-medium">{formData.companyName}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Contact Name</p>
-                      <p className="font-medium">{formData.contactName}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Email</p>
-                      <p className="font-medium">{formData.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Phone</p>
-                      <p className="font-medium">{formData.phone}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Commission Rate</p>
-                      <p className="font-medium">{formData.commission}%</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Status</p>
-                      <p className="font-medium text-yellow-600">Pending</p>
-                    </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Consignor Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-muted-foreground">Name</p>
+                    <p className="font-medium">{formData.name}</p>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">KYC Documents</CardTitle>
-                  <CardDescription>
-                    {kycDocuments.length} document(s) submitted for review
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {kycDocuments.map((doc) => (
-                      <div
-                        key={doc.id}
-                        className="flex items-center justify-between p-2 bg-muted/30 rounded"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-yellow-600" />
-                          <div>
-                            <p className="text-sm font-medium">{doc.fileName}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {doc.type.replace("-", " ")} • Pending Review
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                  <div>
+                    <p className="text-muted-foreground">Email</p>
+                    <p className="font-medium">{formData.email}</p>
                   </div>
-                </CardContent>
-              </Card>
+                  <div>
+                    <p className="text-muted-foreground">Phone</p>
+                    <p className="font-medium">{formData.phone}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Commission Rate</p>
+                    <p className="font-medium">{formData.commissionPercent}%</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Address</p>
+                    <p className="font-medium">{formData.address || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Avatar URL</p>
+                    <p className="font-medium truncate">{formData.avatar_url || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Account Holder</p>
+                    <p className="font-medium">{formData.account_holder || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Bank Name</p>
+                    <p className="font-medium">{formData.bank_name || "-"}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-900">
-                  <strong>Next Steps:</strong> Once submitted, our team will
-                  review the KYC documents. The consignor will receive an email
-                  notification upon approval or if additional documents are
-                  needed.
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setStep("kyc")}
-                  className="flex-1"
-                >
-                  Back
-                </Button>
-                <Button onClick={handleSubmit} className="flex-1">
-                  Submit & Create Consignor
-                </Button>
-              </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep("basic")} className="flex-1">
+                Back
+              </Button>
+              <Button onClick={handleSubmit} className="flex-1">
+                Submit and Create Consignor
+              </Button>
             </div>
           </TabsContent>
         </Tabs>

@@ -19,7 +19,7 @@ export default function BidoozeSellerLayout({ children }: { children: React.Reac
                     <main className={cn(
                         "transition-all duration-300"
                     )}>
-                        <div className='pt-0 p-6'>
+                        <div className='pt-0 p-3 sm:p-4 md:p-6'>
                             <AuctioneerApprovedGuard>{children}</AuctioneerApprovedGuard>
                         </div>
                     </main>

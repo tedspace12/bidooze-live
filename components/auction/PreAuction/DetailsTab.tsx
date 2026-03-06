@@ -5,6 +5,7 @@ import { FormInput } from "../FormInput";
 import { FormTextarea } from "../FormTextarea";
 import { FormCheckbox } from "../FormCheckbox";
 import { PremiumButton } from "../PremiumButton";
+import { DateTimePicker } from "../DateTimePicker";
 import { useAuctionForm } from "@/context/auction-form-context";
 import type { CreateAuctionPayload } from "@/features/auction/types";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
@@ -187,19 +188,17 @@ export function DetailsTab({ initialData }: DetailsTabProps) {
 
       <FormSection title="Auction Window" description="Define when the auction runs.">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <FormInput
+          <DateTimePicker
             label="Auction Start *"
-            name="auction_start_at"
-            type="datetime-local"
             value={formState.auction_start_at || ""}
-            onChange={(e) => updateFormState({ auction_start_at: e.target.value })}
+            onChange={(value) => updateFormState({ auction_start_at: value })}
+            clearable={false}
           />
-          <FormInput
+          <DateTimePicker
             label="Auction End *"
-            name="auction_end_at"
-            type="datetime-local"
             value={formState.auction_end_at || ""}
-            onChange={(e) => updateFormState({ auction_end_at: e.target.value })}
+            onChange={(value) => updateFormState({ auction_end_at: value })}
+            clearable={false}
           />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
@@ -244,47 +243,35 @@ export function DetailsTab({ initialData }: DetailsTabProps) {
 
       <FormSection title="Preview, Bidding & Checkout" description="Optional windows before and after the auction.">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <FormInput
+          <DateTimePicker
             label="Preview Start"
-            name="preview_start_at"
-            type="datetime-local"
             value={formState.preview_start_at || ""}
-            onChange={(e) => updateFormState({ preview_start_at: e.target.value || undefined })}
+            onChange={(value) => updateFormState({ preview_start_at: value || undefined })}
           />
-          <FormInput
+          <DateTimePicker
             label="Preview End"
-            name="preview_end_at"
-            type="datetime-local"
             value={formState.preview_end_at || ""}
-            onChange={(e) => updateFormState({ preview_end_at: e.target.value || undefined })}
+            onChange={(value) => updateFormState({ preview_end_at: value || undefined })}
           />
-          <FormInput
+          <DateTimePicker
             label="Checkout Start"
-            name="checkout_start_at"
-            type="datetime-local"
             value={formState.checkout_start_at || ""}
-            onChange={(e) => updateFormState({ checkout_start_at: e.target.value || undefined })}
+            onChange={(value) => updateFormState({ checkout_start_at: value || undefined })}
           />
-          <FormInput
+          <DateTimePicker
             label="Checkout End"
-            name="checkout_end_at"
-            type="datetime-local"
             value={formState.checkout_end_at || ""}
-            onChange={(e) => updateFormState({ checkout_end_at: e.target.value || undefined })}
+            onChange={(value) => updateFormState({ checkout_end_at: value || undefined })}
           />
-          <FormInput
+          <DateTimePicker
             label="Open Bidding At"
-            name="open_bidding_at"
-            type="datetime-local"
             value={formState.open_bidding_at || ""}
-            onChange={(e) => updateFormState({ open_bidding_at: e.target.value || undefined })}
+            onChange={(value) => updateFormState({ open_bidding_at: value || undefined })}
           />
-          <FormInput
+          <DateTimePicker
             label="Close Bidding At"
-            name="close_bidding_at"
-            type="datetime-local"
             value={formState.close_bidding_at || ""}
-            onChange={(e) => updateFormState({ close_bidding_at: e.target.value || undefined })}
+            onChange={(value) => updateFormState({ close_bidding_at: value || undefined })}
           />
         </div>
       </FormSection>

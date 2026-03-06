@@ -25,11 +25,13 @@ export interface StepTwoPayload {
 
 export interface StepThreePayload {
   registration_token: string;
+  country: string;
   bank_name: string;
   account_name: string;
-  account_number: string;
-  routing_number: string;
+  account_number?: string;
+  routing_number?: string;
   account_type: string;
+  bank_identifiers?: Record<string, string>;
 }
 
 export interface StepFourPayload {

@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { Consignor } from "@/data";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Eye, Edit2, Trash2, MoreHorizontal, Building } from "lucide-react";
+import { Eye, MoreHorizontal, Building, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,14 +15,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type {
+  ConsignorListItem,
+  ConsignorStatus,
+} from "@/features/customers/services/customerService";
 
 interface ConsignorTableProps {
-  consignors: Consignor[];
-  onViewProfile: (consignor: Consignor) => void;
-  onEdit: (consignor: Consignor) => void;
-  onDelete: (consignor: Consignor) => void;
-  selectedIds: Set<string>;
-  onSelectionChange: (ids: Set<string>) => void;
+  consignors: ConsignorListItem[];
+  onViewProfile: (consignor: ConsignorListItem) => void;
+  onStatusChange: (consignor: ConsignorListItem, status: ConsignorStatus) => void;
+  statusUpdatingId?: string | number | null;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -32,43 +32,24 @@ const ITEMS_PER_PAGE = 10;
 export function ConsignorTable({
   consignors,
   onViewProfile,
-  onEdit,
-  onDelete,
-  selectedIds,
-  onSelectionChange,
+  onStatusChange,
+  statusUpdatingId,
 }: ConsignorTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
 
-  const totalPages = Math.ceil(consignors.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const totalPages = Math.max(1, Math.ceil(consignors.length / ITEMS_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
   const paginatedConsignors = consignors.slice(
     startIndex,
     startIndex + ITEMS_PER_PAGE
   );
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      onSelectionChange(new Set(paginatedConsignors.map((c) => c.id)));
-    } else {
-      onSelectionChange(new Set());
-    }
-  };
-
-  const handleSelectOne = (id: string, checked: boolean) => {
-    const newSelection = new Set(selectedIds);
-    if (checked) {
-      newSelection.add(id);
-    } else {
-      newSelection.delete(id);
-    }
-    onSelectionChange(newSelection);
-  };
-
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: ConsignorStatus) => {
     switch (status) {
-      case "verified":
+      case "active":
         return "bg-green-50 text-green-700 border-green-200";
-      case "pending":
+      case "inactive":
         return "bg-yellow-50 text-yellow-700 border-yellow-200";
       case "suspended":
         return "bg-red-50 text-red-700 border-red-200";
@@ -77,55 +58,49 @@ export function ConsignorTable({
     }
   };
 
-  const getTagColor = (tag: string) => {
-    const colors: Record<string, string> = {
-      verified: "bg-blue-50 text-blue-700",
-      "high-value": "bg-purple-50 text-purple-700",
-      new: "bg-green-50 text-green-700",
-      "top-seller": "bg-amber-50 text-amber-700",
-    };
-    return colors[tag] || "bg-gray-50 text-gray-700";
-  };
-
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-border overflow-hidden">
-        <table className="w-full">
+        <table className="w-full table-fixed sm:table-auto">
           <thead>
-            <tr className="bg-muted/50 border-b border-border sticky top-0">
-              <th className="w-12 px-4 py-3">
-                <Checkbox
-                  checked={
-                    paginatedConsignors.length > 0 &&
-                    paginatedConsignors.every((c) => selectedIds.has(c.id))
-                  }
-                  onCheckedChange={handleSelectAll}
-                />
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">
+            <tr className="bg-muted/50 border-b border-border">
+              <th className="px-3 py-3 text-left text-sm font-semibold text-foreground whitespace-nowrap sm:px-4">
                 Consignor
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">
+              <th className="hidden px-4 py-3 text-left text-sm font-semibold text-foreground whitespace-nowrap md:table-cell">
                 Contact
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">
-                Items
+              <th className="hidden px-4 py-3 text-left text-sm font-semibold text-foreground whitespace-nowrap lg:table-cell">
+                Lots
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">
+              <th className="hidden px-4 py-3 text-left text-sm font-semibold text-foreground whitespace-nowrap xl:table-cell">
                 Total Value
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">
+              <th className="hidden px-4 py-3 text-left text-sm font-semibold text-foreground whitespace-nowrap xl:table-cell">
                 Commission
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">
+              <th className="hidden px-3 py-3 text-left text-sm font-semibold text-foreground whitespace-nowrap sm:table-cell sm:px-4 md:px-4">
                 Status
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">
+              <th className="hidden px-4 py-3 text-left text-sm font-semibold text-foreground whitespace-nowrap lg:table-cell">
+                Notes
+              </th>
+              <th className="w-14 pl-1 pr-3 py-3 text-left text-sm font-semibold text-foreground whitespace-nowrap sm:w-24 sm:px-4">
                 Actions
               </th>
             </tr>
           </thead>
           <tbody>
+            {paginatedConsignors.length === 0 && (
+              <tr>
+                <td
+                  className="px-4 py-8 text-center text-sm text-muted-foreground"
+                  colSpan={8}
+                >
+                  No consignors found.
+                </td>
+              </tr>
+            )}
             {paginatedConsignors.map((consignor, idx) => (
               <tr
                 key={consignor.id}
@@ -133,31 +108,35 @@ export function ConsignorTable({
                   idx % 2 === 0 ? "bg-white" : "bg-muted/10"
                 }`}
               >
-                <td className="px-4 py-3">
-                  <Checkbox
-                    checked={selectedIds.has(consignor.id)}
-                    onCheckedChange={(checked) =>
-                      handleSelectOne(consignor.id, checked as boolean)
-                    }
-                  />
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
+                <td className="px-3 py-3 sm:px-4">
+                  <div className="flex items-start gap-3">
                     <Avatar>
-                      <AvatarImage src={consignor.avatar} />
-                      <AvatarFallback><Building size={24} className="text-gray-500"/></AvatarFallback>
+                      <AvatarImage src={undefined} />
+                      <AvatarFallback><Building size={20} className="text-gray-500"/></AvatarFallback>
                     </Avatar>
-                    <div>
-                      <p className="font-medium text-foreground text-sm">
-                        {consignor.companyName}
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-foreground text-sm">
+                        {consignor.name}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {consignor.contactName}
+                      <p className="truncate text-xs text-muted-foreground md:hidden">
+                        {consignor.email}
                       </p>
+                      <p className="truncate text-xs text-muted-foreground md:hidden">
+                        {consignor.phone}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1 sm:hidden">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium border ${getStatusColor(
+                            consignor.status
+                          )}`}
+                        >
+                          {consignor.status.charAt(0).toUpperCase() + consignor.status.slice(1)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-3">
+                <td className="hidden px-4 py-3 md:table-cell">
                   <div className="text-sm">
                     <p className="text-foreground">{consignor.email}</p>
                     <p className="text-xs text-muted-foreground">
@@ -165,46 +144,34 @@ export function ConsignorTable({
                     </p>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-sm text-foreground">
-                  {consignor.itemsCount}
+                <td className="hidden px-4 py-3 text-sm text-foreground lg:table-cell">
+                  {consignor.total_lots}
                 </td>
-                <td className="px-4 py-3 text-sm font-medium text-foreground">
-                  ${(consignor.totalValue / 1000000).toFixed(2)}M
+                <td className="hidden px-4 py-3 text-sm font-medium text-foreground xl:table-cell">
+                  ${Number(consignor.total_value || 0).toLocaleString()}
                 </td>
-                <td className="px-4 py-3 text-sm text-foreground">
-                  {consignor.commission}
+                <td className="hidden px-4 py-3 text-sm text-foreground xl:table-cell">
+                  {(Number(consignor.commission_rate || 0) * 100).toFixed(2).replace(/\.00$/, "")}%
                 </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-2">
-                    <span
-                      className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                        consignor.status
-                      )}`}
-                    >
-                      {consignor.status.charAt(0).toUpperCase() +
-                        consignor.status.slice(1)}
-                    </span>
-                    {consignor.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className={`inline-block px-2 py-1 rounded text-xs font-medium ${getTagColor(
-                          tag
-                        )}`}
-                      >
-                        {tag === "high-value"
-                          ? "High Value"
-                          : tag.charAt(0).toUpperCase() + tag.slice(1)}
-                      </span>
-                    ))}
-                  </div>
+                <td className="hidden px-3 py-3 sm:table-cell sm:px-4 md:px-4">
+                  <span
+                    className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
+                      consignor.status
+                    )}`}
+                  >
+                    {consignor.status.charAt(0).toUpperCase() + consignor.status.slice(1)}
+                  </span>
                 </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
+                <td className="hidden px-4 py-3 text-sm text-foreground lg:table-cell">
+                  {consignor.notes_count}
+                </td>
+                <td className="pl-1 pr-3 py-3 sm:px-4">
+                  <div className="flex items-center justify-end gap-1 sm:justify-start sm:gap-2">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => onViewProfile(consignor)}
-                      className="h-8 w-8 p-0"
+                      className="hidden h-8 w-8 p-0 sm:inline-flex"
                     >
                       <Eye className="w-4 h-4" />
                     </Button>
@@ -214,22 +181,37 @@ export function ConsignorTable({
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0"
+                          disabled={statusUpdatingId === consignor.id}
                         >
-                          <MoreHorizontal className="w-4 h-4" />
+                          {statusUpdatingId === consignor.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <MoreHorizontal className="w-4 h-4" />
+                          )}
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onEdit(consignor)}>
-                          <Edit2 className="w-4 h-4 mr-2" />
-                          Edit
+                        <DropdownMenuItem onClick={() => onViewProfile(consignor)} className="sm:hidden">
+                          View Profile
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => onDelete(consignor)}
-                          className="text-red-600"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Deactivate
-                        </DropdownMenuItem>
+                        {consignor.status !== "active" && (
+                          <DropdownMenuItem onClick={() => onStatusChange(consignor, "active")}>
+                            Mark Active
+                          </DropdownMenuItem>
+                        )}
+                        {consignor.status !== "inactive" && (
+                          <DropdownMenuItem onClick={() => onStatusChange(consignor, "inactive")}>
+                            Mark Inactive
+                          </DropdownMenuItem>
+                        )}
+                        {consignor.status !== "suspended" && (
+                          <DropdownMenuItem
+                            onClick={() => onStatusChange(consignor, "suspended")}
+                            className="text-red-600"
+                          >
+                            Suspend
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -241,26 +223,26 @@ export function ConsignorTable({
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          Showing {startIndex + 1} to{" "}
+          Showing {consignors.length === 0 ? 0 : startIndex + 1} to{" "}
           {Math.min(startIndex + ITEMS_PER_PAGE, consignors.length)} of{" "}
           {consignors.length} consignors
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
+            disabled={safeCurrentPage === 1}
           >
             Previous
           </Button>
           <Select
-            value={currentPage.toString()}
+            value={safeCurrentPage.toString()}
             onValueChange={(val) => setCurrentPage(parseInt(val))}
           >
-            <SelectTrigger className="w-20">
+            <SelectTrigger className="w-16 sm:w-20">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -279,7 +261,7 @@ export function ConsignorTable({
             onClick={() =>
               setCurrentPage((p) => Math.min(totalPages, p + 1))
             }
-            disabled={currentPage === totalPages}
+            disabled={safeCurrentPage === totalPages}
           >
             Next
           </Button>

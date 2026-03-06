@@ -1,6 +1,6 @@
 'use client';
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import Image from "next/image";
 
@@ -78,14 +78,14 @@ const items = [
 export default function Home() {
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-hidden">
       <nav className="sticky top-0 z-50 border-b border-border bg-grey-50/95 backdrop-blur-xl">
-        <div className="max-w-[1200px] mx-auto flex h-14 items-center justify-between px-6">
+        <div className="max-w-[1200px] mx-auto flex h-14 items-center justify-between px-4 sm:px-6">
           <a href="/" className="flex items-center gap-2 text-lg font-bold text-foreground tracking-tight">
             <Image src="/logo/Bidooze.svg" alt="Bidooze Logo" width={150} height={24} className="rounded-sm" />
           </a>
 
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden lg:flex items-center gap-8">
             <a href="#identity" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200">
               Platform
             </a>
@@ -100,7 +100,7 @@ export default function Home() {
             </a>
           </div>
 
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-3">
             <a
               href="/login"
               className="rounded-lg border border-input px-4 py-2 text-sm font-semibold text-foreground transition-all duration-200 hover:border-grey-500 hover:bg-grey-100"
@@ -116,7 +116,7 @@ export default function Home() {
           </div>
 
           <button
-            className="md:hidden text-foreground"
+            className="lg:hidden text-foreground"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Toggle menu"
           >
@@ -125,20 +125,20 @@ export default function Home() {
         </div>
 
         {mobileOpen && (
-          <div className="md:hidden border-t border-border bg-grey-50 px-6 py-4 space-y-3">
+          <div className="lg:hidden border-t border-border bg-grey-50 px-4 sm:px-6 py-4 space-y-3">
             <a href="#identity" className="block text-sm font-medium text-muted-foreground">Platform</a>
             <a href="#process" className="block text-sm font-medium text-muted-foreground">How It Works</a>
             <a href="#tools" className="block text-sm font-medium text-muted-foreground">Seller Tools</a>
             <a href="#trust" className="block text-sm font-medium text-muted-foreground">Infrastructure</a>
-            <div className="flex gap-3 pt-2">
-              <a href="#" className="flex-1 rounded-lg border border-input px-4 py-2 text-sm font-semibold text-foreground text-center">Sign In</a>
-              <a href="#cta" className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground text-center">Apply as Seller</a>
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <a href="/login" className="flex-1 rounded-lg border border-input px-4 py-2 text-sm font-semibold text-foreground text-center">Sign In</a>
+              <a href="/register" className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground text-center">Apply as Seller</a>
             </div>
           </div>
         )}
       </nav>
       <section className="bg-grey-50 pt-20 pb-24 overflow-hidden">
-        <div className="max-w-[1200px] mx-auto px-6">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             {/* Left */}
             <motion.div
@@ -238,7 +238,7 @@ export default function Home() {
         </div>
       </section>
       <section id="identity" className="py-24 bg-muted">
-        <div className="max-w-[1200px] mx-auto px-6">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
           <div className="mb-12">
             <motion.p
               initial={{ opacity: 0, y: 16 }}
@@ -284,7 +284,7 @@ export default function Home() {
         </div>
       </section>
       <section id="process" className="py-24 bg-card">
-        <div className="max-w-[1200px] mx-auto px-6">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
           <div className="mb-12">
             <motion.p
               initial={{ opacity: 0, y: 16 }}
@@ -320,7 +320,7 @@ export default function Home() {
                 className="relative text-center px-4"
               >
                 <div
-                  className={`mx-auto mb-5 inline-flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold relative z-10 border-2 transition-all duration-300 ${step.active
+                  className={`mx-auto mb-5  inline-flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold relative z-10 border-2 transition-all duration-300 ${step.active
                     ? "bg-purple-600 border-purple-600 text-white"
                     : "bg-card border-border text-muted-foreground"
                     }`}
@@ -330,14 +330,14 @@ export default function Home() {
                 <h4 className={`text-[0.9375rem] font-semibold mb-2 ${step.active ? "text-purple-600" : "text-foreground"}`}>
                   {step.title}
                 </h4>
-                <p className="text-[0.8125rem] text-muted-foreground leading-relaxed">{step.description}</p>
+                <p className="text-[0.8125rem] text-muted-foreground leading-relaxed mb-10 md:mb-0">{step.description}</p>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
       <section id="tools" className="py-24 bg-grey-50">
-        <div className="max-w-[1200px] mx-auto px-6">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
           <div className="grid lg:grid-cols-[1fr_1.2fr] gap-20 items-start">
             {/* Left */}
             <motion.div
@@ -374,35 +374,36 @@ export default function Home() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.15 }}
+              className="min-w-0"
             >
               <div className="rounded-lg border border-border bg-card overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
-                <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
-                  <span className="text-[0.8125rem] font-semibold text-muted-foreground uppercase tracking-wide">Bidder Access Control — Lot 4820</span>
+                <div className="px-4 sm:px-5 py-3.5 border-b border-border flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-[0.75rem] sm:text-[0.8125rem] font-semibold text-muted-foreground uppercase tracking-wide leading-snug wrap-break-word">Bidder Access Control — Lot 4820</span>
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.625rem] font-semibold uppercase tracking-wide bg-green-50 text-green-700">
                     <span className="w-[5px] h-[5px] rounded-full bg-primary animate-pulse-dot" />
                     Live
                   </span>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="overflow-hidden">
+                  <table className="w-full table-fixed">
                     <thead>
                       <tr>
-                        <th className="text-left px-4 py-2.5 text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-widest bg-grey-50 border-b border-border">Bidder</th>
-                        <th className="text-left px-4 py-2.5 text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-widest bg-grey-50 border-b border-border">Verified</th>
-                        <th className="text-left px-4 py-2.5 text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-widest bg-grey-50 border-b border-border">Score</th>
-                        <th className="text-left px-4 py-2.5 text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-widest bg-grey-50 border-b border-border">Status</th>
+                        <th className="w-[34%] text-left px-2 sm:px-4 py-2 sm:py-2.5 text-[0.625rem] sm:text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wide sm:tracking-widest bg-grey-50 border-b border-border">Bidder</th>
+                        <th className="w-[30%] text-left px-2 sm:px-4 py-2 sm:py-2.5 text-[0.625rem] sm:text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wide sm:tracking-widest bg-grey-50 border-b border-border">Verified</th>
+                        <th className="w-[14%] text-left px-2 sm:px-4 py-2 sm:py-2.5 text-[0.625rem] sm:text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wide sm:tracking-widest bg-grey-50 border-b border-border">Score</th>
+                        <th className="w-[22%] text-left px-2 sm:px-4 py-2 sm:py-2.5 text-[0.625rem] sm:text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wide sm:tracking-widest bg-grey-50 border-b border-border">Status</th>
                       </tr>
                     </thead>
                     <tbody>
                       {bidders.map((b) => (
                         <tr key={b.name} className="border-b border-grey-100 last:border-0">
-                          <td className="px-4 py-3 text-[0.8125rem] font-medium text-foreground">{b.name}</td>
-                          <td className="px-4 py-3 text-[0.8125rem] text-muted-foreground">{b.verified}</td>
-                          <td className="px-4 py-3">
-                            <span className={`text-xs font-semibold ${b.scoreClass}`}>{b.score}</span>
+                          <td className="px-2 sm:px-4 py-2.5 sm:py-3 text-[0.75rem] sm:text-[0.8125rem] font-medium text-foreground leading-snug wrap-break-word">{b.name}</td>
+                          <td className="px-2 sm:px-4 py-2.5 sm:py-3 text-[0.75rem] sm:text-[0.8125rem] text-muted-foreground leading-snug wrap-break-word">{b.verified}</td>
+                          <td className="px-2 sm:px-4 py-2.5 sm:py-3 align-top">
+                            <span className={`text-[0.6875rem] sm:text-xs font-semibold ${b.scoreClass}`}>{b.score}</span>
                           </td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[0.625rem] font-semibold uppercase tracking-wide ${b.statusClass}`}>
+                          <td className="px-2 sm:px-4 py-2.5 sm:py-3 align-top">
+                            <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[0.5625rem] sm:text-[0.625rem] font-semibold uppercase tracking-normal sm:tracking-wide ${b.statusClass}`}>
                               {b.status}
                             </span>
                           </td>
@@ -412,7 +413,7 @@ export default function Home() {
                   </table>
                 </div>
               </div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mt-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mt-3 leading-relaxed">
                 Seller-controlled access. Every bidder is reviewed before auction opens.
               </p>
             </motion.div>
@@ -420,7 +421,7 @@ export default function Home() {
         </div>
       </section>
       <section id="trust" className="py-24 bg-grey-900">
-        <div className="max-w-[1200px] mx-auto px-6">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
           <div className="mb-12">
             <motion.p
               initial={{ opacity: 0, y: 16 }}
@@ -463,7 +464,7 @@ export default function Home() {
         </div>
       </section>
       <section id="cta" className="py-[120px] bg-grey-50">
-        <div className="max-w-[560px] mx-auto px-6 text-center">
+        <div className="max-w-[560px] mx-auto px-4 sm:px-6 text-center">
           <motion.p
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -525,11 +526,11 @@ export default function Home() {
         </div>
       </section>
       <footer className="border-t border-border bg-card py-10">
-        <div className="max-w-[1200px] mx-auto px-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 flex flex-wrap items-center justify-between gap-4">
           <span className="flex items-center gap-2 text-[0.9375rem] font-bold text-foreground">
             <Image src="/logo/Bidooze.svg" alt="Bidooze Logo" width={120} height={20} className="rounded-sm" />
           </span>
-          <div className="flex gap-6">
+          <div className="flex flex-wrap gap-3 sm:gap-6">
             <a href="#" className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors">Platform</a>
             <a href="#" className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors">Seller Docs</a>
             <a href="#" className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors">Compliance</a>
@@ -544,3 +545,4 @@ export default function Home() {
     </div>
   );
 }
+

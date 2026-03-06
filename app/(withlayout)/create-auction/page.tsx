@@ -11,6 +11,7 @@ import { FormInput } from "@/components/auction/FormInput";
 import { FormSelect } from "@/components/auction/FormSelect";
 import { CopyOptionsAccordion } from "@/components/auction/CopyOptionsAccordion";
 import { PremiumButton } from "@/components/auction/PremiumButton";
+import { DateTimePicker } from "@/components/auction/DateTimePicker";
 import { DetailsTab } from "@/components/auction/PreAuction/DetailsTab";
 import { UploadSettingsTab } from "@/components/auction/PreAuction/UploadSettingsTab";
 import { LotsTab } from "@/components/auction/PreAuction/LotsTab";
@@ -384,23 +385,23 @@ function CreateAuction() {
   };
 
   if (!showWizard) {
-    return (
+      return (
       <div className="min-h-screen bg-background">
         <header className="sticky top-0 z-50 bg-background">
-          <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/dashboard" className="p-2 -ml-2 hover:bg-accent rounded-lg transition-colors">
                 <ArrowLeft className="h-5 w-5 text-muted-foreground" />
               </Link>
               <div>
-                <h1 className="text-2xl font-bold text-foreground">Create New Auction</h1>
-                <p className="text-sm text-muted-foreground">Set up your auction from scratch or copy from existing</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-foreground">Create New Auction</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground">Set up your auction from scratch or copy from existing</p>
               </div>
             </div>
           </div>
         </header>
 
-        <main className="max-w-5xl mx-auto px-6 py-10 space-y-10">
+        <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-8 sm:space-y-10">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <SelectionCard
               icon={FilePlus}
@@ -418,22 +419,22 @@ function CreateAuction() {
                     setSetupWizardData((prev) => ({ ...prev, auctionName: e.target.value }))
                   }
                 />
-                <div className="grid grid-cols-2 gap-4">
-                  <FormInput
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <DateTimePicker
                     label="Start Date"
-                    type="datetime-local"
                     value={setupWizardData.startDate}
-                    onChange={(e) =>
-                      setSetupWizardData((prev) => ({ ...prev, startDate: e.target.value }))
+                    onChange={(value) =>
+                      setSetupWizardData((prev) => ({ ...prev, startDate: value }))
                     }
+                    clearable={false}
                   />
-                  <FormInput
+                  <DateTimePicker
                     label="End Date"
-                    type="datetime-local"
                     value={setupWizardData.endDate}
-                    onChange={(e) =>
-                      setSetupWizardData((prev) => ({ ...prev, endDate: e.target.value }))
+                    onChange={(value) =>
+                      setSetupWizardData((prev) => ({ ...prev, endDate: value }))
                     }
+                    clearable={false}
                   />
                 </div>
               </div>
@@ -487,6 +488,7 @@ function CreateAuction() {
                 size="lg"
                 onClick={handleProceed}
                 disabled={pendingCopy || (creationType === "copy" && !auctionOptions.length)}
+                className="w-full sm:w-auto"
               >
                 {pendingCopy || auctionByIdQuery.isLoading ? (
                   <>

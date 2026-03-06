@@ -110,21 +110,28 @@ export default function AuctionsPage() {
   const hasSelected = selectedAuctionIds.length > 0;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-0 space-y-4 sm:space-y-6">
 
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-        <h1 className="text-3xl font-bold text-slate-800">Auction Management</h1>
-        <p className="text-slate-600 mt-1">
-          Manage all your auctions, monitor bidding activity, and jump into any auction dashboard.
-        </p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Auction Management</h1>
+          <p className="text-slate-600 mt-1 text-sm sm:text-base">
+            Manage all your auctions, monitor bidding activity, and jump into any auction dashboard.
+          </p>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <Button variant={"outline"} onClick={() => router.push('/reports')} >
+        <div className="flex w-full md:w-auto flex-row gap-2">
+          <Button
+            variant={"outline"}
+            onClick={() => router.push('/reports')}
+            className="flex-1 md:flex-none whitespace-nowrap"
+          >
             Reports
           </Button>
-          <Button onClick={() => router.push('/create-auction')}>
+          <Button
+            onClick={() => router.push('/create-auction')}
+            className="flex-1 md:flex-none whitespace-nowrap"
+          >
             <PlusCircle size={16} className="mr-2" />
             New Auction
           </Button>
@@ -135,15 +142,15 @@ export default function AuctionsPage() {
 
       {/* Bulk Actions UI - Conditionally rendered */}
       {hasSelected && (
-        <div className="flex items-center space-x-3 p-3 bg-accent/10 border border-accent rounded-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 bg-accent/10 border border-accent rounded-lg">
           <span className="text-sm font-medium text-blue-800">
             {selectedAuctionIds.length} selected
           </span>
-          <Button variant="outline" size="sm" onClick={handleExportSelected}>
+          <Button variant="outline" size="sm" onClick={handleExportSelected} className="w-full sm:w-auto">
             <Download size={16} className="mr-2" />
             Export Selected
           </Button>
-          <Button variant="destructive" size="sm" onClick={handleDeleteSelected}>
+          <Button variant="destructive" size="sm" onClick={handleDeleteSelected} className="w-full sm:w-auto">
             <Trash2 size={16} className="mr-2" />
             Delete Selected
           </Button>

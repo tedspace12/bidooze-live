@@ -1,4 +1,4 @@
-import { Consignor, ConsignorNote } from "@/data";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,296 +8,284 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useState } from "react";
-import { Building, Plus } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Building, Loader2, Plus } from "lucide-react";
+import { toast } from "sonner";
+import type {
+  ConsignorListItem,
+  ConsignorStatus,
+} from "@/features/customers/services/customerService";
+import { useCustomer } from "@/features/customers/hooks/useCustomer";
 
 interface ConsignorDetailModalProps {
-  consignor: Consignor | null;
+  consignor: ConsignorListItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onStatusChange: (
+    consignor: ConsignorListItem,
+    status: ConsignorStatus,
+    reason?: string
+  ) => Promise<void>;
+  isStatusUpdating?: boolean;
 }
+
+const getErrorMessage = (error: unknown): string => {
+  if (!error || typeof error !== "object") return "Request failed.";
+  const message = (error as { message?: unknown }).message;
+  if (typeof message === "string" && message.trim()) return message;
+  const nested = (error as { error?: { message?: unknown } }).error?.message;
+  if (typeof nested === "string" && nested.trim()) return nested;
+  return "Request failed.";
+};
+
+const formatDateTime = (value?: string) => {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+};
+
+const statusBadgeClass = (status: ConsignorStatus) => {
+  switch (status) {
+    case "active":
+      return "bg-green-50 text-green-700 border-green-200";
+    case "inactive":
+      return "bg-yellow-50 text-yellow-700 border-yellow-200";
+    case "suspended":
+      return "bg-red-50 text-red-700 border-red-200";
+    default:
+      return "bg-muted text-muted-foreground border-border";
+  }
+};
 
 export function ConsignorDetailModal({
   consignor,
   open,
   onOpenChange,
+  onStatusChange,
+  isStatusUpdating,
 }: ConsignorDetailModalProps) {
-  const [notes, setNotes] = useState<ConsignorNote[]>(consignor?.notes || []);
+  const { useConsignorNotes, useConsignorActivity, addConsignorNote } = useCustomer();
   const [newNote, setNewNote] = useState("");
+  const [statusReason, setStatusReason] = useState("");
+
+  const consignorId = open && consignor ? consignor.id : "";
+  const notesQuery = useConsignorNotes(consignorId, { per_page: 20 });
+  const activityQuery = useConsignorActivity(consignorId, { per_page: 20 });
 
   if (!consignor) return null;
 
-  const handleAddNote = () => {
-    if (newNote.trim()) {
-      const note: ConsignorNote = {
-        id: `note-${Date.now()}`,
-        text: newNote,
-        createdAt: new Date(),
-        createdBy: "Current User",
-      };
-      setNotes([note, ...notes]);
+  const handleAddNote = async () => {
+    const content = newNote.trim();
+    if (!content) {
+      toast.error("Please enter a note.");
+      return;
+    }
+
+    try {
+      await addConsignorNote.mutateAsync({ id: consignor.id, content });
       setNewNote("");
+      toast.success("Note added successfully.");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  };
+
+  const handleStatusUpdate = async (status: ConsignorStatus) => {
+    try {
+      await onStatusChange(
+        consignor,
+        status,
+        statusReason.trim() ? statusReason.trim() : undefined
+      );
+      setStatusReason("");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] w-[calc(100vw-1rem)] max-w-3xl overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
+          <DialogTitle className="flex items-start gap-3">
             <Avatar>
-              <AvatarImage src={consignor.avatar} />
-              <AvatarFallback><Building size={24} className="text-gray-500"/></AvatarFallback>
+              <AvatarImage src={undefined} />
+              <AvatarFallback>
+                <Building size={24} className="text-gray-500" />
+              </AvatarFallback>
             </Avatar>
-            <div>
-              <p className="text-lg font-semibold">{consignor.companyName}</p>
-              <p className="text-sm text-muted-foreground">
-                {consignor.contactName}
-              </p>
+            <div className="min-w-0">
+              <p className="truncate text-lg font-semibold">{consignor.name}</p>
+              <p className="truncate text-sm text-muted-foreground">{consignor.email}</p>
             </div>
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="basic" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="basic">Basic Info</TabsTrigger>
-            <TabsTrigger value="payout">Payout</TabsTrigger>
-            <TabsTrigger value="verification">KYC</TabsTrigger>
-            <TabsTrigger value="items">Items</TabsTrigger>
-            <TabsTrigger value="payments">Payments</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="w-full justify-start gap-1 overflow-x-auto">
+            <TabsTrigger value="overview" className="shrink-0 text-xs sm:text-sm">
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="notes" className="shrink-0 text-xs sm:text-sm">
+              Notes
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="shrink-0 text-xs sm:text-sm">
+              Activity
+            </TabsTrigger>
+            <TabsTrigger value="status" className="shrink-0 text-xs sm:text-sm">
+              Status
+            </TabsTrigger>
           </TabsList>
 
-          {/* Basic Info Tab */}
-          <TabsContent value="basic" className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <TabsContent value="overview" className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  Email
-                </label>
-                <p className="text-foreground">{consignor.email}</p>
+                <p className="text-sm font-medium text-muted-foreground">Phone</p>
+                <p className="text-foreground">{consignor.phone || "-"}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  Phone
-                </label>
-                <p className="text-foreground">{consignor.phone}</p>
+                <p className="text-sm font-medium text-muted-foreground">Status</p>
+                <span
+                  className={`inline-block rounded-full border px-3 py-1 text-xs font-medium ${statusBadgeClass(
+                    consignor.status
+                  )}`}
+                >
+                  {consignor.status}
+                </span>
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  Join Date
-                </label>
+                <p className="text-sm font-medium text-muted-foreground">Commission Rate</p>
                 <p className="text-foreground">
-                  {consignor.joinDate.toLocaleDateString()}
+                  {(Number(consignor.commission_rate || 0) * 100).toFixed(2).replace(/\.00$/, "")}%
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  Status
-                </label>
-                <p className="text-foreground capitalize">{consignor.status}</p>
+                <p className="text-sm font-medium text-muted-foreground">Registration Date</p>
+                <p className="text-foreground">{formatDateTime(consignor.registration_date)}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  Commission
-                </label>
-                <p className="text-foreground">{consignor.commission}</p>
+                <p className="text-sm font-medium text-muted-foreground">Total Lots</p>
+                <p className="text-foreground">{consignor.total_lots}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  Account Manager
-                </label>
-                <p className="text-foreground">{consignor.manager || "Unassigned"}</p>
+                <p className="text-sm font-medium text-muted-foreground">Total Value</p>
+                <p className="text-foreground">${Number(consignor.total_value || 0).toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Current Balance</p>
+                <p className="text-foreground">${Number(consignor.current_balance || 0).toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Outstanding Payments</p>
+                <p className="text-foreground">
+                  ${Number(consignor.outstanding_payments || 0).toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Notes Count</p>
+                <p className="text-foreground">{consignor.notes_count}</p>
               </div>
             </div>
           </TabsContent>
 
-          {/* Payout Tab */}
-          <TabsContent value="payout" className="space-y-4">
-            {consignor.bankAccount ? (
-              <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">
-                    Account Holder
-                  </label>
-                  <p className="text-foreground">
-                    {consignor.bankAccount.accountHolder}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">
-                    Account Number
-                  </label>
-                  <p className="text-foreground font-mono">
-                    {consignor.bankAccount.accountNumber}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">
-                    Routing Number
-                  </label>
-                  <p className="text-foreground font-mono">
-                    {consignor.bankAccount.routingNumber}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">
-                    Bank Name
-                  </label>
-                  <p className="text-foreground">{consignor.bankAccount.bankName}</p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-muted-foreground">No payout information on file.</p>
-            )}
-            <div className="grid grid-cols-2 gap-4 pt-4">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  Current Balance
-                </label>
-                <p className="text-lg font-semibold text-foreground">
-                  ${consignor.currentBalance.toLocaleString()}
-                </p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  Outstanding Payments
-                </label>
-                <p className="text-lg font-semibold text-red-600">
-                  ${consignor.outstandingPayments.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* Verification Tab */}
-          <TabsContent value="verification" className="space-y-4">
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  KYC Status
-                </label>
-                <p className="text-foreground capitalize mt-1">
-                  {consignor.kycStatus.replace("-", " ")}
-                </p>
-              </div>
-            </div>
-            <div className="text-sm text-muted-foreground">
-              <p>
-                KYC verification documents are required for all consignors. Status
-                updates will be reflected here.
-              </p>
-            </div>
-          </TabsContent>
-
-          {/* Items Tab */}
-          <TabsContent value="items" className="space-y-4">
-            {consignor.items.length > 0 ? (
-              <div className="space-y-2">
-                {consignor.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-3 border border-border rounded-lg hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium text-foreground">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">{item.sku}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-foreground">
-                          ${item.value.toLocaleString()}
-                        </p>
-                        <p className="text-xs capitalize text-muted-foreground">
-                          {item.status}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground">No items consigned yet.</p>
-            )}
-          </TabsContent>
-
-          {/* Payments Tab */}
-          <TabsContent value="payments" className="space-y-4">
-            {consignor.payments.length > 0 ? (
-              <div className="space-y-2">
-                {consignor.payments.map((payment) => (
-                  <div
-                    key={payment.id}
-                    className="p-3 border border-border rounded-lg"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium text-foreground">
-                          {payment.method}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {payment.date.toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-foreground">
-                          ${payment.amount.toLocaleString()}
-                        </p>
-                        <p className="text-xs capitalize text-muted-foreground">
-                          {payment.status}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground">No payment history.</p>
-            )}
-          </TabsContent>
-
-          {/* Activity Tab - Notes */}
-          <TabsContent value="activity" className="space-y-4">
+          <TabsContent value="notes" className="space-y-4">
             <div className="space-y-3">
-              <div>
-                <label className="text-sm font-medium text-foreground block mb-2">
-                  Add Note
-                </label>
-                <div className="flex gap-2">
-                  <Textarea
-                    placeholder="Add a private note..."
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    className="min-h-20"
-                  />
-                  <Button
-                    onClick={handleAddNote}
-                    size="sm"
-                    className="self-end"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
+              <label className="block text-sm font-medium text-foreground">Add Note</label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Textarea
+                  placeholder="Add a note..."
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  className="min-h-20"
+                />
+                <Button
+                  onClick={handleAddNote}
+                  size="sm"
+                  className="w-full sm:w-auto sm:self-end"
+                  disabled={addConsignorNote.isPending}
+                >
+                  {addConsignorNote.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
+            </div>
 
-              {notes.length > 0 && (
-                <div className="space-y-2 pt-4 border-t border-border">
-                  <p className="text-sm font-medium text-foreground">Notes</p>
-                  {notes.map((note) => (
-                    <div
-                      key={note.id}
-                      className="p-3 bg-muted/30 rounded-lg text-sm"
-                    >
-                      <p className="text-foreground">{note.text}</p>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        {note.createdBy} •{" "}
-                        {note.createdAt.toLocaleDateString()}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+            <div className="space-y-2 border-t border-border pt-4">
+              <p className="text-sm font-medium text-foreground">Recent Notes</p>
+              {notesQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading notes...</p>
+              ) : (notesQuery.data?.data?.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">No notes yet.</p>
+              ) : (
+                notesQuery.data?.data.map((note) => (
+                  <div key={String(note.id)} className="rounded-lg border border-border p-3 text-sm">
+                    <p className="text-foreground">{note.content}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      By {note.created_by} on {formatDateTime(note.created_at)}
+                    </p>
+                  </div>
+                ))
               )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="activity" className="space-y-4">
+            <p className="text-sm font-medium text-foreground">Activity Timeline</p>
+            {activityQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading activity...</p>
+            ) : (activityQuery.data?.data?.length ?? 0) === 0 ? (
+              <p className="text-sm text-muted-foreground">No activity records.</p>
+            ) : (
+              <div className="space-y-2">
+                {activityQuery.data?.data.map((entry) => (
+                  <div key={String(entry.id)} className="rounded-lg border border-border p-3 text-sm">
+                    <p className="font-medium text-foreground">{entry.event}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {formatDateTime(entry.created_at)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="status" className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground">Reason (optional)</label>
+              <Input
+                placeholder="Provide reason for status change"
+                value={statusReason}
+                onChange={(e) => setStatusReason(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <Button
+                variant={consignor.status === "active" ? "default" : "outline"}
+                disabled={isStatusUpdating}
+                onClick={() => handleStatusUpdate("active")}
+              >
+                Mark Active
+              </Button>
+              <Button
+                variant={consignor.status === "inactive" ? "default" : "outline"}
+                disabled={isStatusUpdating}
+                onClick={() => handleStatusUpdate("inactive")}
+              >
+                Mark Inactive
+              </Button>
+              <Button
+                variant={consignor.status === "suspended" ? "default" : "destructive"}
+                disabled={isStatusUpdating}
+                onClick={() => handleStatusUpdate("suspended")}
+              >
+                Suspend
+              </Button>
             </div>
           </TabsContent>
         </Tabs>
