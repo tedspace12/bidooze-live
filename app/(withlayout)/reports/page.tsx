@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Space_Grotesk } from "next/font/google";
@@ -791,7 +791,7 @@ export default function ReportsPage() {
   return (
     <div className={`${displayFont.variable} space-y-6 pb-10`}>
       <Card className="relative overflow-hidden border-border/70 bg-[linear-gradient(135deg,hsl(var(--primary)/0.35)_0%,hsl(var(--background))_52%,hsl(var(--muted)/0.7)_100%)]">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,hsl(var(--foreground)/0.08)_1px,transparent_0)] [background-size:14px_14px]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,hsl(var(--foreground)/0.08)_1px,transparent_0)] bg-size-[14px_14px]" />
         <div className="pointer-events-none absolute -right-16 -top-24 h-60 w-60 rounded-full bg-[hsl(var(--chart-4)/0.24)] blur-3xl" />
         <CardContent className="relative space-y-4 p-4 sm:p-6 lg:p-8">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
