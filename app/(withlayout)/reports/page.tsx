@@ -186,7 +186,12 @@ const mapExportToUi = (
   fallback?: { reportName?: string; filters?: string; generatedBy?: string }
 ): ExportRow => ({
   id: item.export_id,
-  reportName: item.report_name ?? fallback?.reportName ?? `Run ${item.run_id}`,
+  reportName:
+    item.report_name ??
+    item.pack_name ??
+    fallback?.reportName ??
+    item.report_id ??
+    "Report Export",
   format: item.format,
   status: item.status,
   generatedAt: toDisplayDateTime(item.completed_at ?? item.queued_at),

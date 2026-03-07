@@ -58,8 +58,12 @@ export interface QueueReportRunResponse {
 export interface ReportExportResource {
   export_id: string;
   run_id: string;
+  mode?: ReportRunMode;
+  report_id?: string | null;
   format: ExportFormat;
   status: ExportStatus;
+  pack_id?: string | null;
+  pack_name?: string | null;
   file_name?: string | null;
   mime_type?: string | null;
   size_bytes?: number | null;
