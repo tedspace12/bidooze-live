@@ -445,8 +445,8 @@ export const reportService = {
     try {
       const localDownloadUrl =
         typeof window !== "undefined"
-          ? new URL(`/api/report-exports/${encodeURIComponent(exportId)}/download`, window.location.origin).toString()
-          : `/api/report-exports/${encodeURIComponent(exportId)}/download`;
+          ? new URL(`/api/reports/exports/${encodeURIComponent(exportId)}/download`, window.location.origin).toString()
+          : `/api/repors/exports/${encodeURIComponent(exportId)}/download`;
 
       return await fetchExportFile(
         localDownloadUrl
