@@ -249,8 +249,26 @@ const extractDownloadUrl = (payload: unknown): string | undefined => {
   return undefined;
 };
 
+const normalizeAgainstApiBase = (value: string): string => {
+  try {
+    const incoming = new URL(value);
+    const apiBase = new URL(API_BASE_URL);
+
+    if (incoming.hostname === apiBase.hostname) {
+      return new URL(
+        `${incoming.pathname}${incoming.search}${incoming.hash}`,
+        `${apiBase.origin}/`
+      ).toString();
+    }
+
+    return incoming.toString();
+  } catch {
+    return value;
+  }
+};
+
 const toAbsoluteUrl = (value: string): string => {
-  if (/^https?:\/\//i.test(value)) return value;
+  if (/^https?:\/\//i.test(value)) return normalizeAgainstApiBase(value);
   return new URL(value.replace(/^\//, ""), `${API_BASE_URL}/`).toString();
 };
 
