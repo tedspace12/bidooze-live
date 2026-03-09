@@ -280,6 +280,16 @@ const isApiUrl = (value: string): boolean => {
   }
 };
 
+const isSameOriginUrl = (value: string): boolean => {
+  if (typeof window === "undefined") return false;
+
+  try {
+    return new URL(value).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+};
+
 const fetchExportFile = async (
   target: string,
   visited = new Set<string>()
@@ -300,10 +310,13 @@ const fetchExportFile = async (
     }
   }
 
+  const shouldIncludeCredentials =
+    isApiUrl(absoluteTarget) || isSameOriginUrl(absoluteTarget);
+
   const response = await fetch(absoluteTarget, {
     method: "GET",
     headers,
-    credentials: isApiUrl(absoluteTarget) ? "include" : "omit",
+    credentials: shouldIncludeCredentials ? "include" : "omit",
   });
 
   const contentType = response.headers.get("content-type")?.toLowerCase() || "";
