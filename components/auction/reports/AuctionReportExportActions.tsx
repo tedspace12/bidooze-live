@@ -171,7 +171,7 @@ export default function AuctionReportExportActions({
 
     try {
       setDownloadingExportId(item.id);
-      const file = await reportService.downloadExport(item.id, item.downloadPath);
+      const file = await reportService.downloadExport(item.id);
       downloadBlob(
         file.blob,
         file.fileName ||

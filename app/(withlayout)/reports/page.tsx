@@ -764,7 +764,7 @@ export default function ReportsPage() {
     }
 
     try {
-      const file = await reportService.downloadExport(item.id, item.downloadUrl);
+      const file = await reportService.downloadExport(item.id);
       const extension = item.format === "excel" ? "xlsx" : item.format;
       const fallbackName = `${item.reportName || "report-export"}`
         .trim()

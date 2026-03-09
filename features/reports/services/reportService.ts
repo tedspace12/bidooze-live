@@ -428,13 +428,15 @@ export const reportService = {
     }
   },
 
-  async downloadExport(
-    exportId: string,
-    downloadUrl?: string | null
-  ): Promise<ReportExportDownloadResult> {
+  async downloadExport(exportId: string): Promise<ReportExportDownloadResult> {
     try {
+      const localDownloadUrl =
+        typeof window !== "undefined"
+          ? new URL(`/api/report-exports/${encodeURIComponent(exportId)}/download`, window.location.origin).toString()
+          : `/api/report-exports/${encodeURIComponent(exportId)}/download`;
+
       return await fetchExportFile(
-        downloadUrl || `/auctioneer/reports/exports/${exportId}/download`
+        localDownloadUrl
       );
     } catch (error: unknown) {
       throw rethrowApiError(error);
