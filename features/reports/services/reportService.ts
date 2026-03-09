@@ -1,4 +1,4 @@
-import { API_BASE_URL, getToken, withAuth } from "@/services/api";
+import { withAuth } from "@/services/api";
 import type { ExportFormat, ExportStatus } from "@/components/reports/report-types";
 
 type ApiErrorLike = {
@@ -87,11 +87,6 @@ export interface ReportExportsListResponse {
   message: string;
   data: ReportExportResource[];
   meta: ReportExportsListMeta;
-}
-
-export interface ReportExportDownloadResult {
-  blob: Blob;
-  fileName?: string;
 }
 
 export interface ReportPresetResource {
@@ -222,127 +217,6 @@ const extractListMeta = (
   };
 };
 
-const extractFilename = (contentDisposition?: string | null): string | undefined => {
-  if (!contentDisposition) return undefined;
-
-  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
-  if (utf8Match?.[1]) {
-    return decodeURIComponent(utf8Match[1]);
-  }
-
-  const basicMatch = contentDisposition.match(/filename=\"?([^\"]+)\"?/i);
-  return basicMatch?.[1];
-};
-
-const extractDownloadUrl = (payload: unknown): string | undefined => {
-  if (!payload || typeof payload !== "object") return undefined;
-
-  const direct = (payload as { download_url?: unknown }).download_url;
-  if (typeof direct === "string" && direct.trim()) return direct;
-
-  const nested = (payload as MessageEnvelope).data;
-  if (nested && typeof nested === "object") {
-    const nestedValue = (nested as { download_url?: unknown }).download_url;
-    if (typeof nestedValue === "string" && nestedValue.trim()) return nestedValue;
-  }
-
-  return undefined;
-};
-
-const normalizeAgainstApiBase = (value: string): string => {
-  try {
-    const incoming = new URL(value);
-    const apiBase = new URL(API_BASE_URL);
-
-    if (incoming.hostname === apiBase.hostname) {
-      return new URL(
-        `${incoming.pathname}${incoming.search}${incoming.hash}`,
-        `${apiBase.origin}/`
-      ).toString();
-    }
-
-    return incoming.toString();
-  } catch {
-    return value;
-  }
-};
-
-const toAbsoluteUrl = (value: string): string => {
-  if (/^https?:\/\//i.test(value)) return normalizeAgainstApiBase(value);
-  return new URL(value.replace(/^\//, ""), `${API_BASE_URL}/`).toString();
-};
-
-const isApiUrl = (value: string): boolean => {
-  try {
-    return new URL(value).origin === new URL(API_BASE_URL).origin;
-  } catch {
-    return false;
-  }
-};
-
-const isSameOriginUrl = (value: string): boolean => {
-  if (typeof window === "undefined") return false;
-
-  try {
-    return new URL(value).origin === window.location.origin;
-  } catch {
-    return false;
-  }
-};
-
-const fetchExportFile = async (
-  target: string,
-  visited = new Set<string>()
-): Promise<ReportExportDownloadResult> => {
-  const absoluteTarget = toAbsoluteUrl(target);
-  if (visited.has(absoluteTarget)) {
-    throw { message: "Download endpoint returned a circular redirect URL." };
-  }
-
-  const nextVisited = new Set(visited);
-  nextVisited.add(absoluteTarget);
-
-  const headers = new Headers();
-  if (isApiUrl(absoluteTarget)) {
-    const token = getToken();
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
-  }
-
-  const shouldIncludeCredentials =
-    isApiUrl(absoluteTarget) || isSameOriginUrl(absoluteTarget);
-
-  const response = await fetch(absoluteTarget, {
-    method: "GET",
-    headers,
-    credentials: shouldIncludeCredentials ? "include" : "omit",
-  });
-
-  const contentType = response.headers.get("content-type")?.toLowerCase() || "";
-
-  if (!response.ok) {
-    if (contentType.includes("application/json")) {
-      throw await response.json();
-    }
-    throw { message: `Export download failed with status ${response.status}.` };
-  }
-
-  if (contentType.includes("application/json")) {
-    const payload = await response.json();
-    const nestedDownloadUrl = extractDownloadUrl(payload);
-    if (nestedDownloadUrl) {
-      return fetchExportFile(nestedDownloadUrl, nextVisited);
-    }
-    throw { message: extractMessage(payload, "Invalid report export download payload.") };
-  }
-
-  return {
-    blob: await response.blob(),
-    fileName: extractFilename(response.headers.get("content-disposition")),
-  };
-};
-
 export const reportService = {
   async queueRun(
     payload: QueueReportRunPayload,
@@ -441,16 +315,13 @@ export const reportService = {
     }
   },
 
-  async downloadExport(exportId: string): Promise<ReportExportDownloadResult> {
+  async downloadExport(exportId: string): Promise<Blob> {
     try {
-      const localDownloadUrl =
-        typeof window !== "undefined"
-          ? new URL(`/api/reports/exports/${encodeURIComponent(exportId)}/download`, window.location.origin).toString()
-          : `/api/repors/exports/${encodeURIComponent(exportId)}/download`;
-
-      return await fetchExportFile(
-        localDownloadUrl
+      const res = await withAuth.get<Blob>(
+        `/auctioneer/reports/exports/${exportId}/download`,
+        { responseType: "blob" }
       );
+      return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
     }

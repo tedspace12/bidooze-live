@@ -37,6 +37,7 @@ export interface SavedPreset {
   reportId: string;
   dateRange: string;
   auctionScope: string;
+  auctionId?: string;
   lastRun: string;
   mode?: "single" | "pack";
   packId?: string | null;

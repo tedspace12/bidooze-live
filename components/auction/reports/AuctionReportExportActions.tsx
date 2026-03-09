@@ -44,12 +44,13 @@ interface AuctionReportExportActionsProps {
 
 interface ExportRunRow {
   id: string;
+  exportId?: string;
+  runId?: string;
   label: string;
   format: AuctionReportExportFormat;
   status: ExportStatus;
   createdAt: string;
   message: string;
-  downloadPath?: string;
 }
 
 export default function AuctionReportExportActions({
@@ -103,11 +104,10 @@ export default function AuctionReportExportActions({
             return item;
           }
 
-          const latest = exportsById.get(item.id);
+          const latest = exportsById.get(item.exportId ?? item.id);
           if (!latest) return item;
 
           const nextStatus = latest.status || item.status;
-          const nextDownloadPath = latest.download_url || item.downloadPath;
           const nextMessage =
             nextStatus === "done"
               ? "Export ready for download."
@@ -117,13 +117,14 @@ export default function AuctionReportExportActions({
                   ? "Export is being prepared by the backend."
                   : item.message;
 
-          return {
-            ...item,
-            status: nextStatus,
-            createdAt: latest.completed_at || latest.queued_at || item.createdAt,
-            message: nextMessage,
-            downloadPath: nextDownloadPath || undefined,
-          };
+            return {
+              ...item,
+              exportId: latest.export_id || item.exportId,
+              runId: latest.run_id || item.runId,
+              status: nextStatus,
+              createdAt: latest.completed_at || latest.queued_at || item.createdAt,
+              message: nextMessage,
+            };
         });
 
         historyRef.current = nextHistory;
@@ -164,18 +165,17 @@ export default function AuctionReportExportActions({
   }, [pendingExportIds]);
 
   const handleDownloadExport = async (item: ExportRunRow) => {
-    if (!item.downloadPath) {
+    if (item.status !== "done" || !item.exportId) {
       toast.info("This export is not downloadable yet.");
       return;
     }
 
     try {
       setDownloadingExportId(item.id);
-      const file = await reportService.downloadExport(item.id);
+      const blob = await reportService.downloadExport(item.exportId);
       downloadBlob(
-        file.blob,
-        file.fileName ||
-          `${item.label.toLowerCase().replace(/\s+/g, "-")}.${item.format === "excel" ? "xls" : "csv"}`
+        blob,
+        `${item.label.toLowerCase().replace(/\s+/g, "-")}.${item.format === "excel" ? "xls" : "csv"}`
       );
       toast.success(`${item.label} export downloaded.`);
     } catch (error: unknown) {
@@ -208,12 +208,13 @@ export default function AuctionReportExportActions({
 
     pushHistory({
       id: result.data.export_id || `${label}-${Date.now()}`,
+      exportId: result.data.export_id || undefined,
+      runId: typeof result.data.run_id === "string" ? result.data.run_id : undefined,
       label,
       format: extension,
       status: (result.data.status as ExportStatus) || "queued",
       createdAt: result.data.queued_at || new Date().toISOString(),
       message: result.message,
-      downloadPath: result.data.download_path || undefined,
     });
     toast.success(`${label} export queued.`, {
       description: "Large export is being prepared by the backend and will only be downloadable after it completes.",
@@ -378,7 +379,7 @@ export default function AuctionReportExportActions({
                         <p className="mt-1 text-sm font-medium">{formatDateTime(item.createdAt)}</p>
                       </div>
                     </div>
-                    {item.status === "done" && item.downloadPath ? (
+                    {item.status === "done" && item.exportId ? (
                       <Button
                         variant="outline"
                         size="sm"
@@ -420,7 +421,7 @@ export default function AuctionReportExportActions({
                           {item.message}
                         </TableCell>
                         <TableCell>
-                          {item.status === "done" && item.downloadPath ? (
+                          {item.status === "done" && item.exportId ? (
                             <Button
                               variant="ghost"
                               size="sm"

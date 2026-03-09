@@ -33,7 +33,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CATEGORY_META,
   KPI_CARDS,
-  MOCK_AUCTIONS,
   REPORT_PACKS,
   REPORTS,
 } from "@/components/reports/report-data";
@@ -65,6 +64,7 @@ import {
   type ReportPresetResource,
   type ReportsOverviewKpis,
 } from "@/features/reports/services/reportService";
+import { auctionService } from "@/features/auction/services/auctionService";
 
 const BACKEND_TO_UI_REPORT_ID: Record<string, string> = {
   "revenue-summary": "rev-summary",
@@ -76,6 +76,16 @@ const BACKEND_TO_UI_REPORT_ID: Record<string, string> = {
   "bidder-insights": "buyer-activity",
   "monthly-performance": "rev-summary",
   "risk-review": "disputes-refunds",
+};
+
+interface ReportAuctionOption {
+  id: string;
+  label: string;
+}
+
+const DEFAULT_AUCTION_OPTION: ReportAuctionOption = {
+  id: "all",
+  label: "All Auctions",
 };
 
 const sleep = (ms: number) =>
@@ -157,22 +167,69 @@ const toPresetRangeLabel = (filters?: { date_from?: string; date_to?: string }) 
   return "All time";
 };
 
-const toPresetAuctionLabel = (auctionId?: string) => {
-  if (!auctionId) return "All Auctions";
-  const known = MOCK_AUCTIONS.find((auction) => auction.id === auctionId);
-  return known?.label ?? auctionId;
+const normalizeAuctionId = (value: unknown): string | undefined => {
+  if (value === null || value === undefined) return undefined;
+  const normalized = String(value).trim();
+  return normalized || undefined;
 };
 
-const mapPresetToUi = (preset: ReportPresetResource): SavedPreset => ({
-  id: preset.preset_id,
-  name: preset.name,
-  reportId: resolvePresetReportId(preset),
-  dateRange: toPresetRangeLabel(preset.filters),
-  auctionScope: toPresetAuctionLabel(preset.filters?.auction_id),
-  lastRun: toDisplayDateOnly(preset.updated_at || preset.created_at),
-  mode: preset.mode,
-  packId: preset.pack_id,
-});
+const inferInsightSeverity = (message: string): Insight["severity"] => {
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes("failed") ||
+    normalized.includes("dispute") ||
+    normalized.includes("risk") ||
+    normalized.includes("overdue") ||
+    normalized.includes("unpaid") ||
+    normalized.includes("held")
+  ) {
+    return "error";
+  }
+  if (
+    normalized.includes("down") ||
+    normalized.includes("drop") ||
+    normalized.includes("unsold") ||
+    normalized.includes("warning")
+  ) {
+    return "warning";
+  }
+  return "info";
+};
+
+const inferInsightReportId = (message: string): string => {
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("unpaid") ||
+    normalized.includes("settlement") ||
+    normalized.includes("payout") ||
+    normalized.includes("invoice")
+  ) {
+    return "payouts-summary";
+  }
+  if (
+    normalized.includes("bidder") ||
+    normalized.includes("buyer") ||
+    normalized.includes("returning")
+  ) {
+    return "buyer-activity";
+  }
+  if (normalized.includes("consignor") || normalized.includes("seller")) {
+    return "seller-activity";
+  }
+  if (normalized.includes("unsold")) {
+    return "unsold-lots";
+  }
+  if (
+    normalized.includes("sell-through") ||
+    normalized.includes("auction") ||
+    normalized.includes("lot")
+  ) {
+    return "auction-performance";
+  }
+
+  return "rev-summary";
+};
 
 const mapExportToUi = (
   item: ReportExportResource,
@@ -197,14 +254,14 @@ const mapExportToUi = (
 
 const mapOverviewKpis = (kpis?: ReportsOverviewKpis): KpiCard[] => {
   const source = kpis ?? {};
+  const auctionsCount = toSafeNumber(source.auctions_count);
+  const liveAuctionsCount = toSafeNumber(source.live_auctions_count);
   const lotsCount = toSafeNumber(source.lots_count);
   const soldLotsCount = toSafeNumber(source.sold_lots_count);
   const totalRevenue = toSafeNumber(source.total_revenue);
   const totalBids = toSafeNumber(source.total_bids);
   const uniqueBidders = toSafeNumber(source.unique_bidders);
   const sellThroughRate = toSafeNumber(source.sell_through_rate);
-  const outstandingPayments = toSafeNumber(source.outstanding_payments);
-  const avgBidsPerLot = lotsCount > 0 ? totalBids / lotsCount : 0;
 
   return KPI_CARDS.map((card) => {
     if (card.title === "Revenue") {
@@ -239,18 +296,18 @@ const mapOverviewKpis = (kpis?: ReportsOverviewKpis): KpiCard[] => {
         trend: null,
       };
     }
-    if (card.title === "Outstanding Payments") {
+    if (card.title === "Total Bids") {
       return {
         ...card,
-        value: formatCompact(outstandingPayments),
+        value: formatCompact(totalBids),
         delta: null,
         trend: null,
       };
     }
-    if (card.title === "Avg Bids / Lot") {
+    if (card.title === "Auctions / Live") {
       return {
         ...card,
-        value: avgBidsPerLot.toFixed(1),
+        value: `${formatCompact(auctionsCount)} / ${formatCompact(liveAuctionsCount)}`,
         delta: null,
         trend: null,
       };
@@ -266,6 +323,16 @@ const mapOverviewInsights = (insights: unknown): Insight[] => {
 
   const mapped = insights
     .map((entry, index) => {
+      if (typeof entry === "string" && entry.trim()) {
+        const message = entry.trim();
+        return {
+          id: `insight-${index}`,
+          message,
+          severity: inferInsightSeverity(message),
+          reportId: resolveUiReportId(inferInsightReportId(message)),
+        } as Insight;
+      }
+
       if (!entry || typeof entry !== "object") return null;
       const item = entry as Record<string, unknown>;
       const message =
@@ -279,14 +346,14 @@ const mapOverviewInsights = (insights: unknown): Insight[] => {
       const severity =
         item.severity === "error" || item.severity === "warning" || item.severity === "info"
           ? item.severity
-          : "info";
+          : inferInsightSeverity(message);
 
       const reportId = resolveUiReportId(
         typeof item.report_id === "string"
           ? item.report_id
           : typeof item.reportId === "string"
             ? item.reportId
-            : "rev-summary"
+            : inferInsightReportId(message)
       );
 
       return {
@@ -307,6 +374,9 @@ export default function ReportsPage() {
   const [tab, setTab] = useState<TabValue>("overview");
   const [range, setRange] = useState<DateRange | undefined>();
   const [auctionScope, setAuctionScope] = useState("all");
+  const [auctionOptions, setAuctionOptions] = useState<ReportAuctionOption[]>([
+    DEFAULT_AUCTION_OPTION,
+  ]);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<ReportCategory | "all">(
     "all"
@@ -334,6 +404,63 @@ export default function ReportsPage() {
       mountedRef.current = false;
       runPollTokenRef.current += 1;
     };
+  }, []);
+
+  const resolveAuctionLabel = useCallback(
+    (auctionId?: string) => {
+      if (!auctionId || auctionId === DEFAULT_AUCTION_OPTION.id) {
+        return DEFAULT_AUCTION_OPTION.label;
+      }
+
+      const known = auctionOptions.find((auction) => auction.id === auctionId);
+      return known?.label ?? auctionId;
+    },
+    [auctionOptions]
+  );
+
+  const mapPresetToUi = useCallback(
+    (preset: ReportPresetResource): SavedPreset => {
+      const auctionId = normalizeAuctionId(preset.filters?.auction_id);
+
+      return {
+        id: preset.preset_id,
+        name: preset.name,
+        reportId: resolvePresetReportId(preset),
+        dateRange: toPresetRangeLabel(preset.filters),
+        auctionScope: resolveAuctionLabel(auctionId),
+        auctionId,
+        lastRun: toDisplayDateOnly(preset.updated_at || preset.created_at),
+        mode: preset.mode,
+        packId: preset.pack_id,
+      };
+    },
+    [resolveAuctionLabel]
+  );
+
+  const refreshAuctionOptions = useCallback(async () => {
+    try {
+      const auctions = await auctionService.getMyAuctions();
+      if (!mountedRef.current) return;
+
+      const seen = new Set<string>();
+      const nextOptions = [
+        DEFAULT_AUCTION_OPTION,
+        ...auctions.flatMap((auction) => {
+          const id = normalizeAuctionId(auction.id);
+          if (!id || seen.has(id)) return [];
+          seen.add(id);
+          const label = auction.code
+            ? `${auction.name} (${auction.code})`
+            : auction.name || `Auction ${id}`;
+          return [{ id, label }];
+        }),
+      ];
+
+      setAuctionOptions(nextOptions);
+    } catch {
+      if (!mountedRef.current) return;
+      setAuctionOptions([DEFAULT_AUCTION_OPTION]);
+    }
   }, []);
 
   const buildFilters = useCallback((): ReportFiltersInput => {
@@ -415,7 +542,7 @@ export default function ReportsPage() {
         }
       }
     },
-    []
+    [mapPresetToUi]
   );
 
   const refreshExports = useCallback(
@@ -463,6 +590,10 @@ export default function ReportsPage() {
   }, [buildFilters]);
 
   useEffect(() => {
+    void refreshAuctionOptions();
+  }, [refreshAuctionOptions]);
+
+  useEffect(() => {
     void refreshPresets();
     void refreshExports();
   }, [refreshExports, refreshPresets]);
@@ -481,9 +612,7 @@ export default function ReportsPage() {
   }, [tab, refreshExports, refreshPresets]);
 
   const rangeLabel = formatRange(range);
-  const auctionLabel =
-    MOCK_AUCTIONS.find((auction) => auction.id === auctionScope)?.label ??
-    "All Auctions";
+  const auctionLabel = resolveAuctionLabel(auctionScope);
 
   const filteredReports = useMemo(() => {
     return REPORTS.filter((report) => {
@@ -764,7 +893,7 @@ export default function ReportsPage() {
     }
 
     try {
-      const file = await reportService.downloadExport(item.id);
+      const blob = await reportService.downloadExport(item.id);
       const extension = item.format === "excel" ? "xlsx" : item.format;
       const fallbackName = `${item.reportName || "report-export"}`
         .trim()
@@ -772,9 +901,9 @@ export default function ReportsPage() {
         .replace(/^-+|-+$/g, "")
         .toLowerCase();
       const fileName =
-        file.fileName || item.fileName || `${fallbackName || "report-export"}.${extension}`;
+        item.fileName || `${fallbackName || "report-export"}.${extension}`;
 
-      const url = URL.createObjectURL(file.blob);
+      const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = fileName;
@@ -818,7 +947,7 @@ export default function ReportsPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {MOCK_AUCTIONS.map((auction) => (
+                {auctionOptions.map((auction) => (
                   <SelectItem key={auction.id} value={auction.id}>
                     {auction.label}
                   </SelectItem>
