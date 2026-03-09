@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, FileSpreadsheet, Files, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,6 +30,7 @@ import {
   useAuctionReportSettlementExport,
   useAuctionReportSummaryExport,
 } from "@/features/auction/hooks/useAuctionReports";
+import { reportService } from "@/features/reports/services/reportService";
 import type {
   AuctionReportExportFormat,
   AuctionReportExportResult,
@@ -56,6 +57,9 @@ export default function AuctionReportExportActions({
 }: AuctionReportExportActionsProps) {
   const [format, setFormat] = useState<AuctionReportExportFormat>("csv");
   const [history, setHistory] = useState<ExportRunRow[]>([]);
+  const [downloadingExportId, setDownloadingExportId] = useState<string | null>(null);
+  const historyRef = useRef<ExportRunRow[]>([]);
+  const isPollingRef = useRef(false);
   const summaryExport = useAuctionReportSummaryExport(auctionId);
   const lotsExport = useAuctionReportLotsExport(auctionId);
   const biddersExport = useAuctionReportBiddersExport(auctionId);
@@ -63,7 +67,124 @@ export default function AuctionReportExportActions({
   const fullExport = useAuctionReportFullExport(auctionId);
 
   const pushHistory = (row: ExportRunRow) => {
-    setHistory((current) => [row, ...current].slice(0, 8));
+    setHistory((current) => {
+      const next = [row, ...current].slice(0, 8);
+      historyRef.current = next;
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
+
+  const pendingExportIds = history
+    .filter((item) => item.status === "queued" || item.status === "processing")
+    .map((item) => item.id)
+    .join("|");
+
+  useEffect(() => {
+    if (!pendingExportIds) return;
+
+    let isCancelled = false;
+
+    const pollExportStatuses = async () => {
+      if (isPollingRef.current) return;
+      isPollingRef.current = true;
+
+      try {
+        const response = await reportService.listExports({ per_page: 100 });
+        if (isCancelled) return;
+
+        const exportsById = new Map(response.data.map((item) => [item.export_id, item]));
+        const previousHistory = historyRef.current;
+        const nextHistory = previousHistory.map((item) => {
+          if (item.status !== "queued" && item.status !== "processing") {
+            return item;
+          }
+
+          const latest = exportsById.get(item.id);
+          if (!latest) return item;
+
+          const nextStatus = latest.status || item.status;
+          const nextDownloadPath = latest.download_url || item.downloadPath;
+          const nextMessage =
+            nextStatus === "done"
+              ? "Export ready for download."
+              : nextStatus === "failed"
+                ? latest.error || "Export failed."
+                : nextStatus === "processing"
+                  ? "Export is being prepared by the backend."
+                  : item.message;
+
+          return {
+            ...item,
+            status: nextStatus,
+            createdAt: latest.completed_at || latest.queued_at || item.createdAt,
+            message: nextMessage,
+            downloadPath: nextDownloadPath || undefined,
+          };
+        });
+
+        historyRef.current = nextHistory;
+        setHistory(nextHistory);
+
+        nextHistory.forEach((item, index) => {
+          const previous = previousHistory[index];
+          if (!previous || previous.id !== item.id || previous.status === item.status) return;
+
+          if (item.status === "done") {
+            toast.success(`${item.label} export is ready.`, {
+              description: "You can download it from the export activity list now.",
+            });
+          }
+
+          if (item.status === "failed") {
+            toast.error(`${item.label} export failed.`, {
+              description: item.message,
+            });
+          }
+        });
+      } catch {
+        // Keep the latest known export state if background polling fails.
+      } finally {
+        isPollingRef.current = false;
+      }
+    };
+
+    void pollExportStatuses();
+    const intervalId = window.setInterval(() => {
+      void pollExportStatuses();
+    }, 5000);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [pendingExportIds]);
+
+  const handleDownloadExport = async (item: ExportRunRow) => {
+    if (!item.downloadPath) {
+      toast.info("This export is not downloadable yet.");
+      return;
+    }
+
+    try {
+      setDownloadingExportId(item.id);
+      const file = await reportService.downloadExport(item.id, item.downloadPath);
+      downloadBlob(
+        file.blob,
+        file.fileName ||
+          `${item.label.toLowerCase().replace(/\s+/g, "-")}.${item.format === "excel" ? "xls" : "csv"}`
+      );
+      toast.success(`${item.label} export downloaded.`);
+    } catch (error: unknown) {
+      toast.error(`Failed to download ${item.label.toLowerCase()}.`, {
+        description: getErrorMessage(error, "Please try again."),
+      });
+    } finally {
+      setDownloadingExportId(null);
+    }
   };
 
   const handleResult = (
@@ -95,7 +216,7 @@ export default function AuctionReportExportActions({
       downloadPath: result.data.download_path || undefined,
     });
     toast.success(`${label} export queued.`, {
-      description: result.data.download_path || "Large export is being prepared by the backend.",
+      description: "Large export is being prepared by the backend and will only be downloadable after it completes.",
     });
   };
 
@@ -257,14 +378,17 @@ export default function AuctionReportExportActions({
                         <p className="mt-1 text-sm font-medium">{formatDateTime(item.createdAt)}</p>
                       </div>
                     </div>
-                    {item.downloadPath ? (
+                    {item.status === "done" && item.downloadPath ? (
                       <Button
                         variant="outline"
                         size="sm"
                         className="mt-4 w-full"
-                        onClick={() => window.open(item.downloadPath, "_blank", "noopener,noreferrer")}
+                        onClick={() => {
+                          void handleDownloadExport(item);
+                        }}
+                        disabled={downloadingExportId === item.id}
                       >
-                        Open export
+                        {downloadingExportId === item.id ? "Downloading..." : "Download export"}
                       </Button>
                     ) : null}
                   </div>
@@ -296,13 +420,16 @@ export default function AuctionReportExportActions({
                           {item.message}
                         </TableCell>
                         <TableCell>
-                          {item.downloadPath ? (
+                          {item.status === "done" && item.downloadPath ? (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => window.open(item.downloadPath, "_blank", "noopener,noreferrer")}
+                              onClick={() => {
+                                void handleDownloadExport(item);
+                              }}
+                              disabled={downloadingExportId === item.id}
                             >
-                              Open
+                              {downloadingExportId === item.id ? "Downloading..." : "Download"}
                             </Button>
                           ) : null}
                         </TableCell>

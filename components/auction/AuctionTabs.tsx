@@ -61,7 +61,7 @@ export default function AuctionTabs({ auction }: AuctionTabsProps) {
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6 animate-in fade-in duration-300">
       <div className="border-b border-border">
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-transparent p-0 sm:flex sm:flex-wrap sm:justify-start">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-muted/25 p-2 sm:flex sm:flex-wrap sm:justify-start sm:gap-1 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             
@@ -79,12 +79,12 @@ export default function AuctionTabs({ auction }: AuctionTabsProps) {
                 key={tab.value}
                 value={tab.value}
                 disabled={isDisabled}
-                className="auction-tab-trigger relative min-h-12 rounded-none border-0 border-b-2 border-transparent px-3 py-3 data-[state=active]:bg-transparent data-[state=active]:shadow-none font-body text-sm font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold hover:text-foreground transition-all duration-200 gap-2 disabled:opacity-40 disabled:cursor-not-allowed sm:min-w-fit sm:px-4"
+                className="auction-tab-trigger relative min-h-12 rounded-xl border border-transparent bg-background/80 px-3 py-3 font-body text-xs font-semibold text-muted-foreground shadow-sm transition-all duration-200 gap-2 hover:text-foreground data-[state=active]:border-primary/30 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm disabled:cursor-not-allowed disabled:opacity-40 sm:min-w-fit sm:rounded-none sm:border-0 sm:border-b-2 sm:bg-transparent sm:px-4 sm:text-sm sm:font-medium sm:shadow-none sm:data-[state=active]:bg-transparent sm:data-[state=active]:text-foreground sm:data-[state=active]:font-semibold sm:data-[state=active]:shadow-none"
               >
                 <Icon className="w-4 h-4 shrink-0" />
                 <span>{tab.label}</span>
                 {tab.value === "live-console" && isLive && (
-                  <span className="w-2 h-2 rounded-full bg-success animate-pulse ml-1" />
+                  <span className="ml-1 h-2 w-2 rounded-full bg-success animate-pulse" />
                 )}
               </TabsTrigger>
             );

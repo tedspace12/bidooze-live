@@ -192,6 +192,7 @@ const mapExportToUi = (
   filters: item.filters_summary ?? fallback?.filters ?? "-",
   runId: item.run_id,
   fileName: item.file_name ?? undefined,
+  downloadUrl: item.download_url ?? undefined,
 });
 
 const mapOverviewKpis = (kpis?: ReportsOverviewKpis): KpiCard[] => {
@@ -763,16 +764,17 @@ export default function ReportsPage() {
     }
 
     try {
-      const blob = await reportService.downloadExport(item.id);
+      const file = await reportService.downloadExport(item.id, item.downloadUrl);
       const extension = item.format === "excel" ? "xlsx" : item.format;
       const fallbackName = `${item.reportName || "report-export"}`
         .trim()
         .replace(/[^a-z0-9]+/gi, "-")
         .replace(/^-+|-+$/g, "")
         .toLowerCase();
-      const fileName = item.fileName || `${fallbackName || "report-export"}.${extension}`;
+      const fileName =
+        file.fileName || item.fileName || `${fallbackName || "report-export"}.${extension}`;
 
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(file.blob);
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = fileName;

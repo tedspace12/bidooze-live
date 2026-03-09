@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis, Bar, BarChart } from "recharts";
 import { Activity, TrendingUp, UserPlus } from "lucide-react";
 
@@ -55,7 +55,28 @@ export default function AuctionReportActivitySection({
 }: AuctionReportActivitySectionProps) {
   const { ref, enabled } = useLazySection<HTMLDivElement>();
   const [bucket, setBucket] = useState<"hourly" | "daily" | "lot_order">("daily");
+  const [isMobile, setIsMobile] = useState(false);
   const query = useAuctionReportActivity(auctionId, { bucket }, { enabled });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mediaQuery = window.matchMedia("(max-width: 640px)");
+    const sync = () => setIsMobile(mediaQuery.matches);
+    sync();
+
+    mediaQuery.addEventListener("change", sync);
+    return () => mediaQuery.removeEventListener("change", sync);
+  }, []);
+
+  const formatTickLabel = (value: string) => {
+    if (!isMobile) return value;
+    if (value.length <= 8) return value;
+    if (/^\d{2}\s\w{3}\s\d{4}$/.test(value)) {
+      return value.slice(0, 6);
+    }
+    return `${value.slice(0, 7)}…`;
+  };
 
   if (!enabled || query.isLoading) {
     return (
@@ -130,21 +151,37 @@ export default function AuctionReportActivitySection({
       ) : (
         <>
           <div className="grid gap-4 xl:grid-cols-2">
-            <Card>
+            <Card className="min-w-0 overflow-hidden">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Activity className="h-4 w-4 text-muted-foreground" />
                   Bids over time
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <ChartContainer config={chartConfig} className="h-[280px] w-full">
-                  <LineChart data={bidsData}>
+              <CardContent className="px-3 pb-3 sm:px-6 sm:pb-6">
+                <ChartContainer config={chartConfig} className={isMobile ? "h-[220px] w-full min-w-0" : "h-[280px] w-full min-w-0"}>
+                  <LineChart
+                    data={bidsData}
+                    margin={isMobile ? { top: 8, right: 8, left: 4, bottom: 0 } : { top: 8, right: 12, left: 8, bottom: 0 }}
+                  >
                     <CartesianGrid vertical={false} />
-                    <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={24} />
-                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                    <XAxis
+                      dataKey="label"
+                      tickLine={false}
+                      axisLine={false}
+                      minTickGap={isMobile ? 32 : 24}
+                      tickFormatter={formatTickLabel}
+                      interval={isMobile ? "preserveStartEnd" : 0}
+                    />
+                    <YAxis
+                      hide={isMobile}
+                      allowDecimals={false}
+                      tickLine={false}
+                      axisLine={false}
+                      width={40}
+                    />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <ChartLegend content={<ChartLegendContent />} />
+                    {!isMobile ? <ChartLegend content={<ChartLegendContent />} /> : null}
                     <Line
                       dataKey="bids"
                       type="monotone"
@@ -157,21 +194,33 @@ export default function AuctionReportActivitySection({
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="min-w-0 overflow-hidden">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                   Revenue over time
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <ChartContainer config={chartConfig} className="h-[280px] w-full">
-                  <BarChart data={revenueData}>
+              <CardContent className="px-3 pb-3 sm:px-6 sm:pb-6">
+                <ChartContainer config={chartConfig} className={isMobile ? "h-[220px] w-full min-w-0" : "h-[280px] w-full min-w-0"}>
+                  <BarChart
+                    data={revenueData}
+                    margin={isMobile ? { top: 8, right: 8, left: 4, bottom: 0 } : { top: 8, right: 12, left: 8, bottom: 0 }}
+                  >
                     <CartesianGrid vertical={false} />
-                    <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={24} />
-                    <YAxis
+                    <XAxis
+                      dataKey="label"
                       tickLine={false}
                       axisLine={false}
+                      minTickGap={isMobile ? 32 : 24}
+                      tickFormatter={formatTickLabel}
+                      interval={isMobile ? "preserveStartEnd" : 0}
+                    />
+                    <YAxis
+                      hide={isMobile}
+                      tickLine={false}
+                      axisLine={false}
+                      width={48}
                       tickFormatter={(value) => formatCurrency(Number(value), currency)}
                     />
                     <ChartTooltip
@@ -181,7 +230,7 @@ export default function AuctionReportActivitySection({
                         />
                       }
                     />
-                    <ChartLegend content={<ChartLegendContent />} />
+                    {!isMobile ? <ChartLegend content={<ChartLegendContent />} /> : null}
                     <Bar dataKey="revenue" fill="var(--color-revenue)" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ChartContainer>
@@ -189,20 +238,31 @@ export default function AuctionReportActivitySection({
             </Card>
           </div>
 
-          <Card>
+          <Card className="min-w-0 overflow-hidden">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <UserPlus className="h-4 w-4 text-muted-foreground" />
                 Registrations trend
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <ChartContainer config={chartConfig} className="h-[220px] w-full">
-                <BarChart data={registrationsData}>
+            <CardContent className="px-3 pb-3 sm:px-6 sm:pb-6">
+              <ChartContainer config={chartConfig} className={isMobile ? "h-[200px] w-full min-w-0" : "h-[220px] w-full min-w-0"}>
+                <BarChart
+                  data={registrationsData}
+                  margin={isMobile ? { top: 8, right: 8, left: 4, bottom: 0 } : { top: 8, right: 12, left: 8, bottom: 0 }}
+                >
                   <CartesianGrid vertical={false} />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={24} />
-                  <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                  <XAxis
+                    dataKey="label"
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={isMobile ? 32 : 24}
+                    tickFormatter={formatTickLabel}
+                    interval={isMobile ? "preserveStartEnd" : 0}
+                  />
+                  <YAxis hide={isMobile} allowDecimals={false} tickLine={false} axisLine={false} width={40} />
                   <ChartTooltip content={<ChartTooltipContent />} />
+                  {!isMobile ? <ChartLegend content={<ChartLegendContent />} /> : null}
                   <Bar dataKey="registrations" fill="var(--color-registrations)" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ChartContainer>

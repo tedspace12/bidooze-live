@@ -52,6 +52,7 @@ export interface ExportRow {
   filters: string;
   runId?: string;
   fileName?: string;
+  downloadUrl?: string;
 }
 
 export interface Insight {
