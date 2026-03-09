@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Space_Grotesk } from "next/font/google";
 import { DateRange } from "react-day-picker";
 import {
   BarChart3,
@@ -66,12 +65,6 @@ import {
   type ReportPresetResource,
   type ReportsOverviewKpis,
 } from "@/features/reports/services/reportService";
-
-const displayFont = Space_Grotesk({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  variable: "--font-display",
-});
 
 const BACKEND_TO_UI_REPORT_ID: Record<string, string> = {
   "revenue-summary": "rev-summary",
@@ -794,7 +787,7 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className={`${displayFont.variable} space-y-6 pb-10`}>
+    <div className="space-y-6 pb-10">
       <Card className="relative overflow-hidden border-border/70 bg-[linear-gradient(135deg,hsl(var(--primary)/0.35)_0%,hsl(var(--background))_52%,hsl(var(--muted)/0.7)_100%)]">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,hsl(var(--foreground)/0.08)_1px,transparent_0)] bg-size-[14px_14px]" />
         <div className="pointer-events-none absolute -right-16 -top-24 h-60 w-60 rounded-full bg-[hsl(var(--chart-4)/0.24)] blur-3xl" />

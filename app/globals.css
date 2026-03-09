@@ -102,6 +102,9 @@ html { scroll-behavior: smooth; }
 :root {
   /* Border Radius - Figma uses 12px (0.75rem) */
   --radius: 0.75rem;
+  --font-geist-sans: "Segoe UI", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-geist-mono: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-display: "Aptos", "Segoe UI", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   
   /* Primary Green Palette - From Figma */
   --green-50: #f9fef0;

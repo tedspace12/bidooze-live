@@ -10,22 +10,45 @@ import { toast } from "sonner";
 import { useAuction } from "@/features/auction/hooks/useAuction";
 import type { Auction } from "@/features/auction/types";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  auctionMatchesCategory,
+  getAuctionCategories,
+  getAuctionCategoryOptions,
+} from "@/features/auction/utils";
+
+const DEFAULT_FILTERS: AuctionFilterState = {
+  search: "",
+  dateRange: undefined as DateRange | undefined,
+};
 
 export default function AuctionsPage() {
   const [loading, setLoading] = useState(false);
   const [selectedAuctionIds, setSelectedAuctionIds] = useState<string[]>([]);
+  const [filtersResetKey, setFiltersResetKey] = useState(0);
   const router = useRouter();
   const { useMyAuctions } = useAuction();
   
-  const [filters, setFilters] = useState<AuctionFilterState>({
-    search: "",
-    dateRange: undefined as DateRange | undefined,
-  });
+  const [filters, setFilters] = useState<AuctionFilterState>(DEFAULT_FILTERS);
 
   // Fetch auctions from API
   const { data: auctions = [], isLoading, error } = useMyAuctions({
     status: filters.status,
   });
+
+  const availableCategories = useMemo(
+    () => getAuctionCategoryOptions(auctions),
+    [auctions]
+  );
+
+  const selectedCategory = useMemo(() => {
+    if (!filters.category) return undefined;
+
+    return availableCategories.some(
+      (category) => category.toLowerCase() === filters.category?.toLowerCase()
+    )
+      ? filters.category
+      : undefined;
+  }, [availableCategories, filters.category]);
 
   const filteredData = useMemo(() => {
     if (!auctions || auctions.length === 0) return [];
@@ -35,13 +58,14 @@ export default function AuctionsPage() {
         ? item.status?.toLowerCase() === filters.status.toLowerCase()
         : true;
 
-      const matchCategory = filters.category
-        ? item.category?.toLowerCase() === filters.category.toLowerCase()
-        : true;
+      const matchCategory = auctionMatchesCategory(item, selectedCategory);
 
       const matchSearch = filters.search
         ? item.name?.toLowerCase().includes(filters.search.toLowerCase()) ||
-          item.code?.toLowerCase().includes(filters.search.toLowerCase())
+          item.code?.toLowerCase().includes(filters.search.toLowerCase()) ||
+          getAuctionCategories(item).some((category) =>
+            category.toLowerCase().includes(filters.search!.toLowerCase())
+          )
         : true;
 
       const starts = item.auction_start_at ? new Date(item.auction_start_at) : null;
@@ -56,10 +80,24 @@ export default function AuctionsPage() {
 
       return matchStatus && matchCategory && matchSearch && withinDate;
     });
-  }, [auctions, filters]);
+  }, [auctions, filters, selectedCategory]);
+
+  const hasActiveFilters = Boolean(
+    filters.status ||
+    selectedCategory ||
+    filters.search?.trim() ||
+    filters.dateRange?.from ||
+    filters.dateRange?.to
+  );
 
   const handleSelectionChange = (newSelectedIds: string[]) => {
     setSelectedAuctionIds(newSelectedIds);
+  };
+
+  const handleClearFilters = () => {
+    setFilters(DEFAULT_FILTERS);
+    setSelectedAuctionIds([]);
+    setFiltersResetKey((prev) => prev + 1);
   };
 
   const handleExportSelected = () => {
@@ -138,7 +176,12 @@ export default function AuctionsPage() {
         </div>
       </div>
 
-      <AuctionFilters setFilters={setFilters} />
+      <AuctionFilters
+        key={filtersResetKey}
+        categories={availableCategories}
+        selectedCategory={selectedCategory}
+        setFilters={setFilters}
+      />
 
       {/* Bulk Actions UI - Conditionally rendered */}
       {hasSelected && (
@@ -170,6 +213,8 @@ export default function AuctionsPage() {
         <AuctionTable
           loading={loading}
           auctions={filteredData}
+          hasActiveFilters={hasActiveFilters}
+          onClearFilters={handleClearFilters}
           selectedIds={selectedAuctionIds}
           onSelectionChange={handleSelectionChange}
         />

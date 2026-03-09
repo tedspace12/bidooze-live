@@ -48,6 +48,7 @@ export interface Auction {
   name: string;
   description?: string;
   category?: string;
+  categories?: string[];
   auction_start_at: string;
   auction_end_at: string;
   preview_start_at?: string;
@@ -66,6 +67,7 @@ export interface Auction {
   lots: AuctionLot[];
   lot_count: number;
   totalBidder: number;
+  total_bidder?: number;
 
   feature_image_url?: string;
   total_bid_amount?: number;
@@ -245,6 +247,12 @@ export interface CreateAuctionPayload {
 
 
 export interface AuctionSettingsPayload {
+  commissionRate?: number;
+  buyerPremium?: number;
+  allowAbsentee?: boolean;
+  autoExtend?: boolean;
+  extensionMinutes?: number;
+  enableNotifications?: boolean;
   commission_percentage?: number;
   buyer_premium_percentage?: number;
   buyer_tax_percentage?: number;
@@ -257,6 +265,7 @@ export interface AuctionSettingsPayload {
   add_handling_charges?: boolean;
   handling_charge_type?: HandlingChargeType;
   handling_charge_amount?: number;
+  auction_format?: AuctionFormat;
   soft_close_seconds?: number;
   lot_stagger_seconds?: number;
   show_immediate_bid_states?: boolean;
@@ -300,6 +309,10 @@ export interface AuctionOverviewStats {
 
   total_bids: number;
   total_bid_amount: number;
+  submitted_bid_amount: number;
+  accepted_bids: number;
+  pending_approval_bids: number;
+  rejected_bids: number;
   avg_bids_per_lot: number;
 
   bidders_total: number;
@@ -317,6 +330,7 @@ export interface AuctionOverviewTimeline {
 
   is_live: boolean;
   is_paused: boolean;
+  session_status?: string | null;
 
   can_go_live: boolean;
   can_close: boolean;
@@ -363,12 +377,22 @@ export interface AuctionActivity {
 }
 
 export interface AuctionRecentBid {
-  id: number;
-  bidder_name: string;
-  lot_title: string;
-  amount: number;
-  created_at: string;
-  status: "leading" | "accepted" | "outbid";
+  id: number | string;
+  bidder?: string | null;
+  title?: string | null;
+  currentBid?: number | string | null;
+  status?: string | null;
+  timestamp?: string | null;
+  lot_id?: number | string | null;
+  lot_number?: number | string | null;
+  amount?: number | string | null;
+  bid_status?: string | null;
+  lot_status?: string | null;
+  is_winning?: boolean | null;
+  placed_at?: string | null;
+  bidder_name?: string | null;
+  lot_title?: string | null;
+  created_at?: string | null;
 }
 
 

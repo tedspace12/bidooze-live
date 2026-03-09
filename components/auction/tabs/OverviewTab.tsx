@@ -50,6 +50,44 @@ function formatCurrency(amount: number, currency: AuctionOverviewResponse["aucti
   }
 }
 
+function toNumber(value: unknown, fallback = 0): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+}
+
+function toText(value: unknown, fallback = ""): string {
+  if (typeof value === "string") return value.trim() || fallback;
+  if (typeof value === "number") return String(value);
+  return fallback;
+}
+
+function formatStatusLabel(value: string) {
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getBidStatusVariant(status: string) {
+  const value = status.toLowerCase();
+  if (["won", "winning", "leading"].includes(value)) return "default" as const;
+  if (["pending approval", "pending_approval"].includes(value)) return "secondary" as const;
+  if (["rejected", "outbid"].includes(value)) return "outline" as const;
+  return "secondary" as const;
+}
+
+function formatTimestamp(value?: string) {
+  if (!value) return "Not available";
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return formatTime(parsed);
+  }
+  return value;
+}
+
 function ActivityFeedEmpty({ auctionStatus }: { auctionStatus: 'draft' | 'scheduled' | 'live' | 'paused' | 'closed' | 'completed' }) {
   const getMessage = () => {
     switch (auctionStatus) {
@@ -215,46 +253,81 @@ export default function OverviewTab({ auction }: OverviewTabProps) {
   const soldLots = auction.stats.lots_sold;
   const totalBids = auction.stats.total_bids;
   const revenue = auction.stats.total_revenue;
+  const acceptedBidTotal = auction.stats.total_bid_amount;
+  const submittedBidTotal = auction.stats.submitted_bid_amount;
+  const acceptedBids = auction.stats.accepted_bids;
+  const pendingApprovalBids = auction.stats.pending_approval_bids;
+  const rejectedBids = auction.stats.rejected_bids;
   const registeredBidders = auction.stats.bidders_total;
   const acceptedBidders = auction.stats.bidders_approved;
   const totalWatchers = auction.stats.total_watchers;
+  const sessionStatus = formatStatusLabel(
+    auction.timeline.session_status || (auction.timeline.is_paused ? "paused" : auction.auction.status)
+  );
+  const runtimeLabel = auction.timeline.is_paused
+    ? "Paused"
+    : auction.timeline.is_live
+      ? "Running"
+      : auction.timeline.has_ended
+        ? "Ended"
+        : "Idle";
 
   const stats = [
     {
       title: "Total Revenue",
       value: formatCurrency(revenue, auction.auction.currency),
       icon: DollarSign,
-      accent: true
+      accent: true,
+      description: "Sold lot final prices"
+    },
+    {
+      title: "Accepted Bid Total",
+      value: formatCurrency(acceptedBidTotal, auction.auction.currency),
+      icon: Gavel,
+      accent: false,
+      description: "Accepted bid value only"
+    },
+    {
+      title: "Submitted Bid Total",
+      value: formatCurrency(submittedBidTotal, auction.auction.currency),
+      icon: TrendingUp,
+      accent: false,
+      description: "All submitted bids before approval"
+    },
+    {
+      title: "Accepted Bids",
+      value: acceptedBids,
+      icon: CheckCircle,
+      accent: false,
+      description: `Pending ${pendingApprovalBids} | Rejected ${rejectedBids}`
     },
     {
       title: "Total Bids",
       value: totalBids,
       icon: Gavel,
-      accent: false
+      accent: false,
+      description: "Count of bid records"
     },
     {
       title: "Active Bidders",
       value: `${acceptedBidders}/${registeredBidders}`,
       icon: Users,
-      accent: false
+      accent: false,
+      description: "Approved vs registered"
     },
     {
       title: "Lots Sold",
       value: `${soldLots}/${totalLots}`,
       icon: Package,
-      accent: false
-    },
-    {
-      title: "Lots with Bids",
-      value: lotsWithBids,
-      icon: TrendingUp,
-      accent: false
+      accent: false,
+      description: `${lotsWithBids} lots have bids`
     },
     {
       title: "Total Watchers",
       value: totalWatchers,
       icon: Eye,
-      accent: false
+      accent: false,
+      description: "Watchlist interest"
     },
   ];
 
@@ -269,23 +342,50 @@ export default function OverviewTab({ auction }: OverviewTabProps) {
     timestamp: new Date(item.created_at),
   }));
 
-  const recentBidsList = (recentBids.data ?? []).map((bid: AuctionRecentBid) => ({
-    id: bid.id,
-    bidder: bid.bidder_name,
-    title: bid.lot_title,
-    currentBid: formatCurrency(bid.amount, auction.auction.currency),
-    timestamp: formatTime(new Date(bid.created_at)),
-    status: bid.status,
-  }));
+  const recentBidsList = (recentBids.data ?? []).map((bid: AuctionRecentBid) => {
+    const rawStatus = toText(bid.status ?? bid.bid_status, "Pending Approval");
+    const amount = toNumber(bid.amount ?? bid.currentBid, 0);
+    return {
+      id: bid.id,
+      bidder: toText(bid.bidder ?? bid.bidder_name, "Unknown bidder"),
+      title: toText(bid.title ?? bid.lot_title, "Untitled lot"),
+      lotNumber: toText(bid.lot_number, ""),
+      currentBid: formatCurrency(amount, auction.auction.currency),
+      timestamp: formatTimestamp(toText(bid.placed_at ?? bid.timestamp ?? bid.created_at, "")),
+      status: formatStatusLabel(rawStatus),
+      statusVariant: getBidStatusVariant(rawStatus),
+      lotStatus: toText(bid.lot_status, ""),
+      isWinning: !!bid.is_winning,
+    };
+  });
 
 
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="outline" className="text-xs">
+          Session {sessionStatus}
+        </Badge>
+        <Badge variant={auction.timeline.is_paused ? "secondary" : auction.timeline.is_live ? "default" : "outline"} className="text-xs">
+          Runtime {runtimeLabel}
+        </Badge>
+        {auction.auction.actual_start_at ? (
+          <Badge variant="outline" className="text-xs">
+            Started {new Date(auction.auction.actual_start_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+          </Badge>
+        ) : null}
+        {auction.auction.actual_end_at ? (
+          <Badge variant="outline" className="text-xs">
+            Ended {new Date(auction.auction.actual_end_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+          </Badge>
+        ) : null}
+      </div>
+
       {/* Onboarding Checklist (Visible in Draft/Scheduled) */}
-      {(isDraft || auction.auction.status === "scheduled") && (
-        <Card className="border border-border shadow-soft">
-          <CardHeader className="flex flex-row items-center justify-between">
+        {(isDraft || auction.auction.status === "scheduled") && (
+          <Card className="border border-border shadow-soft">
+          <CardHeader className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
             <CardTitle className="text-xl font-display font-semibold">Pre-Launch Checklist</CardTitle>
             <div className="text-sm font-body text-muted-foreground">{completedSteps}/{totalSteps} Completed ({progress}%)</div>
           </CardHeader>
@@ -312,8 +412,8 @@ export default function OverviewTab({ auction }: OverviewTabProps) {
       )}
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {stats.map(({ title, value, icon: Icon, accent }, index) => (
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+        {stats.map(({ title, value, icon: Icon, accent, description }, index) => (
           <Card
             key={title}
             className={`border border-border shadow-soft transition-all hover:shadow-medium ${accent ? 'gradient-surface' : ''}`}
@@ -328,6 +428,9 @@ export default function OverviewTab({ auction }: OverviewTabProps) {
               <p className="text-xs text-muted-foreground font-body uppercase tracking-wide mb-1">{title}</p>
               <p className={`text-xl font-semibold font-body tabular-nums ${accent ? 'text-primary-foreground' : 'text-foreground'}`}>
                 {value}
+              </p>
+              <p className={`mt-1 text-xs font-body ${accent ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+                {description}
               </p>
             </CardContent>
           </Card>
@@ -443,11 +546,7 @@ export default function OverviewTab({ auction }: OverviewTabProps) {
             ) : (
               <>
                 <div className="divide-y divide-border/50">
-                  {recentBidsList.map((bid, index: number) => {
-                    // Determine bid status (mock logic - in real app this would come from data)
-                    const bidStatus = index === 0 ? "Leading" : index === 1 ? "Accepted" : "Outbid";
-                    const statusVariant = bidStatus === "Leading" ? "default" : bidStatus === "Accepted" ? "secondary" : "outline";
-
+                  {recentBidsList.map((bid) => {
                     // Get bidder initials
                     const initials = bid.bidder
                       .split(' ')
@@ -477,7 +576,7 @@ export default function OverviewTab({ auction }: OverviewTabProps) {
                                   {bid.bidder}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                                  {bid.title}
+                                  {bid.lotNumber ? `Lot ${bid.lotNumber} · ` : ""}{bid.title}
                                 </p>
                               </div>
                               <p className="text-sm font-semibold text-green-700 shrink-0 whitespace-nowrap">
@@ -487,15 +586,20 @@ export default function OverviewTab({ auction }: OverviewTabProps) {
 
                             <div className="flex items-center justify-between gap-2 mt-2">
                               <Badge
-                                variant={statusVariant}
+                                variant={bid.statusVariant}
                                 className="text-xs h-5"
                               >
-                                {bidStatus}
+                                {bid.status}
                               </Badge>
                               <p className="text-xs text-muted-foreground shrink-0">
                                 {bid.timestamp}
                               </p>
                             </div>
+                            {bid.lotStatus || bid.isWinning ? (
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                {bid.lotStatus ? `Lot ${formatStatusLabel(bid.lotStatus)}` : "Winning bid"}
+                              </p>
+                            ) : null}
                           </div>
                         </div>
 

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AuctionOverviewResponse } from "@/features/auction/types";
 import { auctionService } from "@/features/auction/services/auctionService";
+import { getVisibleAuctionCategories } from "@/features/auction/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -100,6 +101,7 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
   const isPaused = currentStatus === "paused";
   
   const statusConfig = getStatusConfig(currentStatus);
+  const { categories, remainingCount } = getVisibleAuctionCategories(auction.auction, 3);
 
   const handleEditAuction = async () => {
     setIsLoading(true);
@@ -251,9 +253,9 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
           <div className="h-1 gradient-gold" />
         )}
         
-        <div className="p-6 lg:p-8">
+        <div className="p-4 sm:p-6 lg:p-8">
           {/* Top row: Status, type and category */}
-          <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
             <Badge variant={statusConfig.variant} className="gap-1.5 font-body text-xs font-medium uppercase tracking-wide">
               <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot} ${isLive ? 'animate-pulse' : ''}`} />
               {statusConfig.label}
@@ -262,12 +264,27 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
               <Radio className="w-3 h-3" />
               {auction.auction.bidding_type}
             </Badge>
-            <span className="text-sm text-muted-foreground font-body">{auction.auction.categories}</span>
+            {categories.length > 0 ? (
+              <>
+                {categories.map((category) => (
+                  <Badge key={category} variant="outline" className="font-body text-xs">
+                    {category}
+                  </Badge>
+                ))}
+                {remainingCount > 0 && (
+                  <Badge variant="outline" className="font-body text-xs">
+                    +{remainingCount} more
+                  </Badge>
+                )}
+              </>
+            ) : (
+              <span className="text-sm text-muted-foreground font-body">Uncategorized</span>
+            )}
           </div>
 
           {/* Title and description */}
           <div className="mb-6">
-            <h1 className="text-3xl lg:text-4xl font-display font-semibold text-foreground tracking-tight mb-2">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-display font-semibold text-foreground tracking-tight mb-2">
               {auction.auction.name}
             </h1>
             <p className="text-muted-foreground font-body text-base max-w-2xl">
@@ -276,66 +293,74 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
           </div>
 
           {/* Stats row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
-                <MapPin className="w-4 h-4 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-body uppercase tracking-wide">Location</p>
-                <p className="text-sm font-medium text-foreground font-body">
-                  {[auction.auction.address_line_1, auction.auction.city, auction.auction.state, auction.auction.country]
-                    .filter(Boolean)
-                    .join(', ') || 'N/A'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
-                <Calendar className="w-4 h-4 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-body uppercase tracking-wide">
-                  {isLive ? "Ends" : "Starts"}
-                </p>
-                <p className="text-sm font-medium text-foreground font-body">
-                  {new Date(isLive ? auction.auction.end_at : auction.auction.start_at).toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric',
-                    year: 'numeric'
-                  })}
-                </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mb-6">
+            <div className="rounded-xl border border-border/60 bg-secondary/30 p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                  <MapPin className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground font-body uppercase tracking-wide">Location</p>
+                  <p className="text-sm font-medium text-foreground font-body break-words">
+                    {[auction.auction.address_line_1, auction.auction.city, auction.auction.state, auction.auction.country]
+                      .filter(Boolean)
+                      .join(', ') || 'N/A'}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
-                <Gavel className="w-4 h-4 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-body uppercase tracking-wide">Total Lots</p>
-                <p className="text-sm font-medium text-foreground font-body">{auction.stats.lots_total}</p>
+            <div className="rounded-xl border border-border/60 bg-secondary/30 p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground font-body uppercase tracking-wide">
+                    {isLive ? "Ends" : "Starts"}
+                  </p>
+                  <p className="text-sm font-medium text-foreground font-body break-words">
+                    {new Date(isLive ? auction.auction.end_at : auction.auction.start_at).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
-                <Users className="w-4 h-4 text-muted-foreground" />
+            <div className="rounded-xl border border-border/60 bg-secondary/30 p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                  <Gavel className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground font-body uppercase tracking-wide">Total Lots</p>
+                  <p className="text-sm font-medium text-foreground font-body">{auction.stats.lots_total}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-body uppercase tracking-wide">Bidders</p>
-                <p className="text-sm font-medium text-foreground font-body">{auction.stats.bidders_total}</p>
+            </div>
+
+            <div className="rounded-xl border border-border/60 bg-secondary/30 p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground font-body uppercase tracking-wide">Bidders</p>
+                  <p className="text-sm font-medium text-foreground font-body">{auction.stats.bidders_total}</p>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Bottom row: Countdown and actions */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-6 border-t border-border">
+          <div className="flex flex-col gap-4 pt-6 border-t border-border lg:flex-row lg:items-center lg:justify-between">
             {/* Countdown */}
             {(isLive || isScheduled) && (
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isLive ? 'gradient-gold' : 'bg-secondary'}`}>
+              <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-secondary/20 p-4">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isLive ? 'gradient-gold' : 'bg-secondary'}`}>
                   <Clock className={`w-4 h-4 ${isLive ? 'text-accent-foreground' : 'text-muted-foreground'}`} />
                 </div>
                 <div>
@@ -350,12 +375,12 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
             )}
 
             {/* Actions */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
               {(isDraft || isScheduled) && (
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="gap-2 font-body"
+                  className="w-full gap-2 font-body sm:w-auto"
                   onClick={() => setIsEditOpen(true)}
                   disabled={isLoading}
                 >
@@ -367,7 +392,7 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
               {isDraft && (
                 <Button 
                   size="sm" 
-                  className="gap-2 font-body gradient-gold border-0 text-accent-foreground hover:opacity-90"
+                  className="w-full gap-2 font-body gradient-gold border-0 text-accent-foreground hover:opacity-90 sm:w-auto"
                   onClick={() => setIsPublishOpen(true)}
                   disabled={isLoading}
                 >
@@ -381,7 +406,7 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="gap-2 font-body"
+                    className="w-full gap-2 font-body sm:w-auto"
                     onClick={() => setIsPauseOpen(true)}
                     disabled={isLoading}
                   >
@@ -391,7 +416,7 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
                   <Button 
                     variant="destructive" 
                     size="sm" 
-                    className="gap-2 font-body"
+                    className="w-full gap-2 font-body sm:w-auto"
                     onClick={() => setIsCloseOpen(true)}
                     disabled={isLoading}
                   >
@@ -406,7 +431,7 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="gap-2 font-body"
+                    className="w-full gap-2 font-body sm:w-auto"
                     onClick={() => setIsResumeOpen(true)}
                     disabled={isLoading}
                   >
@@ -416,7 +441,7 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
                   <Button 
                     variant="destructive" 
                     size="sm" 
-                    className="gap-2 font-body"
+                    className="w-full gap-2 font-body sm:w-auto"
                     onClick={() => setIsCloseOpen(true)}
                     disabled={isLoading}
                   >
@@ -429,7 +454,7 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
               {isClosed && (
                 <Button 
                   size="sm" 
-                  className="gap-2 font-body"
+                  className="w-full gap-2 font-body sm:w-auto"
                   onClick={() => setIsCompleteOpen(true)}
                   disabled={isLoading}
                 >
@@ -442,7 +467,7 @@ export default function AuctionHeader({ auction }: AuctionHeaderProps) {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="gap-2 font-body text-destructive hover:text-destructive hover:bg-destructive/10"
+                  className="w-full gap-2 font-body text-destructive hover:text-destructive hover:bg-destructive/10 sm:w-auto"
                   onClick={() => setIsDeleteOpen(true)}
                   disabled={isLoading}
                 >

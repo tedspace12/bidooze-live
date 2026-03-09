@@ -16,13 +16,18 @@ export type AuctionFilterState = {
 };
 
 interface AuctionFiltersProps {
+  categories: string[];
+  selectedCategory?: string;
   setFilters: Dispatch<SetStateAction<AuctionFilterState>>;
 }
 
-export function AuctionFilters({ setFilters }: AuctionFiltersProps) {
+export function AuctionFilters({
+  categories,
+  selectedCategory,
+  setFilters,
+}: AuctionFiltersProps) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
-  const [category, setCategory] = useState("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
   const handleClearDateRange = () => {
@@ -68,12 +73,13 @@ export function AuctionFilters({ setFilters }: AuctionFiltersProps) {
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              {/* Added "All" option with an empty string value to clear the filter */}
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="live">Live</SelectItem>
               <SelectItem value="scheduled">Scheduled</SelectItem>
+              <SelectItem value="live">Live</SelectItem>
+              <SelectItem value="paused">Paused</SelectItem>
               <SelectItem value="closed">Closed</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -84,22 +90,22 @@ export function AuctionFilters({ setFilters }: AuctionFiltersProps) {
             Category
           </p>
           <Select
-            value={category}
+            value={selectedCategory || "all"}
             onValueChange={(value) => {
-              setCategory(value);
               setFilters((prev) => ({ ...prev, category: value === "all" ? undefined : value }));
             }}
+            disabled={categories.length === 0}
           >
             <SelectTrigger className="text-base md:text-sm">
-              <SelectValue placeholder="Category" />
+              <SelectValue placeholder={categories.length === 0 ? "No categories" : "Category"} />
             </SelectTrigger>
             <SelectContent>
-              {/* Added "All" option with an empty string value to clear the filter */}
               <SelectItem value="all">All Categories</SelectItem>
-              <SelectItem value="watches">Watches</SelectItem>
-              <SelectItem value="cars">Cars</SelectItem>
-              <SelectItem value="art">Art</SelectItem>
-              <SelectItem value="fashion">Fashion</SelectItem>
+              {categories.map((item) => (
+                <SelectItem key={item} value={item}>
+                  {item}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

@@ -413,87 +413,140 @@ export default function LotsTab({ auction }: LotsTabProps) {
 
       {viewMode === "table" && (
         <Card className="border border-border shadow-soft overflow-hidden pt-0 pb-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-secondary/50 hover:bg-secondary/50">
-                <TableHead className="font-body font-semibold text-foreground">Lot #</TableHead>
-                <TableHead className="font-body font-semibold text-foreground">Item</TableHead>
-                <TableHead className="font-body font-semibold text-foreground">Starting Bid</TableHead>
-                <TableHead className="font-body font-semibold text-foreground">Status</TableHead>
-                <TableHead className="font-body font-semibold text-foreground w-12"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredLots.length > 0 ? (
-                filteredLots.map((lot) => {
+          {filteredLots.length > 0 ? (
+            <>
+              <div className="space-y-3 p-4 md:hidden">
+                {filteredLots.map((lot) => {
                   const statusConfig = getStatusBadge(lot.status);
                   const primaryImage = getPrimaryImage(lot);
 
                   return (
-                    <TableRow key={lot.id} className="group hover:bg-secondary/30">
-                      <TableCell className="font-body font-medium text-foreground">{lot.lot_number}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
-                            {primaryImage ? (
-                              <Image src={primaryImage} alt={lot.title} width={48} height={48} className="w-full h-full object-cover" />
-                            ) : (
-                              <Package className="w-5 h-5 text-muted-foreground" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-body font-medium text-foreground truncate">{lot.title}</p>
-                            <p className="text-xs text-muted-foreground font-body truncate">
-                              {(lot.description || "").slice(0, 60)}
-                              {(lot.description || "").length > 60 ? "..." : ""}
-                            </p>
-                          </div>
+                    <div key={lot.id} className="rounded-xl border border-border/70 bg-background p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="h-14 w-14 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                          {primaryImage ? (
+                            <Image src={primaryImage} alt={lot.title} width={56} height={56} className="h-full w-full object-cover" />
+                          ) : (
+                            <Package className="w-5 h-5 text-muted-foreground" />
+                          )}
                         </div>
-                      </TableCell>
-                      <TableCell className="font-body">
-                        {formatCurrency(Number(lot.starting_bid || 0), auction.auction.currency)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={statusConfig.variant} className="font-body text-xs">
-                          {statusConfig.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="font-body">
-                            <DropdownMenuItem className="gap-2" onClick={() => { setSelectedLot(lot); setIsViewLotOpen(true); }}>
-                              <Eye className="w-4 h-4" />
-                              View
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2" onClick={() => handleEditLot(lot)}>
-                              <Edit3 className="w-4 h-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2 text-destructive" onClick={() => { setSelectedLot(lot); setIsDeleteLotOpen(true); }}>
-                              <Trash2 className="w-4 h-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-body font-medium text-foreground">Lot {lot.lot_number}</p>
+                            <Badge variant={statusConfig.variant} className="font-body text-xs">
+                              {statusConfig.label}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 font-body text-sm text-foreground">{lot.title}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {(lot.description || "").slice(0, 100)}
+                            {(lot.description || "").length > 100 ? "..." : ""}
+                          </p>
+                          <p className="mt-2 text-sm font-medium text-foreground">
+                            {formatCurrency(Number(lot.starting_bid || 0), auction.auction.currency)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                        <Button variant="outline" size="sm" onClick={() => { setSelectedLot(lot); setIsViewLotOpen(true); }}>
+                          <Eye className="w-4 h-4" />
+                          View
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleEditLot(lot)}>
+                          <Edit3 className="w-4 h-4" />
+                          Edit
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-destructive" onClick={() => { setSelectedLot(lot); setIsDeleteLotOpen(true); }}>
+                          <Trash2 className="w-4 h-4" />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
                   );
-                })
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12">
-                    <Package className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
-                    <p className="text-muted-foreground font-body">No lots found</p>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                })}
+              </div>
+
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-secondary/50 hover:bg-secondary/50">
+                      <TableHead className="font-body font-semibold text-foreground">Lot #</TableHead>
+                      <TableHead className="font-body font-semibold text-foreground">Item</TableHead>
+                      <TableHead className="font-body font-semibold text-foreground">Starting Bid</TableHead>
+                      <TableHead className="font-body font-semibold text-foreground">Status</TableHead>
+                      <TableHead className="font-body font-semibold text-foreground w-12"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredLots.map((lot) => {
+                      const statusConfig = getStatusBadge(lot.status);
+                      const primaryImage = getPrimaryImage(lot);
+
+                      return (
+                        <TableRow key={lot.id} className="group hover:bg-secondary/30">
+                          <TableCell className="font-body font-medium text-foreground">{lot.lot_number}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                                {primaryImage ? (
+                                  <Image src={primaryImage} alt={lot.title} width={48} height={48} className="w-full h-full object-cover" />
+                                ) : (
+                                  <Package className="w-5 h-5 text-muted-foreground" />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-body font-medium text-foreground truncate">{lot.title}</p>
+                                <p className="text-xs text-muted-foreground font-body truncate">
+                                  {(lot.description || "").slice(0, 60)}
+                                  {(lot.description || "").length > 60 ? "..." : ""}
+                                </p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-body">
+                            {formatCurrency(Number(lot.starting_bid || 0), auction.auction.currency)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={statusConfig.variant} className="font-body text-xs">
+                              {statusConfig.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="font-body">
+                                <DropdownMenuItem className="gap-2" onClick={() => { setSelectedLot(lot); setIsViewLotOpen(true); }}>
+                                  <Eye className="w-4 h-4" />
+                                  View
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="gap-2" onClick={() => handleEditLot(lot)}>
+                                  <Edit3 className="w-4 h-4" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="gap-2 text-destructive" onClick={() => { setSelectedLot(lot); setIsDeleteLotOpen(true); }}>
+                                  <Trash2 className="w-4 h-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          ) : (
+            <div className="py-12 text-center">
+              <Package className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+              <p className="text-muted-foreground font-body">No lots found</p>
+            </div>
+          )}
         </Card>
       )}
 
@@ -774,7 +827,7 @@ export default function LotsTab({ auction }: LotsTabProps) {
                   </CardContent>
                 </Card>
               )}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t">
+              <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-end">
                 <Button
                   variant="outline"
                   onClick={() => {

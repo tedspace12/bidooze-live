@@ -10,6 +10,19 @@ import type {
   AuctionActivity,
   AuctionRecentBid,
 } from "../types";
+import type {
+  SettlementActionResult,
+  SettlementExportParams,
+  SettlementFileDownload,
+  SettlementInvoiceDetailData,
+  SettlementInvoiceListItem,
+  SettlementInvoiceListParams,
+  SettlementListResponse,
+  SettlementPayoutDetailData,
+  SettlementPayoutListItem,
+  SettlementPayoutListParams,
+  SettlementSummaryData,
+} from "../settlement-types";
 
 type ApiErrorLike = {
   response?: {
@@ -41,6 +54,18 @@ const extractPayloadData = <T>(payload: unknown): T => {
 const rethrowApiError = (error: unknown): never => {
   const err = error as ApiErrorLike;
   throw err?.response?.data || { message: err?.message || "Request failed" };
+};
+
+const extractFilename = (contentDisposition?: string): string | undefined => {
+  if (!contentDisposition) return undefined;
+
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+
+  const basicMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+  return basicMatch?.[1];
 };
 
 export const auctionService = {
@@ -388,6 +413,135 @@ export const auctionService = {
         data
       );
       return res.data;
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
+  async getAuctionSettlementSummary(auctionId: string | number): Promise<SettlementSummaryData> {
+    try {
+      const res = await withAuth.get(`auctions/${auctionId}/settlement/summary`);
+      return extractPayloadData<SettlementSummaryData>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
+  async getAuctionSettlementInvoices(
+    auctionId: string | number,
+    params?: SettlementInvoiceListParams
+  ): Promise<SettlementListResponse<SettlementInvoiceListItem>> {
+    try {
+      const res = await withAuth.get(`auctions/${auctionId}/settlement/invoices`, { params });
+      return extractPayloadData<SettlementListResponse<SettlementInvoiceListItem>>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
+  async getAuctionSettlementInvoice(
+    auctionId: string | number,
+    invoiceId: string | number
+  ): Promise<SettlementInvoiceDetailData> {
+    try {
+      const res = await withAuth.get(`auctions/${auctionId}/settlement/invoices/${invoiceId}`);
+      return extractPayloadData<SettlementInvoiceDetailData>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
+  async sendAuctionSettlementInvoices(
+    auctionId: string | number,
+    data?: {
+      invoice_ids?: Array<string | number>;
+      status?: Array<"draft" | "pending" | "failed">;
+      force_resend?: boolean;
+    }
+  ): Promise<SettlementActionResult> {
+    try {
+      const res = await withAuth.post(`auctions/${auctionId}/settlement/invoices/send`, data);
+      return extractPayloadData<SettlementActionResult>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
+  async exportAuctionSettlementInvoices(
+    auctionId: string | number,
+    params?: SettlementInvoiceListParams & SettlementExportParams
+  ): Promise<SettlementFileDownload> {
+    try {
+      const res = await withAuth.get<Blob>(`auctions/${auctionId}/settlement/invoices/export`, {
+        params,
+        responseType: "blob",
+      });
+
+      return {
+        blob: res.data,
+        filename: extractFilename(res.headers["content-disposition"]),
+      };
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
+  async getAuctionSettlementPayouts(
+    auctionId: string | number,
+    params?: SettlementPayoutListParams
+  ): Promise<SettlementListResponse<SettlementPayoutListItem>> {
+    try {
+      const res = await withAuth.get(`auctions/${auctionId}/settlement/payouts`, { params });
+      return extractPayloadData<SettlementListResponse<SettlementPayoutListItem>>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
+  async getAuctionSettlementPayout(
+    auctionId: string | number,
+    payoutId: string | number
+  ): Promise<SettlementPayoutDetailData> {
+    try {
+      const res = await withAuth.get(`auctions/${auctionId}/settlement/payouts/${payoutId}`);
+      return extractPayloadData<SettlementPayoutDetailData>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
+  async initiateAuctionSettlementPayouts(
+    auctionId: string | number,
+    data?: {
+      payout_ids?: Array<string | number>;
+      payment_method?: "manual_transfer" | "bank_transfer" | "escrow_release";
+      due_at?: string;
+      notes?: string;
+      force_retry?: boolean;
+    }
+  ): Promise<SettlementActionResult> {
+    try {
+      const res = await withAuth.post(`auctions/${auctionId}/settlement/payouts/initiate`, data);
+      return extractPayloadData<SettlementActionResult>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
+  async exportAuctionSettlementPayouts(
+    auctionId: string | number,
+    params?: SettlementPayoutListParams & SettlementExportParams
+  ): Promise<SettlementFileDownload> {
+    try {
+      const res = await withAuth.get<Blob>(`auctions/${auctionId}/settlement/payouts/export`, {
+        params,
+        responseType: "blob",
+      });
+
+      return {
+        blob: res.data,
+        filename: extractFilename(res.headers["content-disposition"]),
+      };
     } catch (error: unknown) {
       throw rethrowApiError(error);
     }

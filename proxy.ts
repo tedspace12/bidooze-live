@@ -45,7 +45,7 @@ function clearAuthCookies(response: NextResponse) {
   response.cookies.set(TOKEN_COOKIE, "", { path: "/", maxAge: 0 });
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(TOKEN_COOKIE)?.value || null;
   const sessionRaw = request.cookies.get(AUTH_SESSION_COOKIE)?.value || null;

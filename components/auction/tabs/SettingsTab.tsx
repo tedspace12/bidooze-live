@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Save, Settings } from "lucide-react";
 import { toast } from "sonner";
-import { AuctionOverviewResponse, type AuctionSettingsPayload } from "@/features/auction/types";
+import { AuctionOverviewResponse, type AuctionFormat, type AuctionSettingsPayload } from "@/features/auction/types";
 import { useAuctionSettings } from "@/features/auction/hooks/useAuctionSettings";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,26 +41,85 @@ const extractSettingsObject = (payload: unknown): Record<string, unknown> => {
   return raw;
 };
 
-const readNumber = (value: unknown, fallback = 0): number =>
-  typeof value === "number" && Number.isFinite(value) ? value : fallback;
+const readNumber = (value: unknown, fallback = 0): number => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+};
 
-const readBoolean = (value: unknown, fallback = false): boolean =>
-  typeof value === "boolean" ? value : fallback;
+const readBoolean = (value: unknown, fallback = false): boolean => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    if (value.toLowerCase() === "true") return true;
+    if (value.toLowerCase() === "false") return false;
+  }
+  return fallback;
+};
+
+const readText = (value: unknown, fallback = ""): string => {
+  if (typeof value === "string") return value.trim() || fallback;
+  if (typeof value === "number") return String(value);
+  return fallback;
+};
+
+const readNotificationsEnabled = (value: unknown, fallback = false): boolean => {
+  if (typeof value === "boolean") return value;
+  if (Array.isArray(value)) return value.length > 0;
+  if (value && typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).some((entry) => {
+      if (typeof entry === "boolean") return entry;
+      if (entry && typeof entry === "object" && "enabled" in entry) {
+        return readBoolean((entry as Record<string, unknown>).enabled, false);
+      }
+      return false;
+    });
+  }
+  return fallback;
+};
+
+const resolveAuctionFormat = (
+  allowAbsentee: boolean,
+  currentFormat: string,
+  biddingType: AuctionOverviewResponse["auction"]["bidding_type"]
+): AuctionFormat => {
+  if (allowAbsentee) return "absentee";
+  if (currentFormat && currentFormat !== "absentee") return currentFormat as AuctionFormat;
+  if (biddingType === "live" || biddingType === "hybrid") return "webcast";
+  return "internet_only";
+};
 
 export default function SettingsTab({ auction }: SettingsTabProps) {
   const { settings, updateSettings } = useAuctionSettings(auction.auction.id);
   const [draft, setDraft] = useState<Partial<AuctionSettingsForm>>({});
+  const settingsMeta = useMemo(() => {
+    const data = extractSettingsObject(settings.data);
+    const softCloseSeconds = readNumber(data.soft_close_seconds, 0);
+    return {
+      auctionFormat: readText(data.auction_format, ""),
+      notificationScope: readText(data.notification_settings_scope, "auctioneer"),
+      softCloseSeconds,
+      hasNotificationSettings: !!data.notification_settings,
+    };
+  }, [settings.data]);
 
   const remoteFormData = useMemo<AuctionSettingsForm>(() => {
     const data = extractSettingsObject(settings.data);
+    const softCloseSeconds = readNumber(data.soft_close_seconds, 0);
     return {
       ...DEFAULT_AUCTION_SETTINGS_FORM,
       commissionRate: readNumber(data.commissionRate ?? data.commission_percentage, 0),
       buyerPremium: readNumber(data.buyerPremium ?? data.buyer_premium_percentage, 0),
-      allowAbsentee: readBoolean(data.allowAbsentee, false),
-      autoExtend: readBoolean(data.autoExtend, false),
-      extensionMinutes: readNumber(data.extensionMinutes, 0),
-      enableNotifications: readBoolean(data.enableNotifications, false),
+      allowAbsentee: readBoolean(data.allowAbsentee, readText(data.auction_format) === "absentee"),
+      autoExtend: readBoolean(data.autoExtend, softCloseSeconds > 0),
+      extensionMinutes: readNumber(data.extensionMinutes, softCloseSeconds > 0 ? softCloseSeconds / 60 : 0),
+      enableNotifications: readBoolean(
+        data.enableNotifications,
+        readNotificationsEnabled(data.notification_settings, false)
+      ),
     };
   }, [settings.data]);
 
@@ -77,9 +136,22 @@ export default function SettingsTab({ auction }: SettingsTabProps) {
 
   const handleSave = async () => {
     try {
+      const softCloseSeconds = formData.autoExtend ? Math.max(0, formData.extensionMinutes) * 60 : 0;
       const payload: AuctionSettingsPayload = {
+        commissionRate: formData.commissionRate,
+        buyerPremium: formData.buyerPremium,
+        allowAbsentee: formData.allowAbsentee,
+        autoExtend: formData.autoExtend,
+        extensionMinutes: formData.extensionMinutes,
+        enableNotifications: formData.enableNotifications,
         commission_percentage: formData.commissionRate,
         buyer_premium_percentage: formData.buyerPremium,
+        auction_format: resolveAuctionFormat(
+          formData.allowAbsentee,
+          settingsMeta.auctionFormat,
+          auction.auction.bidding_type
+        ),
+        soft_close_seconds: softCloseSeconds,
       };
 
       await updateSettings.mutateAsync(payload);
@@ -139,6 +211,7 @@ export default function SettingsTab({ auction }: SettingsTabProps) {
                 onChange={(e) => handleChange("extensionMinutes", Number(e.target.value))}
                 className="font-body"
               />
+              <p className="text-xs text-muted-foreground">Mapped to `soft_close_seconds` on save.</p>
             </div>
           </div>
 
@@ -147,6 +220,9 @@ export default function SettingsTab({ auction }: SettingsTabProps) {
               <p className="font-body font-medium text-foreground">Allow Absentee Bids</p>
               <p className="text-sm text-muted-foreground font-body">
                 Bidders can place maximum bids before the auction
+              </p>
+              <p className="text-xs text-muted-foreground font-body mt-1">
+                Current format: {settingsMeta.auctionFormat || "not provided"}
               </p>
             </div>
             <Switch checked={formData.allowAbsentee} onCheckedChange={(value) => handleChange("allowAbsentee", value)} />
@@ -158,6 +234,9 @@ export default function SettingsTab({ auction }: SettingsTabProps) {
               <p className="text-sm text-muted-foreground font-body">
                 Extend lot closing time if bids come in near the end
               </p>
+              <p className="text-xs text-muted-foreground font-body mt-1">
+                Current soft close: {settingsMeta.softCloseSeconds} seconds
+              </p>
             </div>
             <Switch checked={formData.autoExtend} onCheckedChange={(value) => handleChange("autoExtend", value)} />
           </div>
@@ -167,6 +246,10 @@ export default function SettingsTab({ auction }: SettingsTabProps) {
               <p className="font-body font-medium text-foreground">Enable Notifications</p>
               <p className="text-sm text-muted-foreground font-body">
                 Receive updates for bids and auction events
+              </p>
+              <p className="text-xs text-muted-foreground font-body mt-1">
+                Scope: {settingsMeta.notificationScope}
+                {settingsMeta.hasNotificationSettings ? " with backend notification settings" : ""}
               </p>
             </div>
             <Switch

@@ -19,7 +19,7 @@ import {
   CreditCard, 
   BarChart3, 
   Settings,
-  DollarSign // New icon for Financials
+  DollarSign
 } from "lucide-react";
 
 interface AuctionTabsProps {
@@ -30,7 +30,7 @@ const tabs = [
   { value: "overview", label: "Overview", icon: LayoutDashboard },
   { value: "lots", label: "Lots", icon: Package },
   { value: "bidders", label: "Bidders", icon: Users },
-  { value: "financials", label: "Financials", icon: DollarSign }, // New Financials tab
+  { value: "financials", label: "Financials", icon: DollarSign },
   { value: "live-console", label: "Live Console", icon: Radio },
   { value: "settlement", label: "Settlement", icon: CreditCard },
   { value: "reports", label: "Reports", icon: BarChart3 },
@@ -61,7 +61,7 @@ export default function AuctionTabs({ auction }: AuctionTabsProps) {
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6 animate-in fade-in duration-300">
       <div className="border-b border-border">
-        <TabsList className="h-auto p-0 bg-transparent rounded-none gap-0">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-transparent p-0 sm:flex sm:flex-wrap sm:justify-start">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             
@@ -79,10 +79,10 @@ export default function AuctionTabs({ auction }: AuctionTabsProps) {
                 key={tab.value}
                 value={tab.value}
                 disabled={isDisabled}
-                className="auction-tab-trigger relative px-4 py-3 rounded-none border-0 border-b-2 border-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none font-body text-sm font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold hover:text-foreground transition-all duration-200 gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="auction-tab-trigger relative min-h-12 rounded-none border-0 border-b-2 border-transparent px-3 py-3 data-[state=active]:bg-transparent data-[state=active]:shadow-none font-body text-sm font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold hover:text-foreground transition-all duration-200 gap-2 disabled:opacity-40 disabled:cursor-not-allowed sm:min-w-fit sm:px-4"
               >
                 <Icon className="w-4 h-4 shrink-0" />
-                <span className="hidden sm:inline">{tab.label}</span>
+                <span>{tab.label}</span>
                 {tab.value === "live-console" && isLive && (
                   <span className="w-2 h-2 rounded-full bg-success animate-pulse ml-1" />
                 )}

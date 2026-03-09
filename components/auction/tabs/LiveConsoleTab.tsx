@@ -137,8 +137,8 @@ export default function LiveConsoleTab({ auction }: LiveConsoleTabProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           <Badge variant="destructive" className="gap-1.5 font-body animate-pulse">
             <span className="w-2 h-2 rounded-full bg-destructive-foreground" />
             LIVE BROADCAST
@@ -147,31 +147,31 @@ export default function LiveConsoleTab({ auction }: LiveConsoleTabProps) {
             Broadcasting to {acceptedBidders} active bidders
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
           {sessionStatus === "ended" && (
-            <Button size="sm" className="gap-2 font-body" onClick={() => startSession.mutateAsync()}>
+            <Button size="sm" className="w-full gap-2 font-body sm:w-auto" onClick={() => startSession.mutateAsync()}>
               <Play className="w-4 h-4" />
               Start Session
             </Button>
           )}
           {sessionStatus === "live" && (
-            <Button variant="outline" size="sm" className="gap-2 font-body" onClick={() => pauseSession.mutateAsync()}>
+            <Button variant="outline" size="sm" className="w-full gap-2 font-body sm:w-auto" onClick={() => pauseSession.mutateAsync()}>
               <Pause className="w-4 h-4" />
               Pause Session
             </Button>
           )}
           {sessionStatus === "paused" && (
-            <Button variant="outline" size="sm" className="gap-2 font-body" onClick={() => resumeSession.mutateAsync()}>
+            <Button variant="outline" size="sm" className="w-full gap-2 font-body sm:w-auto" onClick={() => resumeSession.mutateAsync()}>
               <Play className="w-4 h-4" />
               Resume Session
             </Button>
           )}
           {sessionStatus !== "ended" && (
-            <Button variant="outline" size="sm" className="gap-2 font-body" onClick={() => endSession.mutateAsync()}>
+            <Button variant="outline" size="sm" className="w-full gap-2 font-body sm:w-auto" onClick={() => endSession.mutateAsync()}>
               End Session
             </Button>
           )}
-          <Button variant="outline" size="sm" className="gap-2 font-body">
+          <Button variant="outline" size="sm" className="w-full gap-2 font-body sm:w-auto">
             <Volume2 className="w-4 h-4" />
             Toggle Audio
           </Button>
@@ -199,14 +199,14 @@ export default function LiveConsoleTab({ auction }: LiveConsoleTabProps) {
                 </div>
 
                 {/* Bidding Status and Next Bid */}
-                <div className="p-6 rounded-xl gradient-surface border border-border">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground font-body uppercase tracking-wide">Highest Bid</p>
-                      <p className="text-4xl font-display font-bold text-accent mt-1">
-                        {currentLot.current_highest_bid
-                          ? formatCurrency(Number(currentLot.current_highest_bid), auction.auction.currency)
-                          : "No bids"}
+                  <div className="p-6 rounded-xl gradient-surface border border-border">
+                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                     <div>
+                       <p className="text-sm text-muted-foreground font-body uppercase tracking-wide">Highest Bid</p>
+                       <p className="mt-1 text-3xl font-display font-bold text-accent sm:text-4xl">
+                         {currentLot.current_highest_bid
+                           ? formatCurrency(Number(currentLot.current_highest_bid), auction.auction.currency)
+                           : "No bids"}
                       </p>
                     </div>
                   </div>
@@ -214,7 +214,7 @@ export default function LiveConsoleTab({ auction }: LiveConsoleTabProps) {
 
                 {/* Bidding Controls (Auctioneer Actions) */}
                 <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-center gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <Button
                       variant="outline"
                       size="lg"
@@ -245,7 +245,7 @@ export default function LiveConsoleTab({ auction }: LiveConsoleTabProps) {
                       Pass Lot
                     </Button>
                   </div>
-                  <div className="flex items-center justify-center gap-3">
+                  <div className="flex justify-center">
                     <Button
                       variant="secondary"
                       size="sm"
@@ -292,10 +292,19 @@ export default function LiveConsoleTab({ auction }: LiveConsoleTabProps) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <DollarSign className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-body text-muted-foreground">Total Sales</span>
+                  <span className="text-sm font-body text-muted-foreground">Accepted Bid Total</span>
                 </div>
                 <span className="font-body font-semibold text-accent">
                   {formatCurrency(auction.stats.total_bid_amount, auction.auction.currency)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-body text-muted-foreground">Submitted Bid Total</span>
+                </div>
+                <span className="font-body font-semibold">
+                  {formatCurrency(auction.stats.submitted_bid_amount, auction.auction.currency)}
                 </span>
               </div>
             </CardContent>
