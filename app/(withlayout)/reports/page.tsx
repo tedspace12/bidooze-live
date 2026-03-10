@@ -249,7 +249,6 @@ const mapExportToUi = (
   filters: item.filters_summary ?? fallback?.filters ?? "-",
   runId: item.run_id,
   fileName: item.file_name ?? undefined,
-  downloadUrl: item.download_url ?? undefined,
 });
 
 const mapOverviewKpis = (kpis?: ReportsOverviewKpis): KpiCard[] => {
