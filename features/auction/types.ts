@@ -245,6 +245,10 @@ export interface CreateAuctionPayload {
   lot_images?: Record<string, File[]>;
 }
 
+export type UpdateAuctionPayload = Partial<Omit<CreateAuctionPayload, "feature_images">> & {
+  feature_images?: File[];
+};
+
 
 export interface AuctionSettingsPayload {
   commissionRate?: number;
@@ -340,6 +344,37 @@ export interface AuctionOverviewResponse {
   auction: AuctionOverviewAuction;
   stats: AuctionOverviewStats;
   timeline: AuctionOverviewTimeline;
+}
+
+export interface AuctionEditCategory {
+  id?: number | string;
+  name?: string;
+  slug?: string;
+}
+
+export interface AuctionEditResponse {
+  id: number | string;
+  code?: string;
+  name: string;
+  description?: string;
+  status?: AuctionStatus;
+  currency?: CurrencyCode;
+  timezone?: string;
+  auction_start_at?: string;
+  auction_end_at?: string;
+  preview_start_at?: string;
+  preview_end_at?: string;
+  checkout_start_at?: string;
+  checkout_end_at?: string;
+  open_bidding_at?: string;
+  close_bidding_at?: string;
+  address_line_1?: string | null;
+  address_line_2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
+  country?: string | null;
+  categories?: Array<string | AuctionEditCategory>;
 }
 
 

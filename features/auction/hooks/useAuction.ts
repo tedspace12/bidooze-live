@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { auctionService } from "../services/auctionService";
-import type { CreateAuctionPayload, CreateSellerPayload } from "../types";
+import type { CreateAuctionPayload, CreateSellerPayload, UpdateAuctionPayload } from "../types";
 
 export const useAuction = () => {
   const queryClient = useQueryClient();
@@ -37,6 +37,14 @@ export const useAuction = () => {
     });
   };
 
+  const useAuctionEditById = (identifier: string | number) => {
+    return useQuery({
+      queryKey: ["auction-edit", identifier],
+      queryFn: () => auctionService.getAuctionEdit(identifier),
+      enabled: !!identifier,
+    });
+  };
+
   const useMyAuctions = (
     params?: Parameters<typeof auctionService.getMyAuctions>[0]
   ) => {
@@ -61,10 +69,25 @@ export const useAuction = () => {
     },
   });
 
+  const updateAuction = useMutation({
+    mutationFn: ({ auctionId, payload }: { auctionId: string | number; payload: UpdateAuctionPayload }) =>
+      auctionService.updateAuction(auctionId, payload),
+    mutationKey: ["update-auction"],
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["auction", variables.auctionId] });
+      queryClient.invalidateQueries({ queryKey: ["auction-edit", variables.auctionId] });
+      queryClient.invalidateQueries({ queryKey: ["auction-overview", variables.auctionId] });
+      queryClient.invalidateQueries({ queryKey: ["auctions"] });
+      queryClient.invalidateQueries({ queryKey: ["my-auctions"] });
+    },
+  });
+
   return {
     createAuction,
+    updateAuction,
     useAuctions,
     useAuctionById,
+    useAuctionEditById,
     useMyAuctions,
     useAuctioneerSellers,
     createAuctioneerSeller,

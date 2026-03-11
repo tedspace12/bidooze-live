@@ -7,6 +7,7 @@ import { clearSessionFromDocument } from "@/lib/auth-session";
 declare module "axios" {
   export interface AxiosRequestConfig {
     skipAuth?: boolean;
+    skipForbiddenRedirect?: boolean;
   }
 }
 
@@ -96,7 +97,7 @@ api.interceptors.response.use(
           isHandlingUnauthorized = false;
         }, 2000);
       }
-    } else if (status === 403) {
+    } else if (status === 403 && !error.config?.skipForbiddenRedirect) {
       toast.error(errorMessage || "Not approved yet.");
       if (typeof window !== "undefined") {
         window.location.href = "/auctioneer/application-status";
@@ -118,7 +119,7 @@ function createWithAuthMethod(method: HttpMethod) {
   return async function <T = unknown>(
     url: string,
     dataOrConfig?: unknown,
-    maybeConfig?: AxiosRequestConfig & { skipAuth?: boolean }
+    maybeConfig?: AxiosRequestConfig & { skipAuth?: boolean; skipForbiddenRedirect?: boolean }
   ): Promise<AxiosResponse<T>> {
     const token = getToken();
 

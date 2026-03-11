@@ -1,8 +1,10 @@
 import { withAuth, withoutAuth } from "@/services/api";
 import type {
   Auction,
+  AuctionEditResponse,
   AuctionOverviewResponse,
   CreateAuctionPayload,
+  UpdateAuctionPayload,
   UpdateLotPayload,
   AuctionSettingsPayload,
   AuctionSeller,
@@ -93,6 +95,17 @@ export const auctionService = {
     }
   },
 
+  async getAuctionEdit(auctionId: string | number): Promise<AuctionEditResponse> {
+    try {
+      const res = await withAuth.get(`auctions/${auctionId}/edit`, {
+        skipForbiddenRedirect: true,
+      });
+      return extractPayloadData<AuctionEditResponse>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
   async createAuction(
     data: CreateAuctionPayload,
     options?: { idempotencyKey?: string }
@@ -157,6 +170,59 @@ export const auctionService = {
       });
 
       return res.data as Auction;
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
+  async updateAuction(
+    auctionId: string | number,
+    data: UpdateAuctionPayload
+  ): Promise<Auction> {
+    try {
+      const hasImages = Array.isArray(data.feature_images) && data.feature_images.length > 0;
+
+      if (hasImages) {
+        const formData = new FormData();
+        const jsonFieldNames = new Set(["categories", "auction_links", "bid_increments"]);
+
+        Object.entries(data).forEach(([key, value]) => {
+          if (key === "feature_images") return;
+          if (value === undefined || value === null) return;
+
+          if (jsonFieldNames.has(key)) {
+            formData.append(key, JSON.stringify(value));
+            return;
+          }
+
+          if (typeof value === "boolean") {
+            formData.append(key, value ? "1" : "0");
+            return;
+          }
+
+          formData.append(key, String(value));
+        });
+
+        (data.feature_images || []).forEach((file, index) => {
+          formData.append("feature_images[]", file, file.name || `feature-${index}`);
+        });
+
+        const res = await withAuth.patch<Auction>(`/auctions/${auctionId}`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+          skipForbiddenRedirect: true,
+        });
+
+        return extractPayloadData<Auction>(res.data);
+      }
+
+      const payload = Object.fromEntries(
+        Object.entries(data).filter(([, value]) => value !== undefined)
+      ) as UpdateAuctionPayload;
+
+      const res = await withAuth.patch<Auction>(`/auctions/${auctionId}`, payload, {
+        skipForbiddenRedirect: true,
+      });
+      return extractPayloadData<Auction>(res.data);
     } catch (error: unknown) {
       throw rethrowApiError(error);
     }
