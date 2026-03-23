@@ -37,6 +37,22 @@ export interface CurrentUserResponse {
   can_access_auctioneer_features?: boolean;
 }
 
+export type AuthPanel = "auctioneer" | "admin";
+
+export interface ForgotPasswordResponse {
+  message: string;
+}
+
+export interface ResetPasswordPayload {
+  token: string;
+  email: string;
+  password: string;
+  password_confirmation: string;
+}
+
+const getPasswordEndpoint = (panel: AuthPanel, action: "forgot" | "reset") =>
+  `/${panel}/password/${action}`;
+
 export const authService = {
   /**
    * Auctioneer Login
@@ -90,6 +106,39 @@ export const authService = {
     try {
       const res = await withoutAuth.post<{ message: string; expires_in?: number }>(
         "/auth/mfa/resend",
+        payload
+      );
+      return res.data;
+    } catch (error: unknown) {
+      return rethrowApiError(error);
+    }
+  },
+
+  /**
+   * Request Password Reset Link
+   */
+  async requestPasswordReset(panel: AuthPanel, email: string): Promise<ForgotPasswordResponse> {
+    try {
+      const res = await withoutAuth.post<ForgotPasswordResponse>(
+        getPasswordEndpoint(panel, "forgot"),
+        { email }
+      );
+      return res.data;
+    } catch (error: unknown) {
+      return rethrowApiError(error);
+    }
+  },
+
+  /**
+   * Reset Password
+   */
+  async resetPassword(
+    panel: AuthPanel,
+    payload: ResetPasswordPayload
+  ): Promise<{ message: string }> {
+    try {
+      const res = await withoutAuth.post<{ message: string }>(
+        getPasswordEndpoint(panel, "reset"),
         payload
       );
       return res.data;

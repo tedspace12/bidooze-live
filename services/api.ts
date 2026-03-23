@@ -73,10 +73,15 @@ api.interceptors.response.use(
     // List of public/auth routes where 401 should NOT redirect
     const authEndpoints = [
       "/admin/login",
+      "/auctioneer/login",
       "/login",
       "/auth/login",
       "/auth/mfa/verify",
       "/auth/mfa/resend",
+      "/auctioneer/password/forgot",
+      "/auctioneer/password/reset",
+      "/admin/password/forgot",
+      "/admin/password/reset",
     ];
 
     const isAuthRequest = authEndpoints.some((endpoint) => url === endpoint);

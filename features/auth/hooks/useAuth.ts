@@ -1,12 +1,34 @@
 import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { authService, CurrentUserResponse, LoginResponse, LoginSuccessResponse } from "../services/authService";
+import {
+  authService,
+  AuthPanel,
+  CurrentUserResponse,
+  LoginResponse,
+  LoginSuccessResponse,
+  ResetPasswordPayload,
+} from "../services/authService";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuthStore } from "@/features/auth/store/authStore";
 import { clearMfaSession, saveMfaSession } from "@/lib/mfa-session";
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error && typeof error === "object" && "errors" in error) {
+    const errors = (error as { errors?: unknown }).errors;
+    if (errors && typeof errors === "object") {
+      for (const value of Object.values(errors as Record<string, unknown>)) {
+        if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim()) {
+          return value[0];
+        }
+
+        if (typeof value === "string" && value.trim()) {
+          return value;
+        }
+      }
+    }
+  }
+
   if (error && typeof error === "object" && "message" in error) {
     const message = (error as { message?: unknown }).message;
     if (typeof message === "string" && message.trim()) return message;
@@ -272,12 +294,54 @@ export const useAuth = () => {
     },
   });
 
+  const requestPasswordReset = useMutation({
+    mutationFn: ({ panel, email }: { panel: AuthPanel; email: string }) =>
+      authService.requestPasswordReset(panel, email),
+    mutationKey: ["auth", "password", "forgot"],
+    onSuccess: (data) => {
+      toast.success(
+        data.message || "If an account exists, a password reset link has been sent."
+      );
+    },
+    onError: (error: unknown) => {
+      const message = getErrorMessage(
+        error,
+        "Unable to send password reset link. Please try again."
+      );
+      toast.error(message);
+    },
+  });
+
+  const resetPassword = useMutation({
+    mutationFn: ({
+      panel,
+      payload,
+    }: {
+      panel: AuthPanel;
+      payload: ResetPasswordPayload;
+    }) => authService.resetPassword(panel, payload),
+    mutationKey: ["auth", "password", "reset"],
+    onSuccess: (data, variables) => {
+      toast.success(data.message || "Password reset successful.");
+      router.push(variables.panel === "admin" ? "/admin/login" : "/login");
+    },
+    onError: (error: unknown) => {
+      const message = getErrorMessage(
+        error,
+        "Unable to reset password. Please request a new reset link and try again."
+      );
+      toast.error(message);
+    },
+  });
+
   return {
     useCurrentUser,
     loginAuctioneer,
     loginAdmin,
     verifyMfa,
     resendMfa,
+    requestPasswordReset,
+    resetPassword,
     logout,
   };
 };

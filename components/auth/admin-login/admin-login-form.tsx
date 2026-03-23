@@ -52,6 +52,14 @@ export function AdminLoginForm({
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                     />
+                    <div className="flex items-center justify-end">
+                        <a
+                            href="/forgot-password?panel=admin"
+                            className="ml-auto text-sm underline-offset-4 hover:underline"
+                        >
+                            Forgot your password?
+                        </a>
+                    </div>
                 </Field>
                 <Field>
                     <Button type="submit" disabled={loginAdmin.isPending}>

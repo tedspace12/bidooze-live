@@ -57,7 +57,7 @@ export function LoginForm({
                     />
                     <div className="flex items-center justify-end">
                         <a
-                            href="/forgot-password"
+                            href="/forgot-password?panel=auctioneer"
                             className="ml-auto text-sm underline-offset-4 hover:underline"
                         >
                             Forgot your password?
