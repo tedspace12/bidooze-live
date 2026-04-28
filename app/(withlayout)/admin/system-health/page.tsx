@@ -57,19 +57,19 @@ export default function SystemHealthPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
           <h1 className="text-3xl font-bold text-slate-800">System Health</h1>
-          <p className="text-slate-600 mt-1">Real-time status of platform services and infrastructure.</p>
+          <p className="text-slate-600">Real-time status of platform services and infrastructure.</p>
         </div>
-        <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
+        <Button variant="outline" onClick={() => refetch()} disabled={isFetching} className="w-full sm:w-auto">
           <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
           Refresh Status
         </Button>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Overall Status</CardTitle>

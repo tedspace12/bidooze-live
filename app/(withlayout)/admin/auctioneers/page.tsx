@@ -20,9 +20,40 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Eye, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Eye, Search, ChevronLeft, ChevronRight, Hammer, Clock, CheckCircle, XCircle, Loader } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
+
+function StatCard({
+  title,
+  value,
+  icon: Icon,
+  loading,
+  accent,
+}: {
+  title: string;
+  value?: number | string;
+  icon: React.ElementType;
+  loading: boolean;
+  accent?: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <Skeleton className="h-8 w-20" />
+        ) : (
+          <div className={`text-2xl font-bold ${accent ?? ""}`}>{value ?? "—"}</div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function AuctioneersPage() {
   const [status, setStatus] = useState<string>("all");
@@ -30,21 +61,22 @@ export default function AuctioneersPage() {
   const [search, setSearch] = useState("");
   const router = useRouter();
 
-  const { useAuctioneers } = useAdmin();
+  const { useAuctioneers, useAuctioneerStats } = useAdmin();
   const { data, isLoading } = useAuctioneers({
     status: status === "all" ? undefined : status,
     search: search || undefined,
     page,
     per_page: 10,
   });
+  const { data: stats, isLoading: statsLoading } = useAuctioneerStats();
 
   const auctioneers = data?.data ?? [];
   const meta = data?.meta;
   const total = typeof meta?.total === "number" ? meta.total : 0;
   const totalPages = Math.max(1, typeof meta?.last_page === "number" ? meta.last_page : 1);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
+  const getStatusBadge = (value: string) => {
+    switch (value) {
       case "approved":
         return <Badge className="bg-green-100 text-green-700 border-green-200">Approved</Badge>;
       case "pending":
@@ -55,36 +87,40 @@ export default function AuctioneersPage() {
       case "under_review":
         return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Under Review</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline">{value}</Badge>;
     }
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800">Auctioneer Management</h1>
-          <p className="text-slate-600 mt-1">View and manage all registered auctioneers.</p>
-        </div>
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-3xl font-bold text-slate-800">Auctioneer Management</h1>
+        <p className="text-slate-600">View and manage all registered auctioneers.</p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard title="Total Auctioneers" value={stats?.total} icon={Hammer} loading={statsLoading} />
+        <StatCard title="Approved" value={stats?.approved} icon={CheckCircle} loading={statsLoading} accent="text-green-600" />
+        <StatCard title="Pending" value={stats?.pending} icon={Clock} loading={statsLoading} accent="text-orange-600" />
+        <StatCard title="Under Review" value={stats?.under_review} icon={Loader} loading={statsLoading} accent="text-blue-600" />
+        <StatCard title="Rejected" value={stats?.rejected} icon={XCircle} loading={statsLoading} accent="text-red-600" />
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-lg border">
-        <div className="relative w-full md:w-96">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="flex flex-col gap-4 rounded-lg border bg-white p-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="relative w-full xl:max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search by name, email or company..."
             className="pl-10"
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
         </div>
-        <div className="flex gap-2 w-full md:w-auto">
+        <div className="w-full sm:w-auto">
           <Select value={status} onValueChange={(val) => { setStatus(val); setPage(1); }}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[220px]">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
@@ -99,78 +135,85 @@ export default function AuctioneersPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg border overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Company</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Registered Date</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-48" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                  <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
-                </TableRow>
-              ))
-            ) : auctioneers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                  No auctioneers found.
-                </TableCell>
-              </TableRow>
-            ) : (
-              auctioneers.map((auctioneer) => (
-                <TableRow key={auctioneer.id}>
-                  <TableCell className="font-medium">{auctioneer.user?.name || "N/A"}</TableCell>
-                  <TableCell>{auctioneer.company_name || "N/A"}</TableCell>
-                  <TableCell>{auctioneer.user?.email || "N/A"}</TableCell>
-                  <TableCell>{getStatusBadge(auctioneer.status)}</TableCell>
-                  <TableCell>{new Date(auctioneer.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => router.push(`/admin/auctioneers/${auctioneer.id}`)}>
-                      <Eye className="h-4 w-4 mr-1" /> View Details
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-
-        {/* Pagination */}
-        <div className="flex items-center justify-between px-4 py-4 border-t">
-          <div className="text-sm text-muted-foreground">
-            Showing {auctioneers.length} of {total} auctioneers
+      <div className="rounded-lg border bg-white">
+        {isLoading ? (
+          <div className="space-y-4 p-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 w-full" />
+            ))}
           </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1 || isLoading}
-            >
+        ) : auctioneers.length === 0 ? (
+          <div className="px-4 py-12 text-center">
+            <Hammer className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+            <p className="font-medium text-slate-700">No auctioneers found</p>
+            <p className="mt-1 text-sm text-muted-foreground">Try adjusting your search or filter.</p>
+          </div>
+        ) : (
+          <>
+            {/* Mobile */}
+            <div className="space-y-4 p-4 md:hidden">
+              {auctioneers.map((auctioneer) => (
+                <div key={auctioneer.id} className="rounded-lg border p-4 shadow-sm">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-900">{auctioneer.user?.name || "N/A"}</p>
+                        <p className="text-sm text-slate-600">{auctioneer.company_name || "N/A"}</p>
+                        <p className="break-all text-sm text-slate-500">{auctioneer.user?.email || "N/A"}</p>
+                      </div>
+                      {getStatusBadge(auctioneer.status)}
+                    </div>
+                    <p className="text-sm text-slate-500">Registered {new Date(auctioneer.created_at).toLocaleDateString()}</p>
+                    <Button variant="outline" className="w-full" onClick={() => router.push(`/admin/auctioneers/${auctioneer.id}`)}>
+                      <Eye className="mr-1 h-4 w-4" /> View Details
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Company</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Registered</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {auctioneers.map((auctioneer) => (
+                    <TableRow key={auctioneer.id}>
+                      <TableCell className="font-medium">{auctioneer.user?.name || "N/A"}</TableCell>
+                      <TableCell>{auctioneer.company_name || "N/A"}</TableCell>
+                      <TableCell>{auctioneer.user?.email || "N/A"}</TableCell>
+                      <TableCell>{getStatusBadge(auctioneer.status)}</TableCell>
+                      <TableCell>{new Date(auctioneer.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => router.push(`/admin/auctioneers/${auctioneer.id}`)}>
+                          <Eye className="mr-1 h-4 w-4" /> View Details
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
+        )}
+
+        <div className="flex flex-col gap-3 border-t px-4 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <div>Showing {auctioneers.length} of {total} auctioneers</div>
+          <div className="flex items-center justify-between gap-2 sm:justify-end">
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1 || isLoading}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <div className="text-sm font-medium">
-              Page {page} of {totalPages}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages || totalPages === 0 || isLoading}
-            >
+            <div className="min-w-24 text-center font-medium text-foreground">Page {page} of {totalPages}</div>
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages || totalPages === 0 || isLoading}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

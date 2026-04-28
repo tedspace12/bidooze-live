@@ -9,9 +9,11 @@ import {
   ChevronDown,
   ChevronRight,
   Edit,
+  Filter,
   Lock,
   LogIn,
   LogOut,
+  RotateCcw,
   Settings,
   ShieldOff,
   Trash,
@@ -22,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -30,6 +33,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import {
   Collapsible,
   CollapsibleContent,
@@ -42,10 +53,7 @@ type ActivityListResponse = {
   meta: { current_page: number; last_page: number; per_page: number; total: number };
 };
 
-const activityIconMap: Record<
-  string,
-  { icon: typeof CheckCircle; color: string }
-> = {
+const activityIconMap: Record<string, { icon: typeof CheckCircle; color: string }> = {
   approve: { icon: CheckCircle, color: "text-green-600" },
   reject: { icon: XCircle, color: "text-red-600" },
   update: { icon: Edit, color: "text-blue-600" },
@@ -72,7 +80,6 @@ function formatDateLabel(date: Date) {
     a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate();
-
   if (isSameDay(date, today)) return "Today";
   if (isSameDay(date, yesterday)) return "Yesterday";
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -131,10 +138,9 @@ function ActivityDetailPanel({ detail }: { detail: ActivityLogDetail }) {
         </div>
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">User Agent</p>
-          <p className="text-sm text-slate-700 break-words">{detail.metadata?.user_agent || "N/A"}</p>
+          <p className="text-sm text-slate-700 wrap-break-word">{detail.metadata?.user_agent || "N/A"}</p>
         </div>
       </div>
-
       {(detail.note || detail.reason) && (
         <div className="grid gap-4 md:grid-cols-2">
           <div>
@@ -147,7 +153,6 @@ function ActivityDetailPanel({ detail }: { detail: ActivityLogDetail }) {
           </div>
         </div>
       )}
-
       {detail.diff && (
         <div className="grid gap-4 md:grid-cols-2">
           <div>
@@ -187,9 +192,7 @@ const ActivityItem = memo(function ActivityItem({
         <div className="absolute left-0 top-1">
           <ActivityIcon action={item.action} />
         </div>
-        <Card
-          className="border border-slate-200/70 bg-white/90 p-4 shadow-sm transition-colors hover:border-slate-300"
-        >
+        <Card className="border border-slate-200/70 bg-white/90 p-4 shadow-sm transition-colors hover:border-slate-300">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm text-slate-800">
@@ -209,11 +212,7 @@ const ActivityItem = memo(function ActivityItem({
                     className="text-slate-600 hover:text-slate-900"
                     aria-label={expanded ? "Collapse details" : "View details"}
                   >
-                    {expanded ? (
-                      <ChevronDown className="h-4 w-4 mr-1" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 mr-1" />
-                    )}
+                    {expanded ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
                     {expanded ? "Hide details" : "View details"}
                   </Button>
                 </CollapsibleTrigger>
@@ -268,95 +267,157 @@ function ActivityDateGroup({
   );
 }
 
-function ActivityFilterBar({
+type Filters = {
+  date_from: string;
+  date_to: string;
+  action: string;
+  entity_type: string;
+  search: string;
+};
+
+const defaultFilters: Filters = {
+  date_from: "",
+  date_to: "",
+  action: "all",
+  entity_type: "all",
+  search: "",
+};
+
+function countActiveFilters(filters: Filters): number {
+  let count = 0;
+  if (filters.date_from) count++;
+  if (filters.date_to) count++;
+  if (filters.action !== "all") count++;
+  if (filters.entity_type !== "all") count++;
+  return count;
+}
+
+function FilterSheet({
   filters,
   actions,
   entities,
-  onChange,
+  onApply,
 }: {
-  filters: {
-    date_from: string;
-    date_to: string;
-    action: string;
-    entity_type: string;
-    search: string;
-  };
+  filters: Filters;
   actions: string[];
   entities: string[];
-  onChange: (next: Partial<{
-    date_from: string;
-    date_to: string;
-    action: string;
-    entity_type: string;
-    search: string;
-  }>) => void;
+  onApply: (next: Filters) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<Filters>(filters);
+  const activeCount = countActiveFilters(filters);
+
+  const handleOpen = (v: boolean) => {
+    if (v) setDraft(filters);
+    setOpen(v);
+  };
+
+  const handleApply = () => {
+    onApply(draft);
+    setOpen(false);
+  };
+
+  const handleReset = () => setDraft({ ...defaultFilters, search: filters.search });
+
   return (
-    <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b">
-      <div className="p-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-slate-600">From</label>
-            <Input
-              type="date"
-              value={filters.date_from}
-              onChange={(e) => onChange({ date_from: e.target.value })}
-              className="h-9 w-40"
-            />
+    <Sheet open={open} onOpenChange={handleOpen}>
+      <SheetTrigger asChild>
+        <Button variant="outline" className="gap-2">
+          <Filter className="h-4 w-4" />
+          Filters
+          {activeCount > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
+              {activeCount}
+            </span>
+          )}
+        </Button>
+      </SheetTrigger>
+
+      <SheetContent
+        side="bottom"
+        className="h-[85vh] rounded-t-2xl flex flex-col sm:right-0 sm:left-auto sm:w-[400px] sm:h-full sm:rounded-none sm:rounded-l-2xl"
+      >
+        <SheetHeader className="pb-4 border-b shrink-0 px-6 pt-6">
+          <SheetTitle className="flex items-center justify-between text-base font-semibold">
+            Filter Activity Logs
+            {activeCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleReset}
+                className="text-muted-foreground text-xs h-7"
+              >
+                <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                Clear all
+              </Button>
+            )}
+          </SheetTitle>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5 space-y-6">
+          {/* Date range */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date Range</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-sm">From</Label>
+                <Input
+                  type="date"
+                  value={draft.date_from}
+                  onChange={(e) => setDraft((d) => ({ ...d, date_from: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">To</Label>
+                <Input
+                  type="date"
+                  value={draft.date_to}
+                  onChange={(e) => setDraft((d) => ({ ...d, date_to: e.target.value }))}
+                />
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-slate-600">To</label>
-            <Input
-              type="date"
-              value={filters.date_to}
-              onChange={(e) => onChange({ date_to: e.target.value })}
-              className="h-9 w-40"
-            />
+
+          {/* Action */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Action</p>
+            <Select value={draft.action} onValueChange={(v) => setDraft((d) => ({ ...d, action: v }))}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All actions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All actions</SelectItem>
+                {actions.map((action) => (
+                  <SelectItem key={action} value={action}>{action}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <Select
-            value={filters.action}
-            onValueChange={(value) => onChange({ action: value })}
-          >
-            <SelectTrigger className="h-9 w-44">
-              <SelectValue placeholder="All actions" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All actions</SelectItem>
-              {actions.map((action) => (
-                <SelectItem key={action} value={action}>
-                  {action}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={filters.entity_type}
-            onValueChange={(value) => onChange({ entity_type: value })}
-          >
-            <SelectTrigger className="h-9 w-44">
-              <SelectValue placeholder="All entities" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All entities</SelectItem>
-              {entities.map((entity) => (
-                <SelectItem key={entity} value={entity}>
-                  {entity}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
+          {/* Entity Type */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Entity Type</p>
+            <Select value={draft.entity_type} onValueChange={(v) => setDraft((d) => ({ ...d, entity_type: v }))}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All entities" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All entities</SelectItem>
+                {entities.map((entity) => (
+                  <SelectItem key={entity} value={entity}>{entity}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <div className="w-full lg:w-80">
-          <Input
-            placeholder="Search summary or actor..."
-            value={filters.search}
-            onChange={(e) => onChange({ search: e.target.value })}
-            className="h-9"
-            aria-label="Search activity logs"
-          />
-        </div>
-      </div>
-    </div>
+
+        <SheetFooter className="pt-4 border-t shrink-0 px-6 pb-6">
+          <Button className="w-full" size="lg" onClick={handleApply}>
+            Apply Filters
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -364,13 +425,8 @@ export default function ActivityLogPage() {
   const { useActivityLogs } = useAdmin();
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filters, setFilters] = useState({
-    date_from: "",
-    date_to: "",
-    action: "all",
-    entity_type: "all",
-    search: "",
-  });
+  const [filters, setFilters] = useState<Filters>(defaultFilters);
+  const [search, setSearch] = useState("");
 
   const queryParams = useMemo(
     () => ({
@@ -378,11 +434,11 @@ export default function ActivityLogPage() {
       per_page: 15,
       action: filters.action === "all" ? undefined : filters.action,
       entity_type: filters.entity_type === "all" ? undefined : filters.entity_type,
-      search: filters.search || undefined,
+      search: search || undefined,
       date_from: filters.date_from || undefined,
       date_to: filters.date_to || undefined,
     }),
-    [page, filters]
+    [page, filters, search]
   );
 
   const { data, isLoading } = useActivityLogs(queryParams);
@@ -391,48 +447,88 @@ export default function ActivityLogPage() {
   const meta = response?.meta || { current_page: 1, last_page: 1, per_page: 15, total: 0 };
 
   const grouped = useMemo(() => groupByDate(items), [items]);
-  const actions = useMemo(
-    () => Array.from(new Set(items.map((item) => item.action))).sort(),
-    [items]
-  );
-  const entities = useMemo(
-    () => Array.from(new Set(items.map((item) => item.entity.type))).sort(),
-    [items]
-  );
+  const actions = useMemo(() => Array.from(new Set(items.map((item) => item.action))).sort(), [items]);
+  const entities = useMemo(() => Array.from(new Set(items.map((item) => item.entity.type))).sort(), [items]);
 
-  const handleToggle = (id: string) => {
-    setExpandedId((prev) => (prev === id ? null : id));
+  const handleToggle = (id: string) => setExpandedId((prev) => (prev === id ? null : id));
+
+  const handleApplyFilters = (next: Filters) => {
+    setFilters(next);
+    setPage(1);
   };
 
   return (
     <div className="space-y-6">
-      <div className="p-6">
+      <div className="space-y-1">
         <h1 className="text-3xl font-bold text-slate-800">Activity Log</h1>
-        <p className="text-slate-600 mt-1">
-          Operational and security events across the platform.
-        </p>
+        <p className="text-slate-600">Operational and security events across the platform.</p>
       </div>
 
-      <ActivityFilterBar
-        filters={filters}
-        actions={actions}
-        entities={entities}
-        onChange={(next) => {
-          setFilters((prev) => ({ ...prev, ...next }));
-          setPage(1);
-        }}
-      />
+      {/* Search + Filter bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Input
+            placeholder="Search summary or actor..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="h-9 pr-4"
+            aria-label="Search activity logs"
+          />
+        </div>
+        <FilterSheet
+          filters={filters}
+          actions={actions}
+          entities={entities}
+          onApply={handleApplyFilters}
+        />
+      </div>
 
-      <div className="px-6 pb-6">
+      {/* Active filter chips */}
+      {countActiveFilters(filters) > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {filters.date_from && (
+            <Badge variant="outline" className="gap-1 text-xs">
+              From: {filters.date_from}
+              <button onClick={() => setFilters((f) => ({ ...f, date_from: "" }))} className="ml-1 hover:text-destructive">×</button>
+            </Badge>
+          )}
+          {filters.date_to && (
+            <Badge variant="outline" className="gap-1 text-xs">
+              To: {filters.date_to}
+              <button onClick={() => setFilters((f) => ({ ...f, date_to: "" }))} className="ml-1 hover:text-destructive">×</button>
+            </Badge>
+          )}
+          {filters.action !== "all" && (
+            <Badge variant="outline" className="gap-1 text-xs">
+              Action: {filters.action}
+              <button onClick={() => setFilters((f) => ({ ...f, action: "all" }))} className="ml-1 hover:text-destructive">×</button>
+            </Badge>
+          )}
+          {filters.entity_type !== "all" && (
+            <Badge variant="outline" className="gap-1 text-xs">
+              Entity: {filters.entity_type}
+              <button onClick={() => setFilters((f) => ({ ...f, entity_type: "all" }))} className="ml-1 hover:text-destructive">×</button>
+            </Badge>
+          )}
+          <button
+            className="text-xs text-muted-foreground hover:text-foreground underline"
+            onClick={() => setFilters(defaultFilters)}
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
+      <div className="pb-2">
         {isLoading ? (
           <div className="space-y-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-20 w-full" />
-            ))}
+            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
           </div>
         ) : items.length === 0 ? (
-          <Card className="p-6 text-center text-muted-foreground">
-            No activity logs found.
+          <Card className="p-10 text-center">
+            <Filter className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+            <p className="font-medium text-slate-700">No activity logs found</p>
+            <p className="mt-1 text-sm text-muted-foreground">Try adjusting your search or filters.</p>
           </Card>
         ) : (
           <div className="space-y-8">
@@ -448,28 +544,14 @@ export default function ActivityLogPage() {
           </div>
         )}
 
-        <div className="flex items-center justify-between border-t pt-4 mt-6 text-sm text-slate-600">
-          <span>
-            Showing {items.length} of {meta.total} entries
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={meta.current_page <= 1}
-            >
+        <div className="mt-6 flex flex-col gap-3 border-t pt-4 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          <span>Showing {items.length} of {meta.total} entries</span>
+          <div className="flex items-center justify-between gap-2 sm:justify-end">
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={meta.current_page <= 1}>
               Previous
             </Button>
-            <span className="text-sm">
-              Page {meta.current_page} of {meta.last_page}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
-              disabled={meta.current_page >= meta.last_page}
-            >
+            <span className="text-sm">Page {meta.current_page} of {meta.last_page}</span>
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))} disabled={meta.current_page >= meta.last_page}>
               Next
             </Button>
           </div>

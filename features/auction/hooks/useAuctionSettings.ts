@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { auctionService } from "../services/auctionService";
-import type { AuctionSettingsPayload } from "../types";
+import type { AuctionSettingsPayload, BidIncrementInput } from "../types";
 
 
 export const useAuctionSettings = (auctionId: string | number) => {
@@ -19,5 +19,18 @@ export const useAuctionSettings = (auctionId: string | number) => {
       qc.invalidateQueries({ queryKey: ["auction", auctionId, "settings"] }),
   });
 
-  return { settings, updateSettings };
+  const bidIncrements = useQuery({
+    queryKey: ["auction", auctionId, "bid-increments"],
+    queryFn: () => auctionService.getBidIncrements(auctionId),
+    enabled: !!auctionId,
+  });
+
+  const saveBidIncrements = useMutation({
+    mutationFn: (rows: BidIncrementInput[]) =>
+      auctionService.updateBidIncrements(auctionId, rows),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["auction", auctionId, "bid-increments"] }),
+  });
+
+  return { settings, updateSettings, bidIncrements, saveBidIncrements };
 };

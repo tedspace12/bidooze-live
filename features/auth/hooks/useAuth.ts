@@ -7,6 +7,8 @@ import {
   LoginResponse,
   LoginSuccessResponse,
   ResetPasswordPayload,
+  SocialLoginPayload,
+  AuctioneerSocialLoginResponse,
 } from "../services/authService";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -111,6 +113,7 @@ export const useAuth = () => {
         user: nextUser,
         auctioneer: nextAuctioneer,
         can_access_auctioneer_features: nextCanAccess,
+        team_member: payload?.team_member ?? null,
       });
     }, [query.data]);
 
@@ -156,11 +159,13 @@ export const useAuth = () => {
         user: userWithAvatar,
         auctioneer: success.auctioneer,
         can_access_auctioneer_features: success.can_access_auctioneer_features,
+        team_member: success.team_member ?? null,
       });
       queryClient.setQueryData(["current-user"], {
         user: userWithAvatar,
         auctioneer: success.auctioneer,
         can_access_auctioneer_features: success.can_access_auctioneer_features,
+        team_member: success.team_member ?? null,
       });
       toast.success("Login successful!");
       router.push(
@@ -170,6 +175,77 @@ export const useAuth = () => {
     onError: (error: unknown) => {
       const message = getErrorMessage(error, "Login failed. Please try again.");
       toast.error(message);
+    },
+  });
+
+  // Auctioneer social login mutation (Google / Meta)
+  const socialLoginAuctioneer = useMutation({
+    mutationFn: (payload: SocialLoginPayload) =>
+      authService.socialLoginAuctioneer(payload),
+    mutationKey: ["auth", "login", "auctioneer", "social"],
+    onSuccess: (data: AuctioneerSocialLoginResponse) => {
+      // Handle non-login statuses returned as 2xx
+      if ("status" in data) {
+        if (data.status === "not_registered") {
+          toast.error("No auctioneer account found for this social profile. Please register first.");
+          return;
+        }
+        if (data.status === "pending_approval") {
+          toast.error("Your auctioneer account is awaiting approval.");
+          return;
+        }
+      }
+
+      const success = data as LoginSuccessResponse;
+      clearMfaSession();
+      const user = success.user;
+      if (user.role !== "auctioneer") {
+        clearSession();
+        toast.error("Wrong portal. Please use the correct login.");
+        return;
+      }
+      const userWithAvatar = {
+        ...success.user,
+        avatar: success.user.avatar ?? success.user.avatar_url ?? null,
+      };
+      setSession({
+        token: success.token,
+        user: userWithAvatar,
+        auctioneer: success.auctioneer,
+        can_access_auctioneer_features: success.can_access_auctioneer_features,
+        team_member: success.team_member ?? null,
+      });
+      queryClient.setQueryData(["current-user"], {
+        user: userWithAvatar,
+        auctioneer: success.auctioneer,
+        can_access_auctioneer_features: success.can_access_auctioneer_features,
+        team_member: success.team_member ?? null,
+      });
+      toast.success("Login successful!");
+      router.push(
+        success.can_access_auctioneer_features ? "/auctioneer/dashboard" : "/auctioneer/application-status"
+      );
+    },
+    onError: (error: unknown) => {
+      const status = (error as { status?: string }).status;
+      const httpStatus = (error as { http_status?: number }).http_status;
+      const message = getErrorMessage(error, "");
+
+      if (status === "not_registered") {
+        toast.error("No auctioneer account found.", {
+          description: "Please complete your auctioneer registration first.",
+        });
+      } else if (status === "pending_approval") {
+        toast.error("Account pending approval.", {
+          description: "Your auctioneer account is still under review. We'll notify you by email once it's approved.",
+        });
+      } else if (httpStatus === 409 || message.toLowerCase().includes("already registered")) {
+        toast.error("Email already in use.", {
+          description: "This email is registered under a different account type. Please log in with your email and password instead.",
+        });
+      } else {
+        toast.error(message || "Social login failed. Please try again.");
+      }
     },
   });
 
@@ -256,11 +332,13 @@ export const useAuth = () => {
         user: userWithAvatar,
         auctioneer: data.auctioneer,
         can_access_auctioneer_features: data.can_access_auctioneer_features,
+        team_member: data.team_member ?? null,
       });
       queryClient.setQueryData(["current-user"], {
         user: userWithAvatar,
         auctioneer: data.auctioneer,
         can_access_auctioneer_features: data.can_access_auctioneer_features,
+        team_member: data.team_member ?? null,
       });
       toast.success("MFA verified successfully!");
       if (data.user.role === "admin" || data.user.role === "superadmin") {
@@ -337,6 +415,7 @@ export const useAuth = () => {
   return {
     useCurrentUser,
     loginAuctioneer,
+    socialLoginAuctioneer,
     loginAdmin,
     verifyMfa,
     resendMfa,

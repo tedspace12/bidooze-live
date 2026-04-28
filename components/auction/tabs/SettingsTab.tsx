@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
-import { Save, Settings } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import { Save, Settings, Plus, Trash2, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
-import { AuctionOverviewResponse, type AuctionFormat, type AuctionSettingsPayload } from "@/features/auction/types";
+import { AuctionOverviewResponse, type AuctionFormat, type AuctionSettingsPayload, type BidIncrementInput } from "@/features/auction/types";
 import { useAuctionSettings } from "@/features/auction/hooks/useAuctionSettings";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,8 +93,52 @@ const resolveAuctionFormat = (
 };
 
 export default function SettingsTab({ auction }: SettingsTabProps) {
-  const { settings, updateSettings } = useAuctionSettings(auction.auction.id);
+  const { settings, updateSettings, bidIncrements, saveBidIncrements } = useAuctionSettings(auction.auction.id);
   const [draft, setDraft] = useState<Partial<AuctionSettingsForm>>({});
+
+  // Bid increment rows state
+  const [incrementRows, setIncrementRows] = useState<BidIncrementInput[]>([]);
+  const [incrementsDirty, setIncrementsDirty] = useState(false);
+
+  useEffect(() => {
+    if (bidIncrements.data) {
+      const rows = Array.isArray(bidIncrements.data)
+        ? bidIncrements.data
+        : (bidIncrements.data as { data?: BidIncrementInput[] }).data ?? [];
+      setIncrementRows(rows);
+      setIncrementsDirty(false);
+    }
+  }, [bidIncrements.data]);
+
+  const handleIncrementChange = (index: number, field: keyof BidIncrementInput, value: number) => {
+    setIncrementRows((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+    setIncrementsDirty(true);
+  };
+
+  const addIncrementRow = () => {
+    setIncrementRows((prev) => [...prev, { up_to_amount: 0, increment: 0 }]);
+    setIncrementsDirty(true);
+  };
+
+  const removeIncrementRow = (index: number) => {
+    setIncrementRows((prev) => prev.filter((_, i) => i !== index));
+    setIncrementsDirty(true);
+  };
+
+  const handleSaveIncrements = async () => {
+    try {
+      await saveBidIncrements.mutateAsync(incrementRows);
+      setIncrementsDirty(false);
+      toast.success("Bid increments saved.");
+    } catch (error: unknown) {
+      const description = error instanceof Error ? error.message : "Please try again.";
+      toast.error("Failed to save bid increments", { description });
+    }
+  };
   const settingsMeta = useMemo(() => {
     const data = extractSettingsObject(settings.data);
     const softCloseSeconds = readNumber(data.soft_close_seconds, 0);
@@ -257,6 +301,87 @@ export default function SettingsTab({ auction }: SettingsTabProps) {
               onCheckedChange={(value) => handleChange("enableNotifications", value)}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border border-border shadow-soft">
+        <CardHeader className="border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-muted-foreground" />
+            </div>
+            <div className="flex-1">
+              <CardTitle className="text-lg font-display font-semibold">Bid Increment Schedule</CardTitle>
+              <CardDescription className="font-body">Define how bid amounts increase at each price tier</CardDescription>
+            </div>
+            <Button size="sm" variant="outline" onClick={addIncrementRow} className="gap-1.5 font-body">
+              <Plus className="w-3.5 h-3.5" />
+              Add Row
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          {bidIncrements.isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-10 bg-secondary/50 rounded animate-pulse" />
+              ))}
+            </div>
+          ) : incrementRows.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <TrendingUp className="w-8 h-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm font-body">No bid increments configured.</p>
+              <p className="text-xs font-body mt-1">Add rows to define a tiered increment schedule.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="grid grid-cols-[1fr_1fr_auto] gap-3 pb-1">
+                <Label className="font-body font-medium text-xs text-muted-foreground uppercase tracking-wide">Up To Amount ($)</Label>
+                <Label className="font-body font-medium text-xs text-muted-foreground uppercase tracking-wide">Increment ($)</Label>
+                <span />
+              </div>
+              {incrementRows.map((row, i) => (
+                <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-3 items-center">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={row.up_to_amount}
+                    onChange={(e) => handleIncrementChange(i, "up_to_amount", Number(e.target.value))}
+                    className="font-body"
+                    placeholder="e.g. 1000"
+                  />
+                  <Input
+                    type="number"
+                    min={0}
+                    value={row.increment}
+                    onChange={(e) => handleIncrementChange(i, "increment", Number(e.target.value))}
+                    className="font-body"
+                    placeholder="e.g. 50"
+                  />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => removeIncrementRow(i)}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          {incrementsDirty && (
+            <div className="mt-4 flex justify-end">
+              <Button
+                onClick={handleSaveIncrements}
+                disabled={saveBidIncrements.isPending}
+                className="gap-2 font-body gradient-gold border-0 text-accent-foreground hover:opacity-90"
+              >
+                <Save className="w-4 h-4" />
+                {saveBidIncrements.isPending ? "Saving…" : "Save Increments"}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -1,6 +1,11 @@
 import { useMemo, useState } from "react";
-import { AuctionOverviewResponse } from "@/features/auction/types";
+import { useQuery } from "@tanstack/react-query";
+import type {
+  AuctionBidderRegistration,
+  AuctionOverviewResponse,
+} from "@/features/auction/types";
 import { useAuctionBidders } from "@/features/auction/hooks/useAuctionBidders";
+import { customerService } from "@/features/customers/services/customerService";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -33,6 +40,7 @@ import {
   Search,
   MoreHorizontal,
   Check,
+  Clock3,
   X,
   Eye,
   Users,
@@ -41,6 +49,10 @@ import {
   ArrowUpDown,
   Shield,
   ShieldOff,
+  Gavel,
+  Trophy,
+  TrendingUp,
+  Calendar,
   type LucideIcon,
 } from "lucide-react";
 
@@ -50,18 +62,19 @@ interface BiddersTabProps {
 
 type RegistrationRecord = {
   id: number;
-  bidder?: {
-    name?: string;
-    email?: string;
-    phone?: string;
-  } | null;
-  status?: "approved" | "rejected" | "suspended";
+  user_id?: number | null;
+  bidder: {
+    name: string;
+    email: string;
+    phone: string;
+  };
+  status: string;
   created_at?: string;
-  deposit_verified?: boolean;
+  payment_verified: boolean;
 };
 
 function getStatusBadge(status?: string) {
-  const key = (status || "rejected").toLowerCase();
+  const key = (status || "pending_approval").toLowerCase();
   const config: Record<
     string,
     {
@@ -70,11 +83,21 @@ function getStatusBadge(status?: string) {
       icon: LucideIcon;
     }
   > = {
+    pending_approval: {
+      label: "Pending Approval",
+      variant: "secondary",
+      icon: Clock3,
+    },
+    pending: {
+      label: "Pending Approval",
+      variant: "secondary",
+      icon: Clock3,
+    },
     approved: { label: "Approved", variant: "default", icon: Check },
     rejected: { label: "Rejected", variant: "secondary", icon: X },
     suspended: { label: "Suspended", variant: "destructive", icon: X },
   };
-  return config[key] || config.rejected;
+  return config[key] || config.pending_approval;
 }
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
@@ -85,22 +108,62 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
-const extractRegistrationRecords = (payload: unknown): RegistrationRecord[] => {
+const toText = (value: unknown, fallback = ""): string => {
+  if (typeof value === "string") return value.trim() || fallback;
+  if (typeof value === "number") return String(value);
+  return fallback;
+};
+
+const getBidderInitials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("")
+    .slice(0, 2) || "NA";
+
+const normalizeRegistrationRecord = (
+  record: AuctionBidderRegistration
+): RegistrationRecord => ({
+  id: record.id,
+  user_id: record.user_id ?? record.user?.id ?? null,
+  bidder: {
+    name: toText(record.name ?? record.bidder?.name ?? record.user?.name, "Unknown"),
+    email: toText(record.email ?? record.bidder?.email ?? record.user?.email, ""),
+    phone: toText(record.phone ?? record.bidder?.phone ?? record.user?.phone, ""),
+  },
+  status: toText(record.status, "pending_approval"),
+  created_at: toText(record.created_at),
+  payment_verified: Boolean(
+    record.payment_method_verified ?? record.deposit_verified
+  ),
+});
+
+const extractRegistrationRecords = (
+  payload: unknown
+): AuctionBidderRegistration[] => {
   if (Array.isArray(payload)) {
-    return payload as RegistrationRecord[];
+    return payload as AuctionBidderRegistration[];
   }
 
   if (payload && typeof payload === "object" && "data" in payload) {
     const nested = (payload as { data?: unknown }).data;
     if (Array.isArray(nested)) {
-      return nested as RegistrationRecord[];
+      return nested as AuctionBidderRegistration[];
+    }
+
+    if (nested && typeof nested === "object" && "data" in nested) {
+      const doubleNested = (nested as { data?: unknown }).data;
+      if (Array.isArray(doubleNested)) {
+        return doubleNested as AuctionBidderRegistration[];
+      }
     }
   }
 
   return [];
 };
 
-const formatRegisteredDate = (value?: string) =>
+const formatRegisteredDate = (value?: string | null) =>
   value
     ? new Date(value).toLocaleDateString("en-US", {
         month: "short",
@@ -118,15 +181,22 @@ export default function BiddersTab({ auction }: BiddersTabProps) {
   const [rejectionReason, setRejectionReason] = useState("");
   const [selectedRegistration, setSelectedRegistration] =
     useState<RegistrationRecord | null>(null);
+  const [profileUserId, setProfileUserId] = useState<number | null>(null);
+
+  const bidderProfile = useQuery({
+    queryKey: ["bidder-profile", profileUserId],
+    queryFn: () => customerService.getBidderById(profileUserId!),
+    enabled: !!profileUserId,
+  });
 
   const registrationList: RegistrationRecord[] = useMemo(() => {
-    return extractRegistrationRecords(bidders.data);
+    return extractRegistrationRecords(bidders.data).map(normalizeRegistrationRecord);
   }, [bidders.data]);
 
   const filteredBidders = registrationList
     .filter((reg) => {
-      const name = reg.bidder?.name?.toLowerCase() || "";
-      const email = reg.bidder?.email?.toLowerCase() || "";
+      const name = reg.bidder.name.toLowerCase();
+      const email = reg.bidder.email.toLowerCase();
       return (
         name.includes(searchQuery.toLowerCase()) ||
         email.includes(searchQuery.toLowerCase())
@@ -205,16 +275,12 @@ export default function BiddersTab({ auction }: BiddersTabProps) {
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
                         <span className="font-body font-semibold text-muted-foreground text-sm">
-                          {(reg.bidder?.name || "NA")
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                            .slice(0, 2)}
+                          {getBidderInitials(reg.bidder.name)}
                         </span>
                       </div>
                       <div className="min-w-0">
                         <p className="font-body font-medium text-foreground truncate">
-                          {reg.bidder?.name || "Unknown"}
+                          {reg.bidder.name}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           Registered {formatRegisteredDate(reg.created_at)}
@@ -233,16 +299,16 @@ export default function BiddersTab({ auction }: BiddersTabProps) {
                   <div className="mt-4 space-y-2 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
                       <Mail className="w-3 h-3 shrink-0" />
-                      <span className="truncate">{reg.bidder?.email || "-"}</span>
+                      <span className="truncate">{reg.bidder.email || "-"}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Phone className="w-3 h-3 shrink-0" />
-                      <span>{reg.bidder?.phone || "-"}</span>
+                      <span>{reg.bidder.phone || "-"}</span>
                     </div>
                   </div>
 
                   <div className="mt-4 flex items-center justify-between gap-3">
-                    {reg.deposit_verified ? (
+                    {reg.payment_verified ? (
                       <Badge
                         variant="outline"
                         className="font-body text-xs gap-1 text-success border-success"
@@ -267,7 +333,11 @@ export default function BiddersTab({ auction }: BiddersTabProps) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="font-body">
-                        <DropdownMenuItem className="gap-2">
+                        <DropdownMenuItem
+                          className="gap-2"
+                          disabled={!reg.user_id}
+                          onClick={() => reg.user_id && setProfileUserId(reg.user_id)}
+                        >
                           <Eye className="w-4 h-4" />
                           View Profile
                         </DropdownMenuItem>
@@ -339,7 +409,7 @@ export default function BiddersTab({ auction }: BiddersTabProps) {
                   </div>
                 </TableHead>
                 <TableHead className="font-body font-semibold text-foreground">
-                  Deposit
+                  Payment
                 </TableHead>
                 <TableHead className="font-body font-semibold text-foreground">
                   Status
@@ -359,16 +429,12 @@ export default function BiddersTab({ auction }: BiddersTabProps) {
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
                             <span className="font-body font-semibold text-muted-foreground text-sm">
-                              {(reg.bidder?.name || "NA")
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .slice(0, 2)}
+                              {getBidderInitials(reg.bidder.name)}
                             </span>
                           </div>
                           <div className="min-w-0">
                             <p className="font-body font-medium text-foreground">
-                              {reg.bidder?.name || "Unknown"}
+                              {reg.bidder.name}
                             </p>
                           </div>
                         </div>
@@ -377,11 +443,11 @@ export default function BiddersTab({ auction }: BiddersTabProps) {
                         <div className="space-y-1">
                           <div className="flex items-center gap-2 text-sm text-muted-foreground font-body">
                             <Mail className="w-3 h-3" />
-                            {reg.bidder?.email || "-"}
+                            {reg.bidder.email || "-"}
                           </div>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground font-body">
                             <Phone className="w-3 h-3" />
-                            {reg.bidder?.phone || "-"}
+                            {reg.bidder.phone || "-"}
                           </div>
                         </div>
                       </TableCell>
@@ -389,7 +455,7 @@ export default function BiddersTab({ auction }: BiddersTabProps) {
                         {formatRegisteredDate(reg.created_at)}
                       </TableCell>
                       <TableCell>
-                        {reg.deposit_verified ? (
+                        {reg.payment_verified ? (
                           <Badge
                             variant="outline"
                             className="font-body text-xs gap-1 text-success border-success"
@@ -484,6 +550,140 @@ export default function BiddersTab({ auction }: BiddersTabProps) {
           </Table>
         </div>
       </Card>
+
+      {/* Bidder Profile Dialog */}
+      <Dialog open={!!profileUserId} onOpenChange={(open) => { if (!open) setProfileUserId(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display">Bidder Profile</DialogTitle>
+            <DialogDescription className="font-body">Full details for this registered bidder</DialogDescription>
+          </DialogHeader>
+
+          {bidderProfile.isLoading ? (
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-3">
+                <Skeleton className="w-14 h-14 rounded-full" />
+                <div className="space-y-2 flex-1">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-3 w-48" />
+                </div>
+              </div>
+              <Skeleton className="h-20 w-full rounded-lg" />
+              <Skeleton className="h-32 w-full rounded-lg" />
+            </div>
+          ) : bidderProfile.isError ? (
+            <div className="py-12 text-center text-muted-foreground">
+              <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm font-body">Could not load bidder profile.</p>
+            </div>
+          ) : bidderProfile.data ? (() => {
+            const p = bidderProfile.data;
+            const fullName = [p.firstName, p.lastName].filter(Boolean).join(" ") || "—";
+            return (
+              <div className="space-y-5">
+                {/* Identity */}
+                <div className="flex items-center gap-4">
+                  {p.avatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.avatar} alt={fullName} className="w-14 h-14 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-full bg-secondary flex items-center justify-center shrink-0">
+                      <span className="font-semibold text-muted-foreground text-lg">
+                        {getBidderInitials(fullName)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-display font-semibold text-lg text-foreground leading-tight">{fullName}</p>
+                    <p className="text-sm text-muted-foreground font-body truncate">{p.email}</p>
+                    {p.phone && (
+                      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground font-body">
+                        <Phone className="w-3 h-3 shrink-0" />
+                        {p.phone}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground font-body">
+                  {p.country && <span className="flex items-center gap-1">🌍 {p.country}</span>}
+                  {p.joinedAt && (
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      Joined {new Date(p.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </span>
+                  )}
+                  {p.isBlocked && <Badge variant="destructive" className="text-xs">Blocked</Badge>}
+                </div>
+
+                <Separator />
+
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-lg bg-secondary/60 p-3 text-center">
+                    <Gavel className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
+                    <p className="text-xl font-display font-bold leading-none">{p.totalBids ?? 0}</p>
+                    <p className="text-xs text-muted-foreground font-body mt-1">Total Bids</p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/60 p-3 text-center">
+                    <Trophy className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
+                    <p className="text-xl font-display font-bold leading-none">{p.wonAuctions ?? 0}</p>
+                    <p className="text-xs text-muted-foreground font-body mt-1">Won</p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/60 p-3 text-center">
+                    <TrendingUp className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
+                    <p className="text-xl font-display font-bold leading-none">{p.winRate ?? 0}%</p>
+                    <p className="text-xs text-muted-foreground font-body mt-1">Win Rate</p>
+                  </div>
+                </div>
+
+                {/* Reputation */}
+                {p.reputation && (
+                  <>
+                    <Separator />
+                    <div className="flex items-center justify-between rounded-lg bg-secondary/60 px-4 py-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground font-body mb-0.5">Reputation</p>
+                        <p className="font-body font-semibold text-foreground">{p.reputation.level ?? "—"}</p>
+                        <p className="text-xs text-muted-foreground font-body capitalize">{p.reputation.status ?? ""}</p>
+                      </div>
+                      <Badge variant="outline" className="font-body text-base px-3 py-1">
+                        {p.reputation.score ?? "—"}
+                      </Badge>
+                    </div>
+                  </>
+                )}
+
+                {/* Bidding History */}
+                {p.biddingHistory && p.biddingHistory.length > 0 && (
+                  <>
+                    <Separator />
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 font-body">Recent Bids</p>
+                      <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
+                        {p.biddingHistory.slice(0, 5).map((h) => (
+                          <div key={h.id} className="flex items-center justify-between px-3 py-2.5 bg-background hover:bg-secondary/40 transition-colors">
+                            <div className="min-w-0">
+                              <p className="font-body text-sm text-foreground truncate max-w-[240px]">{h.auctionTitle}</p>
+                              <p className="text-xs text-muted-foreground font-body">
+                                {new Date(h.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0 ml-3">
+                              <p className="font-body font-semibold text-sm">${Number(h.bidAmount).toLocaleString()}</p>
+                              <Badge variant="outline" className="text-xs font-body capitalize mt-0.5">{h.status}</Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })() : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isRejectOpen} onOpenChange={setIsRejectOpen}>
         <DialogContent className="max-w-md">

@@ -1,4 +1,5 @@
 import { LoginForm } from "@/components/auth/login/login-form"
+import { SiteLegalLinks } from "@/components/legal/site-legal-links"
 import Image from "next/image"
 
 export default function LoginPage() {
@@ -17,8 +18,11 @@ export default function LoginPage() {
           </a>
         </div>
         <div className="flex flex-1 items-center justify-center">
-          <div className="w-full max-w-xs">
+          <div className="w-full max-w-xs space-y-6">
             <LoginForm />
+            <div className="border-t border-border pt-4">
+              <SiteLegalLinks className="justify-center md:justify-start" linkClassName="text-xs" />
+            </div>
           </div>
         </div>
       </div>

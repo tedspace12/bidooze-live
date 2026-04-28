@@ -102,6 +102,11 @@ api.interceptors.response.use(
           isHandlingUnauthorized = false;
         }, 2000);
       }
+    } else if (status === 402) {
+      // Subscription required — fire event so SubscriptionRequiredModal can show
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("subscription-required"));
+      }
     } else if (status === 403 && !error.config?.skipForbiddenRedirect) {
       toast.error(errorMessage || "Not approved yet.");
       if (typeof window !== "undefined") {

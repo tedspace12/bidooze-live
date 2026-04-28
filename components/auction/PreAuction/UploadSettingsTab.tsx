@@ -23,14 +23,18 @@ import type {
   SuccessfulBidderRegistrationOption,
   CreateAuctionPayload,
 } from "@/features/auction/types";
+import type { WizardFieldErrors } from "@/utils/auctionWizardValidation";
+import { getObjectUrlsForFiles, revokeObjectUrlForFile } from "@/lib/file-previews";
 
 interface UploadSettingsTabProps {
   initialData?: Partial<CreateAuctionPayload>;
+  fieldErrors?: WizardFieldErrors;
 }
 
-export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
+export function UploadSettingsTab({ initialData, fieldErrors }: UploadSettingsTabProps) {
   void initialData;
   const { formState, updateFormState } = useAuctionForm();
+  const errors = fieldErrors || {};
   const showDepositFields = formState.successful_bidder_registration_option === "deposit";
   const parseOptionalNumber = (value: string): number | undefined => {
     if (value.trim() === "") return undefined;
@@ -38,15 +42,45 @@ export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
     return Number.isFinite(parsed) ? parsed : undefined;
   };
   const featurePreviews = useMemo(
-    () => (formState.feature_images || []).map((file) => URL.createObjectURL(file)),
+    () => getObjectUrlsForFiles(formState.feature_images),
     [formState.feature_images]
   );
 
   useEffect(() => {
-    return () => {
-      featurePreviews.forEach((url) => URL.revokeObjectURL(url));
-    };
-  }, [featurePreviews]);
+    const nextDefaults: Partial<CreateAuctionPayload> = {};
+    const bidMechanism = formState.bid_mechanism || "standard";
+
+    if (!formState.bidding_type) {
+      nextDefaults.bidding_type = "timed";
+    }
+    if (!formState.auction_format) {
+      nextDefaults.auction_format = "internet_only";
+    }
+    if (!formState.bid_visibility) {
+      nextDefaults.bid_visibility = "public";
+    }
+    if (!formState.bid_mechanism) {
+      nextDefaults.bid_mechanism = "standard";
+    }
+    if (!formState.bid_amount_type) {
+      nextDefaults.bid_amount_type = bidMechanism === "proxy" ? "maximum_up_to" : "fixed_flat";
+    }
+    if (!formState.successful_bidder_registration_option) {
+      nextDefaults.successful_bidder_registration_option = "immediate";
+    }
+
+    if (Object.keys(nextDefaults).length > 0) {
+      updateFormState(nextDefaults);
+    }
+  }, [
+    formState.auction_format,
+    formState.bid_amount_type,
+    formState.bid_mechanism,
+    formState.bid_visibility,
+    formState.bidding_type,
+    formState.successful_bidder_registration_option,
+    updateFormState,
+  ]);
 
   useEffect(() => {
     if (showDepositFields && !formState.deposit_type) {
@@ -85,7 +119,8 @@ export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
 
   const removeFeatureImage = (index: number) => {
     const next = [...(formState.feature_images || [])];
-    next.splice(index, 1);
+    const [removedFile] = next.splice(index, 1);
+    revokeObjectUrlForFile(removedFile);
     updateFormState({ feature_images: next.length ? next : undefined });
   };
 
@@ -126,6 +161,11 @@ export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
   return (
     <div className="space-y-6">
       <FormSection title="Feature Images *" description="At least one image is required before publishing.">
+        {errors.feature_images && (
+          <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {errors.feature_images}
+          </div>
+        )}
         <input
           type="file"
           id="feature-image-upload"
@@ -226,6 +266,7 @@ export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
             value={formState.handling_charge_type || ""}
             onValueChange={(value) => updateFormState({ handling_charge_type: value as HandlingChargeType })}
             disabled={!formState.add_handling_charges}
+            error={errors.handling_charge_type}
           />
           <FormInput
             label="Handling Charge Amount"
@@ -238,6 +279,7 @@ export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
               updateFormState({ handling_charge_amount: parseFloat(e.target.value) || undefined })
             }
             disabled={!formState.add_handling_charges}
+            error={errors.handling_charge_amount}
           />
         </div>
       </FormSection>
@@ -335,6 +377,7 @@ export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
             ]}
             value={formState.bidding_type || "timed"}
             onValueChange={(value) => updateFormState({ bidding_type: value as BiddingType })}
+            error={errors.bidding_type}
           />
           <FormSelect
             label="Auction Format"
@@ -386,6 +429,7 @@ export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
             value={formState.bid_amount_type || "fixed_flat"}
             onValueChange={(value) => updateFormState({ bid_amount_type: value as BidAmountType })}
             disabled={formState.bid_mechanism === "standard"}
+            error={errors.bid_amount_type}
           />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
@@ -396,6 +440,7 @@ export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
             placeholder="0"
             value={formState.soft_close_seconds || ""}
             onChange={(e) => updateFormState({ soft_close_seconds: parseInt(e.target.value) || undefined })}
+            error={errors.soft_close_seconds}
           />
           <FormInput
             label="Lot Stagger (seconds)"
@@ -404,6 +449,7 @@ export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
             placeholder="0"
             value={formState.lot_stagger_seconds || ""}
             onChange={(e) => updateFormState({ lot_stagger_seconds: parseInt(e.target.value) || undefined })}
+            error={errors.lot_stagger_seconds}
           />
           <FormInput
             label="Default Lot Duration (seconds)"
@@ -494,6 +540,9 @@ export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
                 Add increment rows in ascending order. Final cap must be at least 1,000,000.
               </p>
             )}
+            {errors.bid_increments && (
+              <p className="text-xs text-destructive">{errors.bid_increments}</p>
+            )}
           </div>
         )}
       </FormSection>
@@ -581,6 +630,7 @@ export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
                   toast.error("Percentage deposit value must be between 0 and 100.");
                 }
               }}
+              error={errors.deposit_type}
             />
             <FormInput
               label="Deposit Value"
@@ -593,6 +643,7 @@ export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
               value={formState.deposit_value || ""}
               hint={formState.deposit_type === "percentage" ? "Enter a percentage between 0 and 100." : undefined}
               onChange={(e) => updateFormState({ deposit_value: parseOptionalNumber(e.target.value) })}
+              error={errors.deposit_value}
             />
             <FormInput
               label="Deposit Cap"
@@ -602,6 +653,7 @@ export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
               placeholder="0.00"
               value={formState.deposit_cap || ""}
               onChange={(e) => updateFormState({ deposit_cap: parseOptionalNumber(e.target.value) })}
+              error={errors.deposit_cap}
             />
             <FormSelect
               label="Deposit Policy"
@@ -615,6 +667,7 @@ export function UploadSettingsTab({ initialData }: UploadSettingsTabProps) {
               ]}
               value={formState.deposit_policy || ""}
               onValueChange={(value) => updateFormState({ deposit_policy: value as DepositPolicy })}
+              error={errors.deposit_policy}
             />
           </div>
         )}

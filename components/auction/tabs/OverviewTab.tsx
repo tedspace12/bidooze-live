@@ -335,11 +335,11 @@ export default function OverviewTab({ auction }: OverviewTabProps) {
     id: item.id,
     type: item.type,
     lot: item.lot_title,
-    bidder: item.bidder_name,
+    bidder: toText(item.bidder ?? item.bidder_name, "Unknown bidder"),
     amount: item.amount
-      ? formatCurrency(item.amount, auction.auction.currency)
+      ? formatCurrency(toNumber(item.amount, 0), auction.auction.currency)
       : null,
-    timestamp: new Date(item.created_at),
+    timestamp: new Date(item.timestamp).getTime() ? new Date(item.timestamp) : new Date(),
   }));
 
   const recentBidsList = (recentBids.data ?? []).map((bid: AuctionRecentBid) => {

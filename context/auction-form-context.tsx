@@ -1,5 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { CreateAuctionPayload, CreateAuctionLotInput } from '@/features/auction/types';
+import {
+  revokeRemovedObjectUrls,
+  revokeRemovedObjectUrlsForLotImages,
+} from '@/lib/file-previews';
 
 interface AuctionFormState extends Omit<CreateAuctionPayload, "feature_images"> {
   feature_images?: File[];
@@ -8,6 +12,7 @@ interface AuctionFormState extends Omit<CreateAuctionPayload, "feature_images"> 
 interface AuctionFormContextType {
   formState: AuctionFormState;
   updateFormState: (updates: Partial<AuctionFormState>) => void;
+  initializeFormState: (updates?: Partial<AuctionFormState>) => void;
   resetFormState: () => void;
   setLotsPayload: (lots: CreateAuctionLotInput[]) => void;
   setLotImages: (lotKey: string, files: File[]) => void;
@@ -16,6 +21,11 @@ interface AuctionFormContextType {
 }
 
 const AuctionFormContext = createContext<AuctionFormContextType | undefined>(undefined);
+
+const omitNilValues = <T extends Record<string, unknown>>(values: T): Partial<T> =>
+  Object.fromEntries(
+    Object.entries(values).filter(([, value]) => value !== undefined && value !== null)
+  ) as Partial<T>;
 
 const initialFormState: AuctionFormState = {
   code: '',
@@ -72,7 +82,7 @@ const initialFormState: AuctionFormState = {
   require_credit_card_registration: undefined,
   authentication_required_hours: undefined,
   authentication_required_days: undefined,
-  successful_bidder_registration_option: undefined,
+  successful_bidder_registration_option: 'immediate',
   deposit_type: undefined,
   deposit_value: undefined,
   deposit_cap: undefined,
@@ -98,14 +108,40 @@ export const AuctionFormProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [formState, setFormState] = useState<AuctionFormState>(initialFormState);
 
   const updateFormState = useCallback((updates: Partial<AuctionFormState>) => {
-    setFormState(prevState => ({
-      ...prevState,
-      ...updates,
-    }));
+    setFormState(prevState => {
+      const nextState = {
+        ...prevState,
+        ...updates,
+      };
+
+      revokeRemovedObjectUrls(prevState.feature_images, nextState.feature_images);
+      revokeRemovedObjectUrlsForLotImages(prevState.lot_images, nextState.lot_images);
+
+      return nextState;
+    });
+  }, []);
+
+  const initializeFormState = useCallback((updates?: Partial<AuctionFormState>) => {
+    const normalizedUpdates = updates ? omitNilValues(updates) : undefined;
+    setFormState(prevState => {
+      const nextState = {
+        ...initialFormState,
+        ...(normalizedUpdates || {}),
+      };
+
+      revokeRemovedObjectUrls(prevState.feature_images, nextState.feature_images);
+      revokeRemovedObjectUrlsForLotImages(prevState.lot_images, nextState.lot_images);
+
+      return nextState;
+    });
   }, []);
 
   const resetFormState = useCallback(() => {
-    setFormState(initialFormState);
+    setFormState(prevState => {
+      revokeRemovedObjectUrls(prevState.feature_images, initialFormState.feature_images);
+      revokeRemovedObjectUrlsForLotImages(prevState.lot_images, initialFormState.lot_images);
+      return initialFormState;
+    });
   }, []);
 
   const setLotsPayload = useCallback((lots: CreateAuctionLotInput[]) => {
@@ -143,12 +179,13 @@ export const AuctionFormProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const value = useMemo(() => ({
     formState,
     updateFormState,
+    initializeFormState,
     resetFormState,
     setLotsPayload,
     setLotImages,
     removeLotImage,
     clearLotImages,
-  }), [formState, updateFormState, resetFormState, setLotsPayload, setLotImages, removeLotImage, clearLotImages]);
+  }), [formState, updateFormState, initializeFormState, resetFormState, setLotsPayload, setLotImages, removeLotImage, clearLotImages]);
 
   return (
     <AuctionFormContext.Provider value={value}>

@@ -6,11 +6,18 @@ export type WizardTabStatus = "locked" | "invalid" | "complete" | "current";
 export type AuctionWizardState = Omit<CreateAuctionPayload, "feature_images"> & {
   feature_images?: File[];
 };
+export type WizardFieldErrors = Partial<Record<string, string>>;
 
 const toTimestamp = (value?: string) => {
   if (!value) return null;
   const ts = new Date(value).getTime();
   return Number.isNaN(ts) ? null : ts;
+};
+
+const getCurrentMinuteTimestamp = () => {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  return now.getTime();
 };
 
 const isDateTimeLocal = (value?: string) => {
@@ -22,6 +29,12 @@ const getLotImageCount = (state: AuctionWizardState, lotNumber: string, lotIndex
   const indexCount = state.lot_images?.[String(lotIndex)]?.length || 0;
   const lotNumberCount = state.lot_images?.[lotNumber]?.length || 0;
   return Math.max(indexCount, lotNumberCount);
+};
+
+const addFieldError = (errors: WizardFieldErrors, field: string, message: string) => {
+  if (!errors[field]) {
+    errors[field] = message;
+  }
 };
 
 const validateBidIncrements = (
@@ -73,14 +86,32 @@ export const validateTab = (
   state: AuctionWizardState,
   options?: { strictImages?: boolean }
 ): { ok: boolean; message?: string; field?: string } => {
+  const fieldErrors = getTabFieldErrors(tabId, state, options);
+  const firstError = Object.entries(fieldErrors)[0];
+
+  if (firstError) {
+    const [field, message] = firstError;
+    return { ok: false, field, message };
+  }
+
+  return { ok: true };
+};
+
+export const getTabFieldErrors = (
+  tabId: WizardTabId,
+  state: AuctionWizardState,
+  options?: { strictImages?: boolean }
+): WizardFieldErrors => {
+  const errors: WizardFieldErrors = {};
+
   if (tabId === "details") {
     const resolvedTimezone = state.timezone || detectUserTimezone();
 
-    if (!state.name?.trim()) return { ok: false, message: "Auction name is required.", field: "name" };
-    if (!state.auction_start_at) return { ok: false, message: "Auction start date is required.", field: "auction_start_at" };
-    if (!state.auction_end_at) return { ok: false, message: "Auction end date is required.", field: "auction_end_at" };
-    if (!resolvedTimezone) return { ok: false, message: "Timezone is required.", field: "timezone" };
-    if (!state.currency) return { ok: false, message: "Currency is required.", field: "currency" };
+    if (!state.name?.trim()) addFieldError(errors, "name", "Auction name is required.");
+    if (!state.auction_start_at) addFieldError(errors, "auction_start_at", "Auction start date is required.");
+    if (!state.auction_end_at) addFieldError(errors, "auction_end_at", "Auction end date is required.");
+    if (!resolvedTimezone) addFieldError(errors, "timezone", "Timezone is required.");
+    if (!state.currency) addFieldError(errors, "currency", "Currency is required.");
 
     const dateFields: Array<keyof AuctionWizardState> = [
       "auction_start_at",
@@ -96,19 +127,19 @@ export const validateTab = (
     for (const field of dateFields) {
       const value = state[field] as string | undefined;
       if (!isDateTimeLocal(value)) {
-        return { ok: false, message: `${field} must be in YYYY-MM-DDTHH:mm format.`, field: String(field) };
+        addFieldError(errors, String(field), `${field} must be in YYYY-MM-DDTHH:mm format.`);
       }
     }
 
     const start = toTimestamp(state.auction_start_at);
     const end = toTimestamp(state.auction_end_at);
-    const now = Date.now();
+    const now = getCurrentMinuteTimestamp();
 
-    if (start !== null && start <= now) {
-      return { ok: false, message: "Auction start must be in the future.", field: "auction_start_at" };
+    if (start !== null && start < now) {
+      addFieldError(errors, "auction_start_at", "Auction start cannot be in the past.");
     }
     if (start !== null && end !== null && end <= start) {
-      return { ok: false, message: "Auction end date must be after start date.", field: "auction_end_at" };
+      addFieldError(errors, "auction_end_at", "Auction end date must be after start date.");
     }
 
     const previewStart = toTimestamp(state.preview_start_at);
@@ -119,133 +150,143 @@ export const validateTab = (
     const closeBidding = toTimestamp(state.close_bidding_at);
 
     if (previewStart !== null && start !== null && previewStart > start) {
-      return { ok: false, message: "Preview start must be before or equal to auction start.", field: "preview_start_at" };
+      addFieldError(errors, "preview_start_at", "Preview start must be before or equal to auction start.");
     }
 
     if (previewEnd !== null && end !== null && previewEnd > end) {
-      return { ok: false, message: "Preview end must be before or equal to auction end.", field: "preview_end_at" };
+      addFieldError(errors, "preview_end_at", "Preview end must be before or equal to auction end.");
     }
 
     if (checkoutStart !== null && end !== null && checkoutStart < end) {
-      return { ok: false, message: "Checkout start must be after or equal to auction end.", field: "checkout_start_at" };
+      addFieldError(errors, "checkout_start_at", "Checkout start must be after or equal to auction end.");
     }
 
     if (checkoutEnd !== null && checkoutStart !== null && checkoutEnd < checkoutStart) {
-      return { ok: false, message: "Checkout end must be after or equal to checkout start.", field: "checkout_end_at" };
+      addFieldError(errors, "checkout_end_at", "Checkout end must be after or equal to checkout start.");
     }
 
     if (openBidding !== null && closeBidding !== null && openBidding > closeBidding) {
-      return { ok: false, message: "Open bidding must be before or equal to close bidding.", field: "open_bidding_at" };
+      addFieldError(errors, "open_bidding_at", "Open bidding must be before or equal to close bidding.");
     }
 
     if (closeBidding !== null && end !== null && closeBidding > end) {
-      return { ok: false, message: "Close bidding cannot be after auction end.", field: "close_bidding_at" };
+      addFieldError(errors, "close_bidding_at", "Close bidding cannot be after auction end.");
     }
 
     if (openBidding !== null) {
       const visibilityStart = previewStart ?? start;
       if (visibilityStart !== null && openBidding < visibilityStart) {
-        return {
-          ok: false,
-          message: "Open bidding cannot be earlier than preview start (or auction start when no preview start).",
-          field: "open_bidding_at",
-        };
+        addFieldError(
+          errors,
+          "open_bidding_at",
+          "Open bidding cannot be earlier than preview start (or auction start when no preview start)."
+        );
       }
     }
-    return { ok: true };
+    return errors;
   }
 
   if (tabId === "upload") {
-    if (!state.feature_images?.length) return { ok: false, message: "At least one feature image is required.", field: "feature_images" };
-    if (!state.bidding_type) return { ok: false, message: "Bidding type is required.", field: "bidding_type" };
-    if (!state.bid_amount_type) return { ok: false, message: "Bid amount type is required.", field: "bid_amount_type" };
+    if (!state.bidding_type) addFieldError(errors, "bidding_type", "Bidding type is required.");
+    if (!state.bid_amount_type) addFieldError(errors, "bid_amount_type", "Bid amount type is required.");
     if (typeof state.soft_close_seconds !== "number") {
-      return { ok: false, message: "Soft close seconds is required.", field: "soft_close_seconds" };
+      addFieldError(errors, "soft_close_seconds", "Soft close seconds is required.");
     }
     if (typeof state.lot_stagger_seconds !== "number") {
-      return { ok: false, message: "Lot stagger seconds is required.", field: "lot_stagger_seconds" };
+      addFieldError(errors, "lot_stagger_seconds", "Lot stagger seconds is required.");
     }
 
     const bidMechanism = state.bid_mechanism || "standard";
     if (bidMechanism === "standard" && state.bid_amount_type !== "fixed_flat") {
-      return {
-        ok: false,
-        message: "When bid mechanism is standard, bid amount type must be fixed_flat.",
-        field: "bid_amount_type",
-      };
+      addFieldError(errors, "bid_amount_type", "When bid mechanism is standard, bid amount type must be fixed_flat.");
     }
 
     if (bidMechanism === "proxy" && !["fixed_flat", "maximum_up_to"].includes(state.bid_amount_type)) {
-      return {
-        ok: false,
-        message: "When bid mechanism is proxy, bid amount type must be fixed_flat or maximum_up_to.",
-        field: "bid_amount_type",
-      };
+      addFieldError(
+        errors,
+        "bid_amount_type",
+        "When bid mechanism is proxy, bid amount type must be fixed_flat or maximum_up_to."
+      );
     }
 
     if (state.add_handling_charges && !state.handling_charge_type) {
-      return {
-        ok: false,
-        message: "Handling charge type is required when handling charges are enabled.",
-        field: "handling_charge_type",
-      };
+      addFieldError(
+        errors,
+        "handling_charge_type",
+        "Handling charge type is required when handling charges are enabled."
+      );
+    }
+    if (state.add_handling_charges && typeof state.handling_charge_amount !== "number") {
+      addFieldError(
+        errors,
+        "handling_charge_amount",
+        "Handling charge amount is required when handling charges are enabled."
+      );
     }
 
     if (state.successful_bidder_registration_option === "deposit") {
       const depositType = state.deposit_type || "fixed";
       if (typeof state.deposit_value !== "number") {
-        return { ok: false, message: "Deposit value is required.", field: "deposit_value" };
+        addFieldError(errors, "deposit_value", "Deposit value is required.");
       }
-      if (typeof state.deposit_cap !== "number") return { ok: false, message: "Deposit cap is required.", field: "deposit_cap" };
-      if (!state.deposit_policy) return { ok: false, message: "Deposit policy is required.", field: "deposit_policy" };
+      if (!state.deposit_type) addFieldError(errors, "deposit_type", "Deposit type is required.");
+      if (typeof state.deposit_cap !== "number") addFieldError(errors, "deposit_cap", "Deposit cap is required.");
+      if (!state.deposit_policy) addFieldError(errors, "deposit_policy", "Deposit policy is required.");
 
-      if (depositType === "percentage" && (state.deposit_value <= 0 || state.deposit_value > 100)) {
-        return {
-          ok: false,
-          message: "For percentage deposits, deposit value must be greater than 0 and at most 100.",
-          field: "deposit_value",
-        };
+      if (depositType === "percentage" && (state.deposit_value == null || state.deposit_value <= 0 || state.deposit_value > 100)) {
+        addFieldError(
+          errors,
+          "deposit_value",
+          "For percentage deposits, deposit value must be greater than 0 and at most 100."
+        );
       }
     }
 
     const incrementValidation = validateBidIncrements(state);
-    if (!incrementValidation.ok) return incrementValidation;
+    if (!incrementValidation.ok && incrementValidation.field && incrementValidation.message) {
+      addFieldError(errors, incrementValidation.field, incrementValidation.message);
+    }
 
-    return { ok: true };
+    return errors;
   }
 
   if (tabId === "lots") {
     if (!state.lots || state.lots.length === 0) {
-      return { ok: false, message: "At least one lot is required.", field: "lots" };
+      addFieldError(errors, "lots", "At least one lot is required.");
+      return errors;
     }
     for (const lot of state.lots) {
       if (!lot.lot_number?.trim()) {
-        return { ok: false, message: "Each lot needs a lot number.", field: "lot_number" };
+        addFieldError(errors, "lots", "Each lot needs a lot number.");
+        break;
       }
       if (!lot.title?.trim()) {
-        return { ok: false, message: `Lot ${lot.lot_number} requires a title.`, field: "title" };
+        addFieldError(errors, "lots", `Lot ${lot.lot_number} requires a title.`);
+        break;
       }
       if (!lot.quantity || lot.quantity < 1) {
-        return { ok: false, message: `Lot ${lot.lot_number} quantity must be at least 1.`, field: "quantity" };
+        addFieldError(errors, "lots", `Lot ${lot.lot_number} quantity must be at least 1.`);
+        break;
       }
       if (typeof lot.starting_bid === "number" && lot.starting_bid < 0) {
-        return { ok: false, message: `Lot ${lot.lot_number} starting bid must be >= 0.`, field: "starting_bid" };
+        addFieldError(errors, "lots", `Lot ${lot.lot_number} starting bid must be >= 0.`);
+        break;
       }
     }
-    return { ok: true };
+    return errors;
   }
 
   if (tabId === "images") {
     if (options?.strictImages) {
       const warnings = getLotImageWarnings(state);
       if (warnings.length > 0) {
-        return { ok: false, message: "Some lots are missing images.", field: "lot_images" };
+        addFieldError(errors, "lot_images", "Some lots are missing images.");
       }
     }
-    return { ok: true };
+    return errors;
   }
 
-  return { ok: true };
+  return errors;
 };
 
 export const getLotImageWarnings = (state: AuctionWizardState): string[] => {

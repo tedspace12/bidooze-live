@@ -83,13 +83,15 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
 };
 
 export default function LiveConsoleTab({ auction }: LiveConsoleTabProps) {
-  const { overview, startSession, pauseSession, resumeSession, endSession, startLot, sellLot, passLot, floorBid } =
+  const { overview, startSession, pauseSession, resumeSession, endSession, startLot, sellLot, passLot, floorBid, floorBidders, addFloorBidder } =
     useAuctionLive(auction.auction.id);
   const [isFloorBidOpen, setIsFloorBidOpen] = useState(false);
   const [floorBidForm, setFloorBidForm] = useState({
     amount: "",
     auctionRegistrationId: "",
   });
+  const [isAddBidderOpen, setIsAddBidderOpen] = useState(false);
+  const [newBidderForm, setNewBidderForm] = useState({ display_name: "", phone: "", notes: "" });
 
   const liveData = (overview.data || {}) as LiveOverview;
   const liveOverview = liveData.data;
@@ -338,8 +340,84 @@ export default function LiveConsoleTab({ auction }: LiveConsoleTabProps) {
               )}
             </CardContent>
           </Card>
+
+          {/* Floor Bidders */}
+          <Card className="border border-border shadow-soft">
+            <CardHeader className="border-b border-border pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-display font-semibold flex items-center gap-2">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  Floor Bidders
+                </CardTitle>
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setIsAddBidderOpen(true)}>
+                  + Add
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {floorBidders.isLoading ? (
+                <div className="p-4 text-xs text-muted-foreground">Loading...</div>
+              ) : (floorBidders.data ?? []).length === 0 ? (
+                <div className="p-4 text-center text-xs text-muted-foreground">No floor bidders yet.</div>
+              ) : (
+                <div className="divide-y max-h-48 overflow-y-auto">
+                  {(floorBidders.data ?? []).map((b) => (
+                    <div key={b.id} className="flex items-center justify-between px-4 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{b.display_name}</p>
+                        {b.phone && <p className="text-xs text-muted-foreground">{b.phone}</p>}
+                      </div>
+                      <Badge variant="outline" className="text-xs shrink-0 ml-2">#{b.bidder_number}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
+
+      {/* Add Floor Bidder Dialog */}
+      <Dialog open={isAddBidderOpen} onOpenChange={(v) => { setIsAddBidderOpen(v); if (!v) setNewBidderForm({ display_name: "", phone: "", notes: "" }); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add Floor Bidder</DialogTitle>
+            <DialogDescription>A bidder number will be assigned automatically.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label htmlFor="fb-name">Display Name *</Label>
+              <Input id="fb-name" placeholder="In-room bidder A" value={newBidderForm.display_name} onChange={(e) => setNewBidderForm({ ...newBidderForm, display_name: e.target.value })} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="fb-phone">Phone</Label>
+              <Input id="fb-phone" placeholder="+1 555 000 0000" value={newBidderForm.phone} onChange={(e) => setNewBidderForm({ ...newBidderForm, phone: e.target.value })} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="fb-notes">Notes</Label>
+              <Input id="fb-notes" placeholder="VIP bidder, row 3…" value={newBidderForm.notes} onChange={(e) => setNewBidderForm({ ...newBidderForm, notes: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddBidderOpen(false)}>Cancel</Button>
+            <Button
+              disabled={!newBidderForm.display_name.trim() || addFloorBidder.isPending}
+              onClick={async () => {
+                try {
+                  await addFloorBidder.mutateAsync({ display_name: newBidderForm.display_name.trim(), phone: newBidderForm.phone || undefined, notes: newBidderForm.notes || undefined });
+                  setIsAddBidderOpen(false);
+                  setNewBidderForm({ display_name: "", phone: "", notes: "" });
+                  toast.success("Floor bidder added.");
+                } catch (error: unknown) {
+                  toast.error("Failed to add floor bidder", { description: getErrorMessage(error, "Please try again.") });
+                }
+              }}
+            >
+              {addFloorBidder.isPending ? "Adding…" : "Add Bidder"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Floor Bid Dialog */}
       <Dialog open={isFloorBidOpen} onOpenChange={setIsFloorBidOpen}>

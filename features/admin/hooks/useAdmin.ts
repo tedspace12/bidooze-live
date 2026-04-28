@@ -27,6 +27,13 @@ export const useAdmin = () => {
     });
   };
 
+  const useBidderStatistics = () => {
+    return useQuery({
+      queryKey: ["admin", "bidder-statistics"],
+      queryFn: () => adminService.getBidderStatistics(),
+    });
+  };
+
   const usePendingApplications = () => {
     return useQuery({
       queryKey: ["admin", "pending-applications"],
@@ -64,10 +71,23 @@ export const useAdmin = () => {
     });
   };
 
-  const useBidders = (params?: { status?: string; page?: number; limit?: number }) => {
+  const useBidders = (params?: {
+    status?: string;
+    search?: string;
+    page?: number;
+    per_page?: number;
+  }) => {
     return useQuery({
       queryKey: ["admin", "bidders", params],
       queryFn: () => adminService.getBidders(params),
+    });
+  };
+
+  const useBidderDetails = (id?: number) => {
+    return useQuery({
+      queryKey: ["admin", "bidder", id],
+      queryFn: () => adminService.getBidder(Number(id)),
+      enabled: !!id,
     });
   };
 
@@ -112,6 +132,7 @@ export const useAdmin = () => {
       adminService.updateBidderStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "bidders"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "bidder"] });
       toast.success("Bidder status updated successfully");
     },
     onError: (error: unknown) => {
@@ -133,11 +154,13 @@ export const useAdmin = () => {
   return {
     useDashboardStats,
     useAuctioneerStats,
+    useBidderStatistics,
     usePendingApplications,
     useAuctioneers,
     useActivityLogs,
     useActivityLogDetail,
     useBidders,
+    useBidderDetails,
     approveAuctioneer,
     rejectAuctioneer,
     requestReview,

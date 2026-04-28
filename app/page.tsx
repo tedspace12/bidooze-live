@@ -3,6 +3,9 @@ import { motion } from "framer-motion";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
+import { SiteLegalLinks } from "@/components/legal/site-legal-links";
+import { SUPPORT_EMAIL } from "@/lib/legal";
 
 const auctionRows = [
   { name: "TechFleet Q4", lots: 12, status: "Live", high: "$284,000" },
@@ -81,9 +84,9 @@ export default function Home() {
     <div className="min-h-screen overflow-x-hidden">
       <nav className="sticky top-0 z-50 border-b border-border bg-grey-50/95 backdrop-blur-xl">
         <div className="max-w-[1200px] mx-auto flex h-14 items-center justify-between px-4 sm:px-6">
-          <a href="/" className="flex items-center gap-2 text-lg font-bold text-foreground tracking-tight">
+          <Link href="/" className="flex items-center gap-2 text-lg font-bold text-foreground tracking-tight">
             <Image src="/logo/Bidooze.svg" alt="Bidooze Logo" width={150} height={24} className="rounded-sm" />
-          </a>
+          </Link>
 
           <div className="hidden lg:flex items-center gap-8">
             <a href="#identity" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200">
@@ -530,12 +533,14 @@ export default function Home() {
           <span className="flex items-center gap-2 text-[0.9375rem] font-bold text-foreground">
             <Image src="/logo/Bidooze.svg" alt="Bidooze Logo" width={120} height={20} className="rounded-sm" />
           </span>
-          <div className="flex flex-wrap gap-3 sm:gap-6">
-            <a href="#" className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors">Platform</a>
-            <a href="#" className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors">Seller Docs</a>
-            <a href="#" className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors">Compliance</a>
-            <a href="#" className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors">Contact</a>
-            <a href="#" className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors">Privacy</a>
+          <div className="flex flex-col items-start gap-2 sm:items-center">
+            <SiteLegalLinks linkClassName="text-[0.8125rem]" />
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {SUPPORT_EMAIL}
+            </a>
           </div>
           <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()} Bidooze. All rights reserved.
@@ -545,4 +550,3 @@ export default function Home() {
     </div>
   );
 }
-

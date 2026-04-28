@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Check, ChevronDown, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { FormSection } from "../FormSection";
 import { FormInput } from "../FormInput";
 import { FormTextarea } from "../FormTextarea";
@@ -18,16 +19,145 @@ import {
   normalizeCountryToIso2,
   normalizeStateToIso31662,
 } from "@/components/ui/country-select";
+import type { WizardFieldErrors } from "@/utils/auctionWizardValidation";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useCategories } from "@/features/auction/hooks/Usecategories";
 
 interface DetailsTabProps {
   initialData?: Partial<CreateAuctionPayload>;
+  fieldErrors?: WizardFieldErrors;
 }
 
-export function DetailsTab({ initialData }: DetailsTabProps) {
+function CategoryPicker({
+  selectedIds,
+  onChange,
+}: {
+  selectedIds: number[];
+  onChange: (ids: number[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const { tree, categoryNameById, isLoading } = useCategories();
+
+  const toggle = (id: number) =>
+    onChange(
+      selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]
+    );
+
+  return (
+    <div className="space-y-2">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "flex w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors",
+              "hover:border-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring",
+              isLoading && "cursor-not-allowed opacity-60"
+            )}
+            disabled={isLoading}
+          >
+            <span className="text-muted-foreground">
+              {isLoading
+                ? "Loading categories…"
+                : selectedIds.length === 0
+                  ? "Select categories…"
+                  : `${selectedIds.length} categor${selectedIds.length === 1 ? "y" : "ies"} selected`}
+            </span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-[--radix-popover-trigger-width] p-0"
+          align="start"
+          sideOffset={4}
+        >
+          <Command>
+            <CommandInput placeholder="Search categories…" />
+            <CommandList className="max-h-64">
+              <CommandEmpty>No categories found.</CommandEmpty>
+              {tree.map((parent) => (
+                <CommandGroup key={parent.id} heading={parent.name}>
+                  <CommandItem
+                    value={parent.name}
+                    onSelect={() => toggle(parent.id)}
+                    className="gap-2"
+                  >
+                    <span
+                      className={cn(
+                        "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                        selectedIds.includes(parent.id)
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-muted-foreground/40"
+                      )}
+                    >
+                      {selectedIds.includes(parent.id) && <Check className="h-2.5 w-2.5" />}
+                    </span>
+                    {parent.name}
+                  </CommandItem>
+                  {parent.subcategories.map((sub) => (
+                    <CommandItem
+                      key={sub.id}
+                      value={sub.name}
+                      onSelect={() => toggle(sub.id)}
+                      className="gap-2 pl-6"
+                    >
+                      <span
+                        className={cn(
+                          "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                          selectedIds.includes(sub.id)
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-muted-foreground/40"
+                        )}
+                      >
+                        {selectedIds.includes(sub.id) && <Check className="h-2.5 w-2.5" />}
+                      </span>
+                      {sub.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ))}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selectedIds.map((id) => (
+            <span
+              key={id}
+              className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs text-foreground"
+            >
+              {categoryNameById.get(id) ?? `Category ${id}`}
+              <button
+                type="button"
+                onClick={() => toggle(id)}
+                className="text-muted-foreground transition-colors hover:text-foreground"
+                aria-label={`Remove ${categoryNameById.get(id)}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function DetailsTab({ initialData, fieldErrors }: DetailsTabProps) {
   void initialData;
   const { formState, updateFormState } = useAuctionForm();
   const detectedTimezone = useDetectedTimezone();
-  const [categoryInput, setCategoryInput] = useState("");
+  const errors = fieldErrors || {};
   const normalizedCountry = useMemo(
     () => normalizeCountryToIso2(formState.country),
     [formState.country]
@@ -45,6 +175,22 @@ export function DetailsTab({ initialData }: DetailsTabProps) {
       `auction-city-options-${normalizedCountry || "none"}-${(normalizedState || "none").replace(/[^A-Za-z0-9_-]/g, "-")}`,
     [normalizedCountry, normalizedState]
   );
+
+  useEffect(() => {
+    const defaults: Partial<CreateAuctionPayload> = {};
+
+    if (!formState.currency) {
+      defaults.currency = "USD";
+    }
+
+    if (!formState.timezone && detectedTimezone) {
+      defaults.timezone = detectedTimezone;
+    }
+
+    if (Object.keys(defaults).length > 0) {
+      updateFormState(defaults);
+    }
+  }, [formState.currency, formState.timezone, detectedTimezone, updateFormState]);
 
   const handleCountryChange = useCallback(
     (country: string | undefined) => {
@@ -83,23 +229,6 @@ export function DetailsTab({ initialData }: DetailsTabProps) {
     [formState.state, normalizedCountry, updateFormState]
   );
 
-  const addCategory = (value: string) => {
-    const next = value.trim();
-    if (!next) return;
-    const existing = formState.categories || [];
-    if (existing.some((item) => item.toLowerCase() === next.toLowerCase())) {
-      setCategoryInput("");
-      return;
-    }
-    updateFormState({ categories: [...existing, next] });
-    setCategoryInput("");
-  };
-
-  const removeCategory = (value: string) => {
-    const existing = formState.categories || [];
-    updateFormState({ categories: existing.filter((item) => item !== value) });
-  };
-
   const handleGenerateCode = () => {
     const base = (formState.name || "auction")
       .trim()
@@ -120,6 +249,7 @@ export function DetailsTab({ initialData }: DetailsTabProps) {
             placeholder="Premium Estate Auction 2026"
             value={formState.name || ""}
             onChange={(e) => updateFormState({ name: e.target.value })}
+            error={errors.name}
           />
           <div className="space-y-2">
             <FormInput
@@ -147,41 +277,12 @@ export function DetailsTab({ initialData }: DetailsTabProps) {
             value={formState.description || ""}
             onChange={(e) => updateFormState({ description: e.target.value })}
           />
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Categories</label>
-            <div className="flex flex-wrap gap-2">
-              {(formState.categories || []).map((category) => (
-                <span
-                  key={category}
-                  className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-xs text-foreground"
-                >
-                  {category}
-                  <button
-                    type="button"
-                    onClick={() => removeCategory(category)}
-                    className="text-muted-foreground hover:text-foreground"
-                    aria-label={`Remove ${category}`}
-                  >
-                    <Plus className="h-3 w-3 rotate-45" />
-                  </button>
-                </span>
-              ))}
-            </div>
-            <FormInput
-              label=""
-              name="categories_input"
-              placeholder="Type a category and press Enter"
-              value={categoryInput}
-              onChange={(e) => setCategoryInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === ",") {
-                  e.preventDefault();
-                  addCategory(categoryInput.replace(/,$/, ""));
-                }
-              }}
-              onBlur={() => addCategory(categoryInput)}
+            <CategoryPicker
+              selectedIds={formState.categories ?? []}
+              onChange={(ids) => updateFormState({ categories: ids })}
             />
-            <p className="text-xs text-muted-foreground">Press Enter or comma to add multiple categories.</p>
           </div>
         </div>
       </FormSection>
@@ -193,12 +294,14 @@ export function DetailsTab({ initialData }: DetailsTabProps) {
             value={formState.auction_start_at || ""}
             onChange={(value) => updateFormState({ auction_start_at: value })}
             clearable={false}
+            error={errors.auction_start_at}
           />
           <DateTimePicker
             label="Auction End *"
             value={formState.auction_end_at || ""}
             onChange={(value) => updateFormState({ auction_end_at: value })}
             clearable={false}
+            error={errors.auction_end_at}
           />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
@@ -209,10 +312,15 @@ export function DetailsTab({ initialData }: DetailsTabProps) {
               value={formState.timezone || detectedTimezone || ""}
               onChange={(value) => updateFormState({ timezone: value })}
               placeholder="Search timezone..."
+              error={!!errors.timezone}
             />
-            <p className="text-xs text-muted-foreground">
-              Stored in IANA format (for example: Europe/Zurich).
-            </p>
+            {errors.timezone ? (
+              <p className="text-xs text-destructive">{errors.timezone}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Stored in IANA format (for example: Europe/Zurich).
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Currency</label>
@@ -224,10 +332,15 @@ export function DetailsTab({ initialData }: DetailsTabProps) {
                   currency: (value || formState.currency || "USD") as CreateAuctionPayload["currency"],
                 })
               }
+              error={!!errors.currency}
             />
-            <p className="text-xs text-muted-foreground">
-              Stored as ISO-4217 currency code (for example: USD, EUR, CHF).
-            </p>
+            {errors.currency ? (
+              <p className="text-xs text-destructive">{errors.currency}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Stored as ISO-4217 currency code (for example: USD, EUR, CHF).
+              </p>
+            )}
           </div>
         </div>
         <div className="mt-6">
@@ -247,31 +360,37 @@ export function DetailsTab({ initialData }: DetailsTabProps) {
             label="Preview Start"
             value={formState.preview_start_at || ""}
             onChange={(value) => updateFormState({ preview_start_at: value || undefined })}
+            error={errors.preview_start_at}
           />
           <DateTimePicker
             label="Preview End"
             value={formState.preview_end_at || ""}
             onChange={(value) => updateFormState({ preview_end_at: value || undefined })}
+            error={errors.preview_end_at}
           />
           <DateTimePicker
             label="Checkout Start"
             value={formState.checkout_start_at || ""}
             onChange={(value) => updateFormState({ checkout_start_at: value || undefined })}
+            error={errors.checkout_start_at}
           />
           <DateTimePicker
             label="Checkout End"
             value={formState.checkout_end_at || ""}
             onChange={(value) => updateFormState({ checkout_end_at: value || undefined })}
+            error={errors.checkout_end_at}
           />
           <DateTimePicker
             label="Open Bidding At"
             value={formState.open_bidding_at || ""}
             onChange={(value) => updateFormState({ open_bidding_at: value || undefined })}
+            error={errors.open_bidding_at}
           />
           <DateTimePicker
             label="Close Bidding At"
             value={formState.close_bidding_at || ""}
             onChange={(value) => updateFormState({ close_bidding_at: value || undefined })}
+            error={errors.close_bidding_at}
           />
         </div>
       </FormSection>

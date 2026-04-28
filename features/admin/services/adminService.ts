@@ -15,8 +15,9 @@ export interface AdminStats {
     };
     bidders: {
       total: number;
-      approved: number;
       active: number;
+      suspended: number;
+      disabled: number;
     };
     recent_activity: {
       new_registrations_7days: number;
@@ -30,6 +31,14 @@ export interface AuctioneerStats {
   approved: number;
   rejected: number;
   under_review: number;
+}
+
+export interface BidderStatistics {
+  total: number;
+  active: number;
+  suspended: number;
+  disabled: number;
+  by_reputation?: Record<string, number>;
 }
 
 export interface Auctioneer {
@@ -167,13 +176,130 @@ export interface Bidder {
   id: number;
   name: string;
   email: string;
-  status: "active" | "suspended";
+  account_status: "active" | "suspended" | "disabled" | string;
+  status?: "active" | "suspended" | "disabled" | string;
   reputation_score: number;
+  reputation_level?: string;
+  recommended_action?: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
+export interface BidderReputationComponent {
+  name: string;
+  raw_score?: number;
+  weighted_score?: number;
+  weight?: number;
+  value?: number | string;
+}
 
+export interface BidderDetails extends Bidder {
+  reputation?: {
+    score: number;
+    level: string;
+    status: string;
+    recommended_action: string;
+    components?: BidderReputationComponent[];
+    weighted_scores?: BidderReputationComponent[];
+    raw_metrics?: {
+      auctions_won?: number;
+      total_bids?: number;
+      payments_completed?: number;
+      payments_failed?: number;
+      disputes_raised?: number;
+      disputes_resolved?: number;
+      disputes_lost?: number;
+      bid_retractions?: number;
+      no_shows?: number;
+      avg_payment_time_hours?: number;
+      [key: string]: number | undefined;
+    };
+  };
+}
+
+export interface BidderListResponse {
+  data: Bidder[];
+  meta: PaginationMeta;
+}
+
+// ─── Category Types ───────────────────────────────────────────────────────────
+
+export interface Category {
+  id: number;
+  name: string;
+  slug?: string;
+  image?: string | null;
+  parent_id?: number | null;
+  sort_order?: number;
+  auctions_count?: number;
+  published_auctions_count?: number;
+  subcategories_count?: number;
+  subcategories?: Category[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CreateCategoryPayload {
+  name: string;
+  parent_id?: number | null;
+  image?: string | null;
+  sort_order?: number;
+}
+
+export interface UpdateCategoryPayload {
+  name?: string;
+  parent_id?: number | null;
+  image?: string | null;
+  sort_order?: number;
+}
+
+// ─── Blog Types ───────────────────────────────────────────────────────────────
+
+export interface BlogAuthor {
+  name: string;
+  role?: string;
+  avatar?: string | null;
+}
+
+export interface BlogPost {
+  id: number;
+  title: string;
+  slug: string;
+  excerpt?: string | null;
+  content: string;
+  category?: string | null;
+  featured_image?: string | null;
+  publish_date?: string | null;
+  read_time?: number | null;
+  author?: BlogAuthor | null;
+  tags?: string[];
+  status?: "draft" | "published" | string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface BlogListResponse {
+  data: BlogPost[];
+  meta: PaginationMeta;
+}
+
+export interface CreateBlogPayload {
+  title: string;
+  slug?: string;
+  excerpt?: string;
+  content: string;
+  category?: string;
+  featured_image?: string;
+  publish_date?: string;
+  read_time?: number;
+  author?: BlogAuthor;
+  tags?: string[];
+  status?: "draft" | "published";
+}
+
+export type UpdateBlogPayload = Partial<CreateBlogPayload>;
+
+// ─── System ───────────────────────────────────────────────────────────────────
 
 export interface SystemHealth {
   application: {
@@ -305,6 +431,14 @@ export const adminService = {
    */
   async getAuctioneerStats(): Promise<AuctioneerStats> {
     const res = await withAuth.get<{ data: AuctioneerStats }>("/admin/auctioneers/statistics");
+    return res.data.data;
+  },
+
+  /**
+   * Get Bidder Statistics
+   */
+  async getBidderStatistics(): Promise<BidderStatistics> {
+    const res = await withAuth.get<{ data: BidderStatistics }>("/admin/bidders/statistics");
     return res.data.data;
   },
 
@@ -468,17 +602,23 @@ export const adminService = {
   /**
    * List Bidders with filter and pagination
    */
-  async getBidders(params?: { status?: string; page?: number; limit?: number }): Promise<{ data: Bidder[], total: number }> {
-    const res = await withAuth.get<{ data: Bidder[], total: number }>("/admin/bidders", { params });
+  async getBidders(params?: {
+    status?: string;
+    search?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<BidderListResponse> {
+    const res = await withAuth.get<BidderListResponse>("/admin/bidders", { params });
     return res.data;
   },
 
   /**
-   * Get Single Bidder
+   * Get Single Bidder (full details)
    */
-  async getBidder(id: number): Promise<Bidder> {
-    const res = await withAuth.get<Bidder>(`/admin/bidders/${id}`);
-    return res.data;
+  async getBidder(id: number): Promise<BidderDetails> {
+    const res = await withAuth.get<{ data: BidderDetails }>(`/admin/bidders/${id}`);
+    // Support both wrapped and unwrapped responses
+    return (res.data as unknown as { data?: BidderDetails }).data ?? (res.data as unknown as BidderDetails);
   },
 
   /**
@@ -495,5 +635,52 @@ export const adminService = {
   async createAdmin(data: { name: string; email: string}): Promise<unknown> {
     const res = await withAuth.post("/admin/create", data);
     return res.data;
-  }
+  },
+
+  // ─── Categories ─────────────────────────────────────────────────────────────
+
+  async getCategories(params?: { search?: string }): Promise<Category[]> {
+    const res = await withAuth.get<{ data: Category[] }>("/admin/categories", { params });
+    return res.data.data ?? [];
+  },
+
+  async createCategory(payload: CreateCategoryPayload): Promise<Category> {
+    const res = await withAuth.post<{ data: Category }>("/admin/categories", payload);
+    return res.data.data;
+  },
+
+  async updateCategory(id: number, payload: UpdateCategoryPayload): Promise<Category> {
+    const res = await withAuth.patch<{ data: Category }>(`/admin/categories/${id}`, payload);
+    return res.data.data;
+  },
+
+  async deleteCategory(id: number): Promise<void> {
+    await withAuth.delete(`/admin/categories/${id}`);
+  },
+
+  // ─── Blogs ──────────────────────────────────────────────────────────────────
+
+  async getBlogs(params?: { search?: string; category?: string; page?: number; per_page?: number }): Promise<BlogListResponse> {
+    const res = await withAuth.get<BlogListResponse>("/admin/blogs", { params });
+    return res.data;
+  },
+
+  async getBlog(id: number): Promise<BlogPost> {
+    const res = await withAuth.get<{ data: BlogPost }>(`/admin/blogs/${id}`);
+    return res.data.data;
+  },
+
+  async createBlog(payload: CreateBlogPayload): Promise<BlogPost> {
+    const res = await withAuth.post<{ data: BlogPost }>("/admin/blogs", payload);
+    return res.data.data;
+  },
+
+  async updateBlog(id: number, payload: UpdateBlogPayload): Promise<BlogPost> {
+    const res = await withAuth.put<{ data: BlogPost }>(`/admin/blogs/${id}`, payload);
+    return res.data.data;
+  },
+
+  async deleteBlog(id: number): Promise<void> {
+    await withAuth.delete(`/admin/blogs/${id}`);
+  },
 };
