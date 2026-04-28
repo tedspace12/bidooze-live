@@ -15,18 +15,31 @@ interface TimezoneSelectProps {
   name?: string;
   className?: string;
   isDisabled?: boolean;
+  error?: boolean;
 }
 
-const selectStyles: StylesConfig<TimezoneOption, false> = {
+const getSelectStyles = (hasError?: boolean): StylesConfig<TimezoneOption, false> => ({
   control: (base, state) => ({
     ...base,
     minHeight: "2.25rem",
     borderRadius: "0.375rem",
-    borderColor: state.isFocused ? "var(--ring)" : "var(--input)",
+    borderColor: hasError
+      ? "var(--destructive)"
+      : state.isFocused
+        ? "var(--ring)"
+        : "var(--input)",
     backgroundColor: "var(--background)",
-    boxShadow: state.isFocused ? "0 0 0 1px var(--ring)" : "none",
+    boxShadow: hasError
+      ? "0 0 0 1px var(--destructive)"
+      : state.isFocused
+        ? "0 0 0 1px var(--ring)"
+        : "none",
     "&:hover": {
-      borderColor: state.isFocused ? "var(--ring)" : "var(--input)",
+      borderColor: hasError
+        ? "var(--destructive)"
+        : state.isFocused
+          ? "var(--ring)"
+          : "var(--input)",
     },
   }),
   valueContainer: (base) => ({
@@ -99,7 +112,7 @@ const selectStyles: StylesConfig<TimezoneOption, false> = {
     ...base,
     color: "var(--muted-foreground)",
   }),
-};
+});
 
 export function TimezoneSelect({
   value,
@@ -108,9 +121,11 @@ export function TimezoneSelect({
   name,
   className,
   isDisabled,
+  error,
 }: TimezoneSelectProps) {
   const options = useMemo(() => getTimezoneOptions(), []);
   const menuPortalTarget = typeof document !== "undefined" ? document.body : undefined;
+  const styles = useMemo(() => getSelectStyles(error), [error]);
 
   const selectedOption = useMemo(() => {
     if (!value) return null;
@@ -141,7 +156,7 @@ export function TimezoneSelect({
       className={className}
       isDisabled={isDisabled}
       isClearable
-      styles={selectStyles}
+      styles={styles}
       menuPlacement="auto"
       menuPosition="fixed"
       maxMenuHeight={280}

@@ -27,11 +27,11 @@ export default function CreateAdminPage() {
     setFormData({ name: "", email: "" });
   };
 
-  if (userLoading) return <div className="p-6">Loading...</div>;
+  if (userLoading) return <div className="py-6">Loading...</div>;
 
   if (!isSuperAdmin) {
     return (
-      <div className="p-6 flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-4 px-4 text-center">
         <ShieldAlert className="h-16 w-16 text-red-500" />
         <h1 className="text-2xl font-bold text-slate-800">Access Denied</h1>
         <p className="text-slate-600">Only Superadmins can create new administrative accounts.</p>
@@ -40,7 +40,7 @@ export default function CreateAdminPage() {
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="mx-auto max-w-2xl">
       <Card>
         <CardHeader>
           <CardTitle>Create New Admin</CardTitle>

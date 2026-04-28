@@ -1,11 +1,12 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle2, Download, FileSpreadsheet } from "lucide-react";
+import { CheckCircle2, Download, FileSpreadsheet, Layers } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import type { ExportFormat, ReportTemplate, RunState } from "./report-types";
 
 interface RunReportPanelProps {
@@ -57,47 +58,44 @@ export function RunReportPanel({
 
   return (
     <Card className="min-w-0 border-border/70 bg-background/55 backdrop-blur-md xl:sticky xl:top-36 xl:self-start">
-      <CardHeader>
-        <CardTitle className="[font-family:var(--font-display)]">Run Report</CardTitle>
-        <CardDescription>
-          Select a template on the left to configure and generate.
-        </CardDescription>
+      <CardHeader className="pb-4">
+        <div className="flex items-start gap-3">
+          {selectedReport ? (
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+              <selectedReport.icon className="h-5 w-5 text-primary" />
+            </span>
+          ) : (
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/60">
+              <Layers className="h-5 w-5 text-muted-foreground" />
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <CardTitle className="text-base [font-family:var(--font-display)]">
+              {selectedReport ? selectedReport.name : "Run Report"}
+            </CardTitle>
+            <CardDescription className="mt-0.5 line-clamp-2">
+              {selectedReport
+                ? selectedReport.description
+                : "Select a template on the left to configure and generate."}
+            </CardDescription>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-5">
+
+      <CardContent className="space-y-4">
         {selectedReport ? (
           <>
-            <div className="rounded-xl border border-border/70 bg-background/60 p-4 backdrop-blur-sm">
-              <div className="mb-1 flex items-center gap-2">
-                <selectedReport.icon className="h-4 w-4 text-primary" />
-                <p className="font-semibold">{selectedReport.name}</p>
-              </div>
-              <p className="text-sm text-muted-foreground">{selectedReport.description}</p>
-            </div>
-
-            <div className="rounded-xl border border-border/70 bg-background/60 p-4 backdrop-blur-sm">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Report scope
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Date range</p>
-                  <p className="text-sm font-medium">{rangeLabel}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Auction</p>
-                  <p className="text-sm font-medium">{auctionLabel}</p>
-                </div>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Adjust using the global filters at the top of the page.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-border/70 bg-background/60 p-3 backdrop-blur-sm">
-              <p className="text-xs text-muted-foreground">
-                Use the floating action bar above to generate, save presets, and export
-                without losing context.
-              </p>
+            {/* Scope summary — compact single row */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border/50 bg-muted/30 px-3 py-2">
+              <span className="text-xs text-muted-foreground">
+                Range:{" "}
+                <span className="font-medium text-foreground">{rangeLabel}</span>
+              </span>
+              <span className="hidden text-border sm:block">/</span>
+              <span className="text-xs text-muted-foreground">
+                Auction:{" "}
+                <span className="font-medium text-foreground">{auctionLabel}</span>
+              </span>
             </div>
 
             {runState === "generating" && (
@@ -121,7 +119,7 @@ export function RunReportPanel({
                 <div className="rounded-xl border border-primary/30 bg-primary/10 p-3">
                   <p className="flex items-center gap-2 text-sm font-medium text-primary">
                     <CheckCircle2 className="h-4 w-4" />
-                    Report ready - {rangeLabel}
+                    Report ready &mdash; {rangeLabel}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Results shown below. Export in your preferred format.
@@ -129,7 +127,7 @@ export function RunReportPanel({
                 </div>
 
                 <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                     Export
                   </p>
                   <div className="flex flex-wrap gap-2">

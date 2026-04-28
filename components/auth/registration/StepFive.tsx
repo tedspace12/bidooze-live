@@ -1,267 +1,156 @@
 "use client";
+
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-
 import {
-    Form,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormControl,
-    FormMessage,
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
 } from "@/components/ui/form";
-
 import { Button } from "@/components/ui/button";
-
-import { useState } from "react";
-import { Upload } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { FileUploader } from "./FileUploader";
 
 const stepFiveSchema = z.object({
-    identityVerification: z
-        .any()
-        .refine((files) => files?.length > 0, "Please upload government ID"),
-    businessVerification: z
-        .any()
-        .refine((files) => files?.length > 0, "Please upload registration documents"),
-    backgroundCheckConsent: z.boolean().refine((v) => v === true, "Consent is required"),
-    complianceDocumentation: z
-        .any()
-        .refine((files) => files?.length > 0, "Please upload compliance documentation"),
+  backgroundCheckConsent: z.boolean().refine((v) => v === true, "Consent is required"),
 });
 
-export type StepFiveData = z.infer<typeof stepFiveSchema>;
+type StepFiveFields = z.infer<typeof stepFiveSchema>;
+
+export type StepFiveData = StepFiveFields & {
+  identityVerification: string[];    // Cloudinary URLs
+  businessVerification: string[];
+  complianceDocumentation: string[];
+};
 
 interface StepFiveProps {
-    defaultValues?: StepFiveData;
-    onSubmit: (data: StepFiveData) => void;
-    onBack: () => void;
-    isLoading?: boolean;
-    registrationToken?: string | null;
+  defaultValues?: StepFiveData;
+  onSubmit: (data: StepFiveData) => void;
+  onBack: () => void;
+  isLoading?: boolean;
+  registrationToken?: string | null;
 }
 
-export function StepFive({ defaultValues, onSubmit, onBack, isLoading }: StepFiveProps) {
-    const [identityFiles, setIdentityFiles] = useState<string[]>([]);
-    const [businessFiles, setBusinessFiles] = useState<string[]>([]);
-    const [complianceFiles, setComplianceFiles] = useState<string[]>([]);
+export function StepFive({ defaultValues, onSubmit, onBack, isLoading, registrationToken }: StepFiveProps) {
+  const [identityUrls, setIdentityUrls] = useState<string[] | null>(
+    defaultValues?.identityVerification?.length ? defaultValues.identityVerification : null
+  );
+  const [businessUrls, setBusinessUrls] = useState<string[] | null>(
+    defaultValues?.businessVerification?.length ? defaultValues.businessVerification : null
+  );
+  const [complianceUrls, setComplianceUrls] = useState<string[] | null>(
+    defaultValues?.complianceDocumentation?.length ? defaultValues.complianceDocumentation : null
+  );
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
-    const form = useForm<StepFiveData>({
-        resolver: zodResolver(stepFiveSchema),
-        defaultValues: defaultValues || {
-            identityVerification: null,
-            businessVerification: null,
-            backgroundCheckConsent: false,
-            complianceDocumentation: null,
-        },
+  const form = useForm<StepFiveFields>({
+    resolver: zodResolver(stepFiveSchema),
+    defaultValues: {
+      backgroundCheckConsent: defaultValues?.backgroundCheckConsent ?? false,
+    },
+  });
+
+  const handleSubmit = (fields: StepFiveFields) => {
+    setSubmitAttempted(true);
+    if (!identityUrls || !businessUrls || !complianceUrls) return;
+    onSubmit({
+      ...fields,
+      identityVerification: identityUrls,
+      businessVerification: businessUrls,
+      complianceDocumentation: complianceUrls,
     });
+  };
 
-    function handleFilesChange(
-        e: React.ChangeEvent<HTMLInputElement>,
-        setFiles: React.Dispatch<React.SetStateAction<string[]>>,
-        onChange: (files: FileList | null) => void
-    ) {
-        const files = e.target.files;
-        if (files) {
-            setFiles(Array.from(files).map((f) => f.name));
-            onChange(files);
-        }
-    }
+  const backgroundCheckConsent = form.watch("backgroundCheckConsent");
+  const canSubmit = !!backgroundCheckConsent && !!identityUrls && !!businessUrls && !!complianceUrls && !isLoading;
 
-    return (
-        <div className="max-w-3xl w-full space-y-8">
-            <header>
-                <p className="text-muted-foreground text-sm mb-2">Step 5/5</p>
-                <h2 className="text-3xl font-bold mb-1">Verification</h2>
-                <p className="text-muted-foreground">
-                    Upload necessary verification documents and provide your consent for background checks.
-                </p>
-            </header>
+  const base = `auctioneers/${registrationToken ?? "draft"}`;
 
-            <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6" encType="multipart/form-data">
+  return (
+    <div className="max-w-3xl w-full space-y-8">
+      <header>
+        <p className="text-muted-foreground text-sm mb-2">Step 5/5</p>
+        <h2 className="text-3xl font-bold mb-1">Verification</h2>
+        <p className="text-muted-foreground">
+          Upload your verification documents and consent to a background check.
+        </p>
+      </header>
 
-                    <FormField
-                        control={form.control}
-                        name="identityVerification"
-                        render={({ field }) => (
-                            <FormItem className="space-y-2">
-                                <FormLabel>Identity Verification (Government ID)</FormLabel>
-                                <FormControl>
-                                    <div
-                                        className="
-                                            border border-dashed rounded-xl p-6
-                                            flex flex-col items-center justify-center
-                                            hover:bg-muted/50 transition cursor-pointer
-                                            text-center
-                                        "
-                                        onClick={() => document.getElementById("identity-upload")?.click()}
-                                    >
-                                        <Upload className="w-8 h-8 text-muted-foreground mb-3" />
-                                        <p className="text-sm text-muted-foreground">
-                                            <span className="font-medium text-green-700">Click to upload</span> or drag files here
-                                        </p>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            PDF, JPG, JPEG, PNG — Max 10MB
-                                        </p>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
 
-                                        <input
-                                            id="identity-upload"
-                                            type="file"
-                                            accept=".pdf,.jpg,.jpeg,.png"
-                                            multiple
-                                            onChange={(e) => handleFilesChange(e, setIdentityFiles, field.onChange)}
-                                            className="hidden"
-                                        />
-                                    </div>
-                                </FormControl>
-                                <FormMessage />
-                                {identityFiles.length > 0 && (
-                                    <ul className="mt-2 list-disc list-inside text-sm text-muted-foreground">
-                                        {identityFiles.map((name, i) => (
-                                            <li key={i}>{name}</li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </FormItem>
-                        )}
-                    />
+          <FileUploader
+            folder={`${base}/identity`}
+            label="Identity Verification (Government ID)"
+            required
+            onChange={setIdentityUrls}
+            error={submitAttempted && !identityUrls ? "Please upload your government ID" : undefined}
+          />
 
-                    <FormField
-                        control={form.control}
-                        name="businessVerification"
-                        render={({ field }) => (
-                            <FormItem className="space-y-2">
-                                <FormLabel>Business Verification (Registration Documents)</FormLabel>
+          <FileUploader
+            folder={`${base}/business`}
+            label="Business Verification (Registration Documents)"
+            required
+            onChange={setBusinessUrls}
+            error={submitAttempted && !businessUrls ? "Please upload your registration documents" : undefined}
+          />
 
-                                <FormControl>
-                                    <div
-                                        className="
-                                            border border-dashed rounded-xl p-6
-                                            flex flex-col items-center justify-center
-                                            hover:bg-muted/50 transition cursor-pointer
-                                            text-center
-                                        "
-                                        onClick={() => document.getElementById("business-upload")?.click()}
-                                    >
-                                        <Upload className="w-8 h-8 text-muted-foreground mb-3" />
-                                        <p className="text-sm text-muted-foreground">
-                                            <span className="font-medium text-green-700">Click to upload</span> or drag files here
-                                        </p>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            PDF, JPG, JPEG, PNG — Max 10MB
-                                        </p>
+          <FileUploader
+            folder={`${base}/compliance`}
+            label="Compliance Documentation"
+            required
+            onChange={setComplianceUrls}
+            error={submitAttempted && !complianceUrls ? "Please upload compliance documentation" : undefined}
+          />
 
-                                        {/* Hidden input */}
-                                        <input
-                                            id="business-upload"
-                                            type="file"
-                                            accept=".pdf,.jpg,.jpeg,.png"
-                                            multiple
-                                            className="hidden"
-                                            onChange={(e) => handleFilesChange(e, setBusinessFiles, field.onChange)}
-                                        />
-                                    </div>
-                                </FormControl>
+          <FormField
+            control={form.control}
+            name="backgroundCheckConsent"
+            render={({ field }) => (
+              <FormItem className="flex items-center gap-3">
+                <FormControl>
+                  <input
+                    type="checkbox"
+                    checked={field.value}
+                    onChange={(e) => field.onChange(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-green-700 focus:ring-primary"
+                  />
+                </FormControl>
+                <FormLabel className="flex-1 cursor-pointer !mt-0">
+                  I consent to a background check
+                </FormLabel>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-                                <FormMessage />
-
-                                {/* File list */}
-                                {businessFiles.length > 0 && (
-                                    <ul className="mt-2 list-disc list-inside text-sm text-muted-foreground">
-                                        {businessFiles.map((name, i) => (
-                                            <li key={i}>{name}</li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </FormItem>
-                        )}
-                    />
-
-
-                    <FormField
-                        control={form.control}
-                        name="complianceDocumentation"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Compliance Documentation (Optional)</FormLabel>
-                                <FormControl>
-                                    <div
-                                        className="
-                                            border border-dashed rounded-xl p-6
-                                            flex flex-col items-center justify-center
-                                            hover:bg-muted/50 transition cursor-pointer
-                                            text-center
-                                        "
-                                        onClick={() => document.getElementById("compliance-upload")?.click()}
-                                    >
-                                        <Upload className="w-8 h-8 text-muted-foreground mb-3" />
-                                        <p className="text-sm text-muted-foreground">
-                                            <span className="font-medium text-green-700">Click to upload</span> or drag files here
-                                        </p>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            PDF, JPG, JPEG, PNG — Max 10MB
-                                        </p>
-                                        <input
-                                            id="compliance-upload"
-                                            type="file"
-                                            accept=".pdf,.jpg,.jpeg,.png"
-                                            multiple
-                                            onChange={(e) => handleFilesChange(e, setComplianceFiles, field.onChange)}
-                                            className="hidden"
-                                        />
-                                    </div>
-                                </FormControl>
-                                <FormMessage />
-                                {complianceFiles.length > 0 && (
-                                    <ul className="mt-2 list-disc list-inside text-sm text-muted-foreground">
-                                        {complianceFiles.map((name, i) => (
-                                            <li key={i}>{name}</li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </FormItem>
-                        )}
-                    />
-
-                    <FormField
-                        control={form.control}
-                        name="backgroundCheckConsent"
-                        render={({ field }) => (
-                            <FormItem className="flex items-center space-x-3">
-                                <FormControl>
-                                    <input
-                                        type="checkbox"
-                                        checked={field.value}
-                                        onChange={(e) => field.onChange(e.target.checked)}
-                                        className="h-4 w-4 rounded border-gray-300 text-green-700 focus:ring-primary"
-                                    />
-                                </FormControl>
-                                <FormLabel className="flex-1 cursor-pointer">
-                                    I consent to a background check
-                                </FormLabel>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-
-                    {/* Buttons */}
-                    <div className="flex flex-col-reverse md:flex-row gap-3 pt-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={onBack}
-                            className="w-full md:w-auto h-12 md:h-10 md:min-w-32 md:flex-none"
-                            size="lg"
-                            disabled={isLoading}
-                        >
-                            Back
-                        </Button>
-                        <Button type="submit" className="w-full h-12 md:h-10 md:flex-1" size="lg" disabled={isLoading}>
-                            {isLoading ? "Submitting..." : "Complete"}
-                        </Button>
-                    </div>
-                </form>
-            </Form>
-        </div>
-    );
+          <div className="flex flex-col-reverse md:flex-row gap-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onBack}
+              className="w-full md:w-auto h-12 md:h-10 md:min-w-32 md:flex-none"
+              size="lg"
+              disabled={isLoading}
+            >
+              Back
+            </Button>
+            <Button
+              type="submit"
+              className="w-full h-12 md:h-10 md:flex-1"
+              size="lg"
+              disabled={!canSubmit}
+            >
+              {isLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</> : "Complete"}
+            </Button>
+          </div>
+        </form>
+      </Form>
+    </div>
+  );
 }

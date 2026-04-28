@@ -1,44 +1,35 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import Image from "next/image";
 import { Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { FormSection } from "../FormSection";
 import { useAuctionForm } from "@/context/auction-form-context";
 import type { CreateAuctionPayload } from "@/features/auction/types";
+import type { WizardFieldErrors } from "@/utils/auctionWizardValidation";
+import { getObjectUrlMapForLotImages } from "@/lib/file-previews";
 
 const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 const maxSize = 10 * 1024 * 1024;
 
 interface LotImagesTabProps {
   initialData?: Partial<CreateAuctionPayload>;
+  fieldErrors?: WizardFieldErrors;
 }
 
-export function LotImagesTab({ initialData }: LotImagesTabProps) {
+export function LotImagesTab({ initialData, fieldErrors }: LotImagesTabProps) {
   void initialData;
   const { formState, setLotImages, removeLotImage } = useAuctionForm();
+  const errors = fieldErrors || {};
+  const previewMap = useMemo(
+    () => getObjectUrlMapForLotImages(formState.lot_images),
+    [formState.lot_images]
+  );
 
   const missingImages = (formState.lots || []).filter((lot, index) => {
     const byIndex = formState.lot_images?.[String(index)]?.length || 0;
     const byLotNumber = formState.lot_images?.[lot.lot_number]?.length || 0;
     return Math.max(byIndex, byLotNumber) === 0;
   });
-
-  const previewMap = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    const source = formState.lot_images || {};
-    Object.entries(source).forEach(([lotKey, files]) => {
-      map[lotKey] = files.map((file) => URL.createObjectURL(file));
-    });
-    return map;
-  }, [formState.lot_images]);
-
-  useEffect(() => {
-    return () => {
-      Object.values(previewMap).forEach((urls) => {
-        urls.forEach((url) => URL.revokeObjectURL(url));
-      });
-    };
-  }, [previewMap]);
 
   const handleLotImageChange = (lotKey: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -64,6 +55,11 @@ export function LotImagesTab({ initialData }: LotImagesTabProps) {
   return (
     <div className="space-y-6">
       <FormSection title="Lot Images" description="Upload and manage images for each lot">
+        {errors.lot_images && (
+          <div className="mb-4 rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive">
+            {errors.lot_images}
+          </div>
+        )}
         {missingImages.length > 0 && (
           <div className="mb-4 rounded-xl border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
             {missingImages.length} lot(s) have no images yet. Add at least one image per lot for a better bidder

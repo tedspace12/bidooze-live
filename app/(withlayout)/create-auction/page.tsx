@@ -22,7 +22,7 @@ import { useAuction } from "@/features/auction/hooks/useAuction";
 import { AuctionFormProvider, useAuctionForm } from "@/context/auction-form-context";
 import type { CreateAuctionPayload, Auction } from "@/features/auction/types";
 import { detectUserTimezone } from "@/lib/timezones";
-import { validateTab, getTabStatus, type WizardTabId } from "@/utils/auctionWizardValidation";
+import { validateTab, getTabFieldErrors, getTabStatus, type WizardTabId } from "@/utils/auctionWizardValidation";
 
 type CreationType = "scratch" | "copy" | null;
 type WizardStepId = WizardTabId;
@@ -96,6 +96,25 @@ interface CopyOption {
   checked: boolean;
 }
 
+const createInitialAttemptedSteps = (): Record<WizardStepId, boolean> => ({
+  details: false,
+  upload: false,
+  lots: false,
+  images: false,
+  preview: false,
+});
+
+const formatAuctionOptionDate = (auction: Auction) => {
+  const sourceDate = auction.auction_start_at || auction.auction_end_at || auction.created_at;
+  const parsed = sourceDate ? new Date(sourceDate) : null;
+
+  if (!parsed || Number.isNaN(parsed.getTime())) {
+    return "No schedule";
+  }
+
+  return parsed.toLocaleDateString();
+};
+
 export default function CreateAuctionWrapper() {
   return (
     <AuctionFormProvider>
@@ -107,18 +126,12 @@ export default function CreateAuctionWrapper() {
 function CreateAuction() {
   const router = useRouter();
   const { createAuction, useMyAuctions, useAuctionById } = useAuction();
-  const { formState, updateFormState, resetFormState } = useAuctionForm();
+  const { formState, initializeFormState, resetFormState } = useAuctionForm();
 
   const [creationType, setCreationType] = useState<CreationType>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [activeStep, setActiveStep] = useState<WizardStepId>("details");
-  const [attemptedSteps, setAttemptedSteps] = useState<Record<WizardStepId, boolean>>({
-    details: false,
-    upload: false,
-    lots: false,
-    images: false,
-    preview: false,
-  });
+  const [attemptedSteps, setAttemptedSteps] = useState<Record<WizardStepId, boolean>>(createInitialAttemptedSteps);
 
   const [selectedAuctionId, setSelectedAuctionId] = useState<string>("");
   const [auctionOptions, setAuctionOptions] = useState<{ value: string; label: string }[]>([]);
@@ -150,7 +163,7 @@ function CreateAuction() {
     if (myAuctions && myAuctions.length > 0) {
       const options = myAuctions.map((auction: Auction) => ({
         value: String(auction.id),
-        label: `${auction.name} - ${new Date(auction.created_at).toLocaleDateString()}`,
+        label: `${auction.name} - ${formatAuctionOptionDate(auction)}`,
       }));
       setAuctionOptions(options);
     }
@@ -215,20 +228,25 @@ function CreateAuction() {
       preFilledState.deposit_policy = source.deposit_policy;
     }
 
-    updateFormState(preFilledState);
+    initializeFormState({
+      timezone: detectUserTimezone() || "",
+      ...preFilledState,
+    });
     setShowWizard(true);
     setActiveStep("details");
+    setAttemptedSteps(createInitialAttemptedSteps());
     setPendingCopy(false);
-  }, [pendingCopy, auctionByIdQuery.data, auctionByIdQuery.isError, copyOptions, updateFormState]);
+  }, [pendingCopy, auctionByIdQuery.data, auctionByIdQuery.isError, copyOptions, initializeFormState]);
 
   const handleCopyOptionChange = (id: string, checked: boolean) => {
     setCopyOptions((opts) => opts.map((o) => (o.id === id ? { ...o, checked } : o)));
   };
 
   const currentStepResult = validateTab(activeStep, formState);
-  const reviewStepResult = validateTab("preview", formState);
-  const canProceed = currentStepResult.ok;
-  const canPublish = reviewStepResult.ok;
+  const currentStepFieldErrors = useMemo(
+    () => (attemptedSteps[activeStep] ? getTabFieldErrors(activeStep, formState) : {}),
+    [activeStep, attemptedSteps, formState]
+  );
 
   const furthestValidIndex = useMemo(() => {
     let idx = -1;
@@ -267,13 +285,15 @@ function CreateAuction() {
         toast.error("Please fill in all required fields.");
         return;
       }
-      updateFormState({
+      initializeFormState({
         name: setupWizardData.auctionName,
         auction_start_at: setupWizardData.startDate,
         auction_end_at: setupWizardData.endDate,
+        timezone: detectUserTimezone() || "",
       });
       setShowWizard(true);
       setActiveStep("details");
+      setAttemptedSteps(createInitialAttemptedSteps());
       toast.success("Starting auction setup.");
       return;
     }
@@ -395,7 +415,10 @@ function CreateAuction() {
               </Link>
               <div>
                 <h1 className="text-xl sm:text-2xl font-bold text-foreground">Create New Auction</h1>
-                <p className="text-xs sm:text-sm text-muted-foreground">Set up your auction from scratch or copy from existing</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  Launch a new auction from scratch or copy an existing auction to reuse pricing,
+                  bidder registration, lot, and publishing settings.
+                </p>
               </div>
             </div>
           </div>
@@ -405,8 +428,8 @@ function CreateAuction() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <SelectionCard
               icon={FilePlus}
-              title="Create Auction From Scratch"
-              subtitle="Full manual setup with fresh configuration"
+              title="Start a New Auction"
+              subtitle="Build a fresh timed or live auction with custom schedule, lots, and bidder rules"
               isActive={creationType === "scratch"}
               onClick={() => setCreationType("scratch")}
             >
@@ -443,7 +466,7 @@ function CreateAuction() {
             <SelectionCard
               icon={Copy}
               title="Copy an Existing Auction"
-              subtitle="Duplicate settings from previous auctions"
+              subtitle="Reuse proven auction settings, pricing rules, and bidder registration options"
               isActive={creationType === "copy"}
               onClick={() => setCreationType("copy")}
             >
@@ -511,8 +534,8 @@ function CreateAuction() {
 
   return (
     <WizardShell
-      title="Auction Setup"
-      description="Complete each step to publish your auction."
+      title="Auction Creation Workflow"
+      description="Configure auction details, bidder settings, lots, images, and preview everything before publishing."
       stepLabel={stepLabel}
       leading={
         <button
@@ -550,11 +573,7 @@ function CreateAuction() {
           <PremiumButton
             type="button"
             onClick={handleNext}
-            disabled={
-              createAuction.isPending ||
-              (!isFinalStep && !canProceed) ||
-              (isFinalStep && !canPublish)
-            }
+            disabled={createAuction.isPending}
           >
             {createAuction.isPending ? "Publishing..." : isFinalStep ? "Publish Auction" : "Next"}
             {!isFinalStep && <ChevronRight className="h-4 w-4 ml-2" />}
@@ -563,11 +582,17 @@ function CreateAuction() {
       }
     >
       <div className="space-y-8">
-        {activeStep === "details" && <DetailsTab initialData={formState} />}
-        {activeStep === "upload" && <UploadSettingsTab initialData={formState} />}
-        {activeStep === "lots" && <LotsTab />}
-        {activeStep === "images" && <LotImagesTab initialData={formState} />}
+        {activeStep === "details" && <DetailsTab initialData={formState} fieldErrors={currentStepFieldErrors} />}
+        {activeStep === "upload" && <UploadSettingsTab initialData={formState} fieldErrors={currentStepFieldErrors} />}
+        {activeStep === "lots" && <LotsTab fieldErrors={currentStepFieldErrors} />}
+        {activeStep === "images" && <LotImagesTab initialData={formState} fieldErrors={currentStepFieldErrors} />}
         {activeStep === "preview" && <PreviewTab onGoToTab={handleStepClick} />}
+
+        {!isFinalStep && !currentStepResult.ok && (
+          <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {currentStepResult.message}
+          </div>
+        )}
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-background/95 backdrop-blur p-4 flex items-center justify-between gap-3 lg:hidden">
@@ -577,11 +602,7 @@ function CreateAuction() {
         <PremiumButton
           type="button"
           onClick={handleNext}
-          disabled={
-            createAuction.isPending ||
-            (!isFinalStep && !canProceed) ||
-            (isFinalStep && !canPublish)
-          }
+          disabled={createAuction.isPending}
         >
           {isFinalStep ? "Publish" : "Next"}
         </PremiumButton>

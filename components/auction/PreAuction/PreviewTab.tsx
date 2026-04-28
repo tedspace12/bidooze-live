@@ -27,6 +27,7 @@ export function PreviewTab({ onGoToTab }: PreviewTabProps) {
   const checklist: PreviewChecklistItem[] = [
     { label: "Details complete", ok: detailsStatus.ok, tab: "details" as const },
     { label: "Upload settings complete", ok: uploadStatus.ok, tab: "upload" as const },
+    { label: "Feature image uploaded", ok: !!formState.feature_images?.length, tab: "upload" as const },
     { label: "Lots complete", ok: lotsStatus.ok, tab: "lots" as const },
     {
       label: "Lot images complete",
@@ -35,7 +36,12 @@ export function PreviewTab({ onGoToTab }: PreviewTabProps) {
     },
     {
       label: "Deposit details (if required)",
-      ok: !needsDeposit || (!!formState.deposit_type && !!formState.deposit_value && !!formState.deposit_cap && !!formState.deposit_policy),
+      ok:
+        !needsDeposit ||
+        (!!formState.deposit_type &&
+          typeof formState.deposit_value === "number" &&
+          typeof formState.deposit_cap === "number" &&
+          !!formState.deposit_policy),
       tab: "upload" as const,
     },
   ];

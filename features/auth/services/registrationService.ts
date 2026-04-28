@@ -23,6 +23,17 @@ type RegistrationStepResponse = {
   data?: unknown;
 } & Record<string, unknown>;
 
+export interface SocialContactInfoPayload {
+  registration_token: string;
+  provider: "google" | "facebook";
+  token: string;
+  contact_name: string;
+  business_address: string;
+  phone_number: string;
+  website?: string;
+  socials?: Array<{ platform: string; url: string }>;
+}
+
 const extractPayloadData = <T>(payload: unknown): T => {
   if (payload && typeof payload === "object" && "data" in payload) {
     const data = (payload as { data?: unknown }).data;
@@ -72,6 +83,21 @@ export const registrationService = {
   },
 
   /**
+   * Step 2 (Social): Contact Info via OAuth — replaces email/password with provider token
+   */
+  async submitSocialContactInfo(data: SocialContactInfoPayload): Promise<RegistrationStepResponse> {
+    try {
+      const res = await withoutAuth.post<RegistrationStepResponse>(
+        "/auctioneer/social-contact-info",
+        data
+      );
+      return extractPayloadData<RegistrationStepResponse>(res.data);
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
+  /**
    * Step 3: Bank Information
    */
   async submitStepThree(data: StepThreePayload): Promise<RegistrationStepResponse> {
@@ -87,42 +113,20 @@ export const registrationService = {
   },
 
   /**
-   * Step 4: Credentials & Documents (with file upload)
+   * Step 4: Credentials & Documents
+   * Files are uploaded directly to Cloudinary beforehand; this receives URLs.
    */
   async submitStepFour(data: StepFourPayload): Promise<RegistrationStepResponse> {
     try {
-      const formData = new FormData();
-
-      // Add all text fields (using snake_case for backend)
-      formData.append("registration_token", data.registration_token);
-      formData.append("licenseNumber", data.licenseNumber);
-      formData.append("licenseExpirationDate", data.licenseExpirationDate);
-      
-      if (data.certifications) {
-        formData.append("certifications", data.certifications);
-      }
-      if (data.associations) {
-        formData.append("associations", data.associations);
-      }
-
-      // Add license documents as files (using snake_case for backend)
-      if (data.licenseDocuments) {
-        const files = Array.isArray(data.licenseDocuments)
-          ? data.licenseDocuments
-          : Array.from(data.licenseDocuments);
-        
-        files.forEach((file: File, index: number) => {
-          formData.append(`licenseDocuments[${index}]`, file);
-        });
-      }
-
       const res = await withoutAuth.post<RegistrationStepResponse>(
         "/auctioneer/credentials-documents",
-        formData,
         {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
+          registration_token: data.registration_token,
+          licenseNumber: data.licenseNumber,
+          licenseExpirationDate: data.licenseExpirationDate,
+          certifications: data.certifications,
+          associations: data.associations,
+          licenseDocuments: data.licenseDocuments, // string[] of Cloudinary URLs
         }
       );
       return extractPayloadData<RegistrationStepResponse>(res.data);
@@ -133,61 +137,18 @@ export const registrationService = {
 
   /**
    * Step 5: Verification Documents (Final Step)
-   * Endpoint: POST /api/auctioneer/submit
-   * Payload: multipart/form-data with registration_token, background_check_consent,
-   *          identity_verification[0], business_verification[0], compliance_documentation[0]
+   * Files are uploaded directly to Cloudinary beforehand; this receives URL arrays.
    */
   async submitStepFive(data: StepFivePayload): Promise<RegistrationCompleteResponse> {
     try {
-      const formData = new FormData();
-
-      // Add registration token
-      formData.append("registration_token", data.registration_token);
-      
-      // Add background check consent (as string "true" or "false")
-      formData.append("background_check_consent", data.background_check_consent.toString());
-
-      // Add identity verification files
-      // Format: identity_verification[0], identity_verification[1], etc.
-      if (data.identity_verification) {
-        const files = Array.isArray(data.identity_verification)
-          ? data.identity_verification
-          : Array.from(data.identity_verification);
-        files.forEach((file: File, index: number) => {
-          formData.append(`identity_verification[${index}]`, file);
-        });
-      }
-
-      // Add business verification files
-      // Format: business_verification[0], business_verification[1], etc.
-      if (data.business_verification) {
-        const files = Array.isArray(data.business_verification)
-          ? data.business_verification
-          : Array.from(data.business_verification);
-        files.forEach((file: File, index: number) => {
-          formData.append(`business_verification[${index}]`, file);
-        });
-      }
-
-      // Add compliance documentation files (REQUIRED)
-      // Format: compliance_documentation[0], compliance_documentation[1], etc.
-      if (data.compliance_documentation) {
-        const files = Array.isArray(data.compliance_documentation)
-          ? data.compliance_documentation
-          : Array.from(data.compliance_documentation);
-        files.forEach((file: File, index: number) => {
-          formData.append(`compliance_documentation[${index}]`, file);
-        });
-      }
-
       const res = await withoutAuth.post<RegistrationCompleteResponse>(
         "/auctioneer/submit",
-        formData,
         {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            "Accept": "application/json",
-          },
+          registration_token: data.registration_token,
+          background_check_consent: data.background_check_consent,
+          identity_verification: data.identity_verification,   // string[]
+          business_verification: data.business_verification,   // string[]
+          compliance_documentation: data.compliance_documentation, // string[]
         }
       );
       return extractPayloadData<RegistrationCompleteResponse>(res.data);

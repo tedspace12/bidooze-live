@@ -1,5 +1,5 @@
 import { withAuth, withoutAuth, getToken, setToken, removeToken } from "@/services/api";
-import type { AuthUser, AuctioneerProfile } from "../types";
+import type { AuthUser, AuctioneerProfile, TeamMemberInfo } from "../types";
 
 type ApiErrorLike = {
   response?: {
@@ -18,6 +18,7 @@ export interface LoginSuccessResponse {
   user: AuthUser;
   auctioneer: AuctioneerProfile | null;
   can_access_auctioneer_features: boolean;
+  team_member?: TeamMemberInfo | null;
   token: string;
   token_type: string;
 }
@@ -35,9 +36,31 @@ export interface CurrentUserResponse {
   user: AuthUser;
   auctioneer?: AuctioneerProfile | null;
   can_access_auctioneer_features?: boolean;
+  team_member?: TeamMemberInfo | null;
+}
+
+export interface AcceptInvitePayload {
+  token: string;
+  display_name?: string;
+  password: string;
+}
+
+export interface AcceptInviteResponse {
+  message: string;
+  token: string;
 }
 
 export type AuthPanel = "auctioneer" | "admin";
+
+export interface SocialLoginPayload {
+  provider: "google" | "facebook";
+  token: string;
+}
+
+export type AuctioneerSocialLoginResponse =
+  | LoginSuccessResponse
+  | { status: "not_registered"; message: string }
+  | { status: "pending_approval"; message: string };
 
 export interface ForgotPasswordResponse {
   message: string;
@@ -60,6 +83,23 @@ export const authService = {
   async loginAuctioneer(email: string, password: string): Promise<LoginResponse> {
     try {
       const res = await withoutAuth.post<LoginResponse>("/auctioneer/login", { email, password });
+      if ("token" in res.data && res.data.token) {
+        setToken(res.data.token);
+      }
+      return res.data;
+    } catch (error: unknown) {
+      return rethrowApiError(error);
+    }
+  },
+
+  /**
+   * Auctioneer Social Login (Google / Meta)
+   * Sends OAuth2 access_token (from oauth2.initTokenClient / FB.login).
+   * Backend uses Socialite userFromToken() to verify.
+   */
+  async socialLoginAuctioneer(payload: SocialLoginPayload): Promise<AuctioneerSocialLoginResponse> {
+    try {
+      const res = await withoutAuth.post<AuctioneerSocialLoginResponse>("/auctioneer/social", payload);
       if ("token" in res.data && res.data.token) {
         setToken(res.data.token);
       }
@@ -166,6 +206,21 @@ export const authService = {
   async getCurrentUser(): Promise<CurrentUserResponse> {
     try {
       const res = await withAuth.get<CurrentUserResponse>("/user");
+      return res.data;
+    } catch (error: unknown) {
+      return rethrowApiError(error);
+    }
+  },
+
+  /**
+   * Accept team member invitation
+   */
+  async acceptInvite(payload: AcceptInvitePayload): Promise<AcceptInviteResponse> {
+    try {
+      const res = await withoutAuth.post<AcceptInviteResponse>("/auth/accept-invite", payload);
+      if (res.data.token) {
+        setToken(res.data.token);
+      }
       return res.data;
     } catch (error: unknown) {
       return rethrowApiError(error);

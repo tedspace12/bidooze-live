@@ -28,6 +28,23 @@ export interface BidIncrementInput {
   increment: number;
 }
 
+export interface FloorBidder {
+  id: number;
+  auction_id: number;
+  bidder_number: number;
+  display_name: string;
+  phone?: string | null;
+  notes?: string | null;
+  status: "active" | "inactive" | string;
+}
+
+export interface CreateFloorBidderPayload {
+  display_name: string;
+  phone?: string;
+  notes?: string;
+  status?: "active" | "inactive";
+}
+
 export interface AuctionLot {
   id: number | string;
   lot_number: string;
@@ -128,6 +145,7 @@ export interface AuctionSeller {
   address?: string;
   notes?: string;
   status?: SellerStatus;
+  commission_rate?: number | null;
 }
 
 export interface CreateSellerPayload {
@@ -137,6 +155,7 @@ export interface CreateSellerPayload {
   address?: string;
   notes?: string;
   status: SellerStatus;
+  commission_rate: number;
 }
 
 export interface UpdateLotPayload {
@@ -176,7 +195,7 @@ export interface CreateAuctionPayload {
   state?: string;
   zip_code?: string;
   country?: string;
-  categories?: string[];
+  categories?: number[];
 
   currency: CurrencyCode;
   commission_percentage?: number;
@@ -245,8 +264,18 @@ export interface CreateAuctionPayload {
   lot_images?: Record<string, File[]>;
 }
 
-export type UpdateAuctionPayload = Partial<Omit<CreateAuctionPayload, "feature_images">> & {
-  feature_images?: File[];
+export type UpdateAuctionPayload = Partial<
+Omit<
+CreateAuctionPayload,
+ | "feature_images"
+ | "commission_percentage"
+ | "buyer_premium_percentage"
+ >
+ > & {
+  feature_image_urls?: string[];
+  feature_image_files?: File[];
+  commission_percentage?: number | null;
+  buyer_premium_percentage?: number | null;
 };
 
 
@@ -368,13 +397,21 @@ export interface AuctionEditResponse {
   checkout_end_at?: string;
   open_bidding_at?: string;
   close_bidding_at?: string;
+  commission_percentage?: number;
+  buyer_premium_percentage?: number;
+  bid_mechanism?: BidMechanism;
+  bid_amount_type?: BidAmountType;
+  force_bid_increment_schedule?: boolean;
+  bid_increments?: BidIncrementInput[];
+  auction_links?: { url: string; description: string }[];
+  feature_images?: string[];
   address_line_1?: string | null;
   address_line_2?: string | null;
   city?: string | null;
   state?: string | null;
   zip_code?: string | null;
   country?: string | null;
-  categories?: Array<string | AuctionEditCategory>;
+  categories?: number[];
 }
 
 
@@ -405,10 +442,65 @@ export interface ActivityLog {
 export interface AuctionActivity {
   id: number;
   type: "bid" | "registration" | "lot_sold";
-  lot_title?: string;
-  bidder_name?: string;
-  amount?: number;
-  created_at: string;
+  lot_title?: string | null;
+  bidder?: string | null;
+  bidder_name?: string | null;
+  amount?: number | string | null;
+  timestamp: string;
+}
+
+export interface AuctionBidderRegistrationUser {
+  id?: number;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  avatar_url?: string | null;
+}
+
+export interface AuctionBidderRegistration {
+  id: number;
+  auction_id?: number | null;
+  user_id?: number | null;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  bidder?: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  } | null;
+  user?: AuctionBidderRegistrationUser | null;
+  status?: "pending_approval" | "approved" | "rejected" | "suspended" | string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  approved_at?: string | null;
+  approved_by?: number | null;
+  rejected_at?: string | null;
+  rejection_reason?: string | null;
+  max_bid_limit?: number | null;
+  accepted_terms?: boolean | null;
+  deposit_verified?: boolean | null;
+  payment_method_verified?: boolean | null;
+  payment_method_provider?: string | null;
+  payment_method_ref?: string | null;
+  verified_at?: string | null;
+  last_authenticated_at?: string | null;
+  terms_version?: string | null;
+  terms_accepted_at?: string | null;
+}
+
+export interface AuctionBid {
+  id: number | string;
+  lot_id?: number | string | null;
+  lot_number?: number | string | null;
+  lot_title?: string | null;
+  bidder_name?: string | null;
+  bidder_id?: number | string | null;
+  amount?: number | string | null;
+  bid_status?: "pending_approval" | "approved" | "rejected" | string | null;
+  is_winning?: boolean | null;
+  placed_at?: string | null;
+  created_at?: string | null;
 }
 
 export interface AuctionRecentBid {
@@ -431,7 +523,27 @@ export interface AuctionRecentBid {
 }
 
 
+export interface Subcategory {
+  id: number;
+  parent_id: number;
+  name: string;
+  slug: string;
+  image_url: string | null;
+  sort_order: number;
+  published_auctions_count: number;
+}
 
+export interface Category {
+  id: number;
+  parent_id: null;
+  name: string;
+  slug: string;
+  image_url: string | null;
+  sort_order: number;
+  published_auctions_count: number;
+  subcategories: Subcategory[];
+}
 
-
-
+export interface CategoriesResponse {
+  data: Category[];
+}

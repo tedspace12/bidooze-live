@@ -16,22 +16,35 @@ interface CurrencySelectProps {
   className?: string;
   isDisabled?: boolean;
   isClearable?: boolean;
+  error?: boolean;
 }
 
 const subscribeToCurrencies = () => () => undefined;
 const getServerCurrencySnapshot = (): CurrencyOption[] => [];
 const getClientCurrencySnapshot = (): CurrencyOption[] => getCurrencyOptions();
 
-const selectStyles: StylesConfig<CurrencyOption, false> = {
+const getSelectStyles = (hasError?: boolean): StylesConfig<CurrencyOption, false> => ({
   control: (base, state) => ({
     ...base,
     minHeight: "2.25rem",
     borderRadius: "0.375rem",
-    borderColor: state.isFocused ? "var(--ring)" : "var(--input)",
+    borderColor: hasError
+      ? "var(--destructive)"
+      : state.isFocused
+        ? "var(--ring)"
+        : "var(--input)",
     backgroundColor: "var(--background)",
-    boxShadow: state.isFocused ? "0 0 0 1px var(--ring)" : "none",
+    boxShadow: hasError
+      ? "0 0 0 1px var(--destructive)"
+      : state.isFocused
+        ? "0 0 0 1px var(--ring)"
+        : "none",
     "&:hover": {
-      borderColor: state.isFocused ? "var(--ring)" : "var(--input)",
+      borderColor: hasError
+        ? "var(--destructive)"
+        : state.isFocused
+          ? "var(--ring)"
+          : "var(--input)",
     },
   }),
   valueContainer: (base) => ({
@@ -104,7 +117,7 @@ const selectStyles: StylesConfig<CurrencyOption, false> = {
     ...base,
     color: "var(--muted-foreground)",
   }),
-};
+});
 
 export function CurrencySelect({
   value,
@@ -114,6 +127,7 @@ export function CurrencySelect({
   className,
   isDisabled,
   isClearable = false,
+  error,
 }: CurrencySelectProps) {
   const options = useSyncExternalStore(
     subscribeToCurrencies,
@@ -122,6 +136,7 @@ export function CurrencySelect({
   );
 
   const menuPortalTarget = typeof document !== "undefined" ? document.body : undefined;
+  const styles = useMemo(() => getSelectStyles(error), [error]);
 
   const selectedOption = useMemo(() => {
     if (!value) return null;
@@ -160,7 +175,7 @@ export function CurrencySelect({
       className={className}
       isDisabled={isDisabled}
       isClearable={isClearable}
-      styles={selectStyles}
+      styles={styles}
       menuPlacement="auto"
       menuPosition="fixed"
       maxMenuHeight={280}

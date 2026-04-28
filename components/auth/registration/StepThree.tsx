@@ -330,6 +330,23 @@ export const StepThree = ({ onNext, onBack, defaultValues, isLoading }: StepThre
     const selectedCountry = useWatch({ control: form.control, name: "country" });
   const countryConfig = COUNTRY_BANK_CONFIG[selectedCountry];
 
+  const [bankName, accountHolderName, accountNumber, accountType, bankIdentifiers] = form.watch([
+    "bankName", "accountHolderName", "accountNumber", "accountType", "bankIdentifiers",
+  ]);
+
+  const identifiersComplete = !selectedCountry || (countryConfig?.identifiers ?? []).every(
+    (id) => !!bankIdentifiers?.[id.key]?.trim()
+  );
+  const accountNumberValid = !selectedCountry || countryConfig?.noAccountNumber || !!accountNumber?.trim();
+
+  const canSubmit = !isLoading &&
+    !!selectedCountry &&
+    !!bankName?.trim() &&
+    !!accountHolderName?.trim() &&
+    !!accountType &&
+    accountNumberValid &&
+    identifiersComplete;
+
   const handleCountryChange = (value: string) => {
     const nextAccountTypes = COUNTRY_BANK_CONFIG[value]?.accountTypes ?? DEFAULT_ACCOUNT_TYPES;
     const defaultAccountType = nextAccountTypes[0]?.value ?? "";
@@ -481,7 +498,7 @@ export const StepThree = ({ onNext, onBack, defaultValues, isLoading }: StepThre
             >
               Back
             </Button>
-            <Button type="submit" className="w-full h-12 md:h-10 md:flex-1" size="lg" disabled={isLoading}>
+            <Button type="submit" className="w-full h-12 md:h-10 md:flex-1" size="lg" disabled={!canSubmit}>
               {isLoading ? "Submitting..." : "Next"}
             </Button>
           </div>

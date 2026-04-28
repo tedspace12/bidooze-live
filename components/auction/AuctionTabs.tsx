@@ -6,20 +6,22 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import OverviewTab from "./tabs/OverviewTab";
 import LotsTab from "./tabs/LotsTab";
 import BiddersTab from "./tabs/BiddersTab";
+import BidsTab from "./tabs/BidsTab";
 import LiveConsoleTab from "./tabs/LiveConsoleTab";
 import FinancialsTab from "./tabs/FinancialsTab";
 import SettlementTab from "./tabs/SettlementTab";
 import ReportsTab from "./tabs/ReportsTab";
 import SettingsTab from "./tabs/SettingsTab";
-import { 
-  LayoutDashboard, 
-  Package, 
-  Users, 
-  Radio, 
-  CreditCard, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  Package,
+  Users,
+  Radio,
+  CreditCard,
+  BarChart3,
   Settings,
-  DollarSign
+  DollarSign,
+  Gavel,
 } from "lucide-react";
 
 interface AuctionTabsProps {
@@ -30,6 +32,7 @@ const tabs = [
   { value: "overview", label: "Overview", icon: LayoutDashboard },
   { value: "lots", label: "Lots", icon: Package },
   { value: "bidders", label: "Bidders", icon: Users },
+  { value: "bids", label: "Bids", icon: Gavel },
   { value: "financials", label: "Financials", icon: DollarSign },
   { value: "live-console", label: "Live Console", icon: Radio },
   { value: "settlement", label: "Settlement", icon: CreditCard },
@@ -100,6 +103,9 @@ export default function AuctionTabs({ auction }: AuctionTabsProps) {
       </TabsContent>
       <TabsContent value="bidders" className="mt-6">
         <BiddersTab auction={auction} />
+      </TabsContent>
+      <TabsContent value="bids" className="mt-6">
+        <BidsTab auction={auction} />
       </TabsContent>
       <TabsContent value="financials" className="mt-6">
         <FinancialsTab auction={auction} />

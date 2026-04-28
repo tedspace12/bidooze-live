@@ -310,7 +310,7 @@ export default function AdminSettingsPage() {
 
   if (userLoading || profileLoading) {
     return (
-      <div className="p-6 space-y-4">
+      <div className="space-y-4">
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -318,14 +318,14 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-[1200px] mx-auto">
+    <div className="mx-auto max-w-[1200px] space-y-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold text-slate-800">Admin Settings</h1>
         <p className="text-slate-500">Manage your admin profile, security, notifications, and access control.</p>
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 lg:w-[700px]">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4 lg:w-[700px]">
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <Settings className="h-4 w-4" /> Profile
           </TabsTrigger>
@@ -347,7 +347,7 @@ export default function AdminSettingsPage() {
               <CardDescription>Update your name, email, avatar, and bio.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center gap-4 rounded-md border p-4">
+              <div className="flex flex-col gap-4 rounded-md border p-4 sm:flex-row sm:items-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-600 overflow-hidden">
                   {avatarPreview ? (
                     <Image src={avatarPreview} alt="Avatar preview" width={56} height={56} unoptimized className="h-full w-full object-cover" />
@@ -361,7 +361,7 @@ export default function AdminSettingsPage() {
                   <p className="text-sm font-medium">Profile photo</p>
                   <p className="text-xs text-muted-foreground">Upload a square image (min 400x400).</p>
                 </div>
-                <label className="text-sm font-medium text-primary cursor-pointer">
+                <label className="cursor-pointer text-sm font-medium text-primary">
                   <input
                     type="file"
                     accept="image/*"
@@ -374,6 +374,7 @@ export default function AdminSettingsPage() {
                   variant="outline"
                   disabled={!avatarFile || updateSettings.isPending}
                   onClick={handleUploadAvatar}
+                  className="w-full sm:w-auto"
                 >
                   {updateSettings.isPending ? "Uploading..." : "Upload"}
                 </Button>
@@ -393,7 +394,7 @@ export default function AdminSettingsPage() {
                   <Label>Role</Label>
                   <Input value={profile.role} readOnly disabled />
                 </div>
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="profileEmail">Email</Label>
                   <Input
                     id="profileEmail"
@@ -415,7 +416,7 @@ export default function AdminSettingsPage() {
                 />
               </div>
             </CardContent>
-            <CardFooter className="flex items-center justify-end gap-3">
+            <CardFooter className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -431,10 +432,11 @@ export default function AdminSettingsPage() {
                   setProfileErrors({});
                 }}
                 disabled={!profileDirty}
+                className="w-full sm:w-auto"
               >
                 Cancel
               </Button>
-              <Button onClick={handleSaveProfile} disabled={!profileDirty || updateSettings.isPending}>
+              <Button onClick={handleSaveProfile} disabled={!profileDirty || updateSettings.isPending} className="w-full sm:w-auto">
                 {updateSettings.isPending ? "Saving..." : "Save Changes"}
               </Button>
             </CardFooter>
@@ -449,7 +451,7 @@ export default function AdminSettingsPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="currentPassword">Current Password</Label>
                   <Input
                     id="currentPassword"
@@ -489,8 +491,8 @@ export default function AdminSettingsPage() {
                   )}
                 </div>
               </div>
-              <div className="flex items-center justify-between rounded-md border p-4">
-                <div>
+              <div className="flex flex-col gap-4 rounded-md border p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
                   <Label htmlFor="mfaEnabled">Multi-Factor Authentication</Label>
                   <p className="text-xs text-muted-foreground">
                     {profile.mfaEnabled
@@ -506,11 +508,11 @@ export default function AdminSettingsPage() {
                 />
               </div>
             </CardContent>
-            <CardFooter className="flex items-center justify-end gap-3">
-              <Button variant="outline" onClick={() => setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" })}>
+            <CardFooter className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <Button variant="outline" onClick={() => setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" })} className="w-full sm:w-auto">
                 Cancel
               </Button>
-              <Button onClick={handleSavePassword} disabled={updateSettings.isPending}>
+              <Button onClick={handleSavePassword} disabled={updateSettings.isPending} className="w-full sm:w-auto">
                 {updateSettings.isPending ? "Saving..." : "Update Password"}
               </Button>
             </CardFooter>
@@ -518,10 +520,10 @@ export default function AdminSettingsPage() {
         </TabsContent>
 
         <TabsContent value="notifications" className="mt-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
+            <Card>
+              <CardHeader>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
                   <CardTitle>Notifications</CardTitle>
                   <CardDescription>Alert preferences for admin activity.</CardDescription>
                 </div>
@@ -537,8 +539,8 @@ export default function AdminSettingsPage() {
                 </div>
               )}
               <div className="grid gap-6 md:grid-cols-2">
-                <div className="flex items-center justify-between rounded-md border p-3">
-                  <div>
+                <div className="flex flex-col gap-4 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
                     <Label htmlFor="emailAlerts">Email Alerts</Label>
                     <p className="text-xs text-muted-foreground">Receive critical system alerts.</p>
                   </div>
@@ -549,8 +551,8 @@ export default function AdminSettingsPage() {
                     disabled={!notificationsLoaded}
                   />
                 </div>
-                <div className="flex items-center justify-between rounded-md border p-3">
-                  <div>
+                <div className="flex flex-col gap-4 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
                     <Label htmlFor="smsAlerts">SMS Alerts</Label>
                     <p className="text-xs text-muted-foreground">Text notifications for outages.</p>
                   </div>
@@ -561,8 +563,8 @@ export default function AdminSettingsPage() {
                     disabled={!notificationsLoaded}
                   />
                 </div>
-                <div className="flex items-center justify-between rounded-md border p-3 md:col-span-2">
-                  <div>
+                <div className="flex flex-col gap-4 rounded-md border p-3 md:col-span-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
                     <Label htmlFor="weeklyDigest">Weekly Digest</Label>
                     <p className="text-xs text-muted-foreground">Email weekly summaries.</p>
                   </div>
@@ -575,9 +577,9 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="flex items-center justify-end gap-3">
-              <Button variant="outline" disabled={!notificationsLoaded}>Cancel</Button>
-              <Button onClick={handleSaveNotifications} disabled={!notificationsLoaded || updateSettings.isPending}>
+            <CardFooter className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <Button variant="outline" disabled={!notificationsLoaded} className="w-full sm:w-auto">Cancel</Button>
+              <Button onClick={handleSaveNotifications} disabled={!notificationsLoaded || updateSettings.isPending} className="w-full sm:w-auto">
                 {updateSettings.isPending ? "Saving..." : "Save Changes"}
               </Button>
             </CardFooter>
@@ -585,21 +587,21 @@ export default function AdminSettingsPage() {
         </TabsContent>
 
         <TabsContent value="access" className="mt-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
+            <Card>
+              <CardHeader>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
                   <CardTitle>Admin Management</CardTitle>
                   <CardDescription>Manage admin invitations, approvals, and access rules.</CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {!accessLoaded && (
                     <Badge variant="outline" className="text-xs text-muted-foreground">Not loaded</Badge>
                   )}
                   {isSuperAdmin && (
                     <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                       <DialogTrigger asChild>
-                        <Button className="flex items-center gap-2">
+                        <Button className="flex w-full items-center gap-2 sm:w-auto">
                           <UserPlus className="h-4 w-4" /> Add Admin
                         </Button>
                       </DialogTrigger>
@@ -634,11 +636,11 @@ export default function AdminSettingsPage() {
                               />
                             </div>
                           </div>
-                          <DialogFooter>
-                            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
+                          <DialogFooter className="flex-col gap-2 sm:flex-row">
+                            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="w-full sm:w-auto">
                               Cancel
                             </Button>
-                            <Button type="submit" disabled={createAdmin.isPending}>
+                            <Button type="submit" disabled={createAdmin.isPending} className="w-full sm:w-auto">
                               {createAdmin.isPending ? "Creating..." : "Create Admin"}
                             </Button>
                           </DialogFooter>
@@ -662,8 +664,8 @@ export default function AdminSettingsPage() {
                     </div>
                   )}
                   <div className="grid gap-6 md:grid-cols-2">
-                    <div className="flex items-center justify-between rounded-md border p-3">
-                      <div>
+                    <div className="flex flex-col gap-4 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-1">
                         <Label htmlFor="requireApproval">Require Approval</Label>
                         <p className="text-xs text-muted-foreground">Approve new admin accounts manually.</p>
                       </div>
@@ -688,9 +690,9 @@ export default function AdminSettingsPage() {
                 </>
               )}
             </CardContent>
-            <CardFooter className="flex items-center justify-end gap-3">
-              <Button variant="outline" disabled={!accessLoaded || !isSuperAdmin}>Cancel</Button>
-              <Button onClick={handleSaveAccess} disabled={!accessLoaded || !isSuperAdmin || updateSettings.isPending}>
+            <CardFooter className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <Button variant="outline" disabled={!accessLoaded || !isSuperAdmin} className="w-full sm:w-auto">Cancel</Button>
+              <Button onClick={handleSaveAccess} disabled={!accessLoaded || !isSuperAdmin || updateSettings.isPending} className="w-full sm:w-auto">
                 {updateSettings.isPending ? "Saving..." : "Save Changes"}
               </Button>
             </CardFooter>

@@ -40,15 +40,15 @@ export interface StepFourPayload {
   licenseExpirationDate: string;
   certifications?: string;
   associations?: string;
-  licenseDocuments: FileList | File[] | null;
+  licenseDocuments: string[]; // Cloudinary URLs — uploaded directly before this call
 }
 
 export interface StepFivePayload {
   registration_token: string;
-  identity_verification: FileList | File[] | null;
-  business_verification: FileList | File[] | null;
+  identity_verification: string[];    // Cloudinary URLs
+  business_verification: string[];
   background_check_consent: boolean;
-  compliance_documentation: FileList | File[] | null; // Required, not optional
+  compliance_documentation: string[];
 }
 
 // Registration Response Types
@@ -73,6 +73,24 @@ export interface SubmitRegistrationPayload {
   registration_token: string;
 }
 
+export interface TeamPermissions {
+  edit_miscellaneous: boolean;
+  create_edit_auctions: boolean;
+  run_live_auction: boolean;
+  process_payments: boolean;
+  view_reports: boolean;
+  export_financials: boolean;
+  manage_users: boolean;
+  transfer_ownership: boolean;
+  manage_billing: boolean;
+}
+
+export interface TeamMemberInfo {
+  id: string;
+  role: "owner" | "admin" | "clerk" | "cataloger" | "accountant" | "custom";
+  custom_permissions: TeamPermissions | null;
+}
+
 export interface AuthUser {
   id: number;
   name: string;
@@ -95,6 +113,7 @@ export interface AuthSession {
   user: AuthUser | null;
   auctioneer: AuctioneerProfile | null;
   can_access_auctioneer_features: boolean;
+  team_member?: TeamMemberInfo | null;
 }
 
 export interface RegistrationProgressResponse {

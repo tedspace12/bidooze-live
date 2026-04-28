@@ -24,7 +24,7 @@ export function ReportActionBar({
   onExport,
 }: ReportActionBarProps) {
   return (
-    <div className="sticky top-16 z-20 lg:static lg:top-auto">
+    <div className="sticky top-16 z-20">
       <div className="rounded-2xl border border-border/60 bg-background/65 p-3 shadow-[0_18px_50px_-35px_hsl(var(--foreground)/0.55)] backdrop-blur-xl">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">

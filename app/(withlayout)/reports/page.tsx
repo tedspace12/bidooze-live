@@ -15,13 +15,7 @@ import {
 import { toast } from "sonner";
 import { DateRangeFilter } from "@/components/auction/date-range-filter";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -392,8 +386,8 @@ export default function ReportsPage() {
   const [kpiCards, setKpiCards] = useState<KpiCard[]>(() => mapOverviewKpis());
   const [insights, setInsights] = useState<Insight[]>([]);
   const [isOverviewLoading, setIsOverviewLoading] = useState(true);
-  const [isPresetsLoading, setIsPresetsLoading] = useState(true);
-  const [isExportsLoading, setIsExportsLoading] = useState(true);
+  const [isPresetsLoading, setIsPresetsLoading] = useState(false);
+  const [isExportsLoading, setIsExportsLoading] = useState(false);
   const runPanelRef = useRef<HTMLDivElement | null>(null);
   const runPollTokenRef = useRef(0);
   const mountedRef = useRef(true);
@@ -591,11 +585,6 @@ export default function ReportsPage() {
   useEffect(() => {
     void refreshAuctionOptions();
   }, [refreshAuctionOptions]);
-
-  useEffect(() => {
-    void refreshPresets();
-    void refreshExports();
-  }, [refreshExports, refreshPresets]);
 
   useEffect(() => {
     void refreshOverview();
@@ -918,126 +907,122 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6 pb-10">
+      {/* Hero header */}
       <Card className="relative overflow-hidden border-border/70 bg-[linear-gradient(135deg,hsl(var(--primary)/0.35)_0%,hsl(var(--background))_52%,hsl(var(--muted)/0.7)_100%)]">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,hsl(var(--foreground)/0.08)_1px,transparent_0)] bg-size-[14px_14px]" />
         <div className="pointer-events-none absolute -right-16 -top-24 h-60 w-60 rounded-full bg-[hsl(var(--chart-4)/0.24)] blur-3xl" />
-        <CardContent className="relative space-y-4 p-4 sm:p-6 lg:p-8">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl [font-family:var(--font-display)]">
-                My Reports
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Auction reporting -{" "}
-                <span className="font-medium text-foreground">{rangeLabel}</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              <span className="hidden sm:inline">Date range</span>
-            </div>
-            <DateRangeFilter value={range} onChange={setRange} />
-            <Select value={auctionScope} onValueChange={setAuctionScope}>
-              <SelectTrigger className="w-full sm:w-60">
-                <Gavel className="mr-2 h-4 w-4 text-muted-foreground" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {auctionOptions.map((auction) => (
-                  <SelectItem key={auction.id} value={auction.id}>
-                    {auction.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {range && (
-              <Button variant="ghost" size="sm" onClick={() => setRange(undefined)}>
-                <X className="mr-2 h-4 w-4" />
-                Clear
-              </Button>
-            )}
-          </div>
+        <CardContent className="relative p-4 sm:p-6 lg:p-8">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl [font-family:var(--font-display)]">
+            My Reports
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Analytics and exports for your auction activity
+          </p>
         </CardContent>
       </Card>
 
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/60 bg-card/60 px-4 py-3 shadow-sm backdrop-blur-sm">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Calendar className="h-4 w-4" />
+          <span className="hidden sm:inline font-medium">Date range</span>
+        </div>
+        <DateRangeFilter value={range} onChange={setRange} />
+        <div className="h-4 w-px bg-border hidden sm:block" />
+        <Select value={auctionScope} onValueChange={setAuctionScope}>
+          <SelectTrigger className="w-full sm:w-60">
+            <Gavel className="mr-2 h-4 w-4 text-muted-foreground" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {auctionOptions.map((auction) => (
+              <SelectItem key={auction.id} value={auction.id}>
+                {auction.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {range && (
+          <Button variant="ghost" size="sm" onClick={() => setRange(undefined)}>
+            <X className="mr-2 h-4 w-4" />
+            Clear
+          </Button>
+        )}
+        <div className="ml-auto text-xs text-muted-foreground hidden sm:block">
+          {rangeLabel} &middot; {auctionLabel}
+        </div>
+      </div>
+
       <Tabs value={tab} onValueChange={(value) => setTab(value as TabValue)}>
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
-          <TabsTrigger value="overview">
+        <TabsList className="h-10 gap-0.5 rounded-xl border bg-muted/40 p-1">
+          <TabsTrigger value="overview" className="rounded-lg px-4 text-sm">
             <BarChart3 className="mr-2 h-4 w-4" />
             Overview
           </TabsTrigger>
-          <TabsTrigger value="reports">
+          <TabsTrigger value="reports" className="rounded-lg px-4 text-sm">
             <FileText className="mr-2 h-4 w-4" />
             Reports
           </TabsTrigger>
-          <TabsTrigger value="presets">
+          <TabsTrigger value="presets" className="rounded-lg px-4 text-sm">
             <Save className="mr-2 h-4 w-4" />
             My Presets
           </TabsTrigger>
-          <TabsTrigger value="exports">
+          <TabsTrigger value="exports" className="rounded-lg px-4 text-sm">
             <Download className="mr-2 h-4 w-4" />
             Exports
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="mt-6 space-y-6">
-          <Card className="border-border/70 bg-background/55 backdrop-blur-md">
-            <CardHeader>
-              <CardTitle className="[font-family:var(--font-display)]">
-                Performance Snapshot
-              </CardTitle>
-            <CardDescription>
-                {rangeLabel} - {auctionLabel}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isOverviewLoading ? (
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                  {Array.from({ length: 6 }).map((_, index) => (
-                    <div
-                      key={`kpi-skeleton-${index}`}
-                      className="rounded-xl border border-border/70 bg-background/60 p-3"
-                    >
-                      <div className="h-3 w-7/12 animate-pulse rounded bg-muted/50" />
-                      <div className="mt-2 h-6 w-5/12 animate-pulse rounded bg-muted/40" />
-                      <div className="mt-2 h-3 w-8/12 animate-pulse rounded bg-muted/40" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <KpiGrid cards={kpiCards} />
-              )}
-            </CardContent>
-          </Card>
+        <TabsContent value="overview" className="mt-6 space-y-8">
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold tracking-tight [font-family:var(--font-display)]">Performance Snapshot</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{rangeLabel} &middot; {auctionLabel}</p>
+              </div>
+            </div>
+            {isOverviewLoading ? (
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div
+                    key={`kpi-skeleton-${index}`}
+                    className="rounded-xl border border-border/70 bg-background/60 p-3"
+                  >
+                    <div className="h-3 w-7/12 animate-pulse rounded bg-muted/50" />
+                    <div className="mt-2 h-6 w-5/12 animate-pulse rounded bg-muted/40" />
+                    <div className="mt-2 h-3 w-8/12 animate-pulse rounded bg-muted/40" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <KpiGrid cards={kpiCards} />
+            )}
+          </section>
 
-          <Card className="border-border/70 bg-background/55 backdrop-blur-md">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 [font-family:var(--font-display)]">
-                <Bell className="h-4 w-4" />
-                Insights & Alerts
-              </CardTitle>
-              <CardDescription>
-                Computed from your current period data. Open any alert to jump
-                into its report.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <InsightsPanel
-                insights={insights}
-                getReportName={(reportId) =>
-                  REPORTS.find((report) => report.id === reportId)?.name
-                }
-                isLoading={isOverviewLoading}
-                onOpen={(reportId) => {
-                  const report = REPORTS.find((item) => item.id === reportId);
-                  if (report) openReport(report);
-                }}
-              />
-            </CardContent>
-          </Card>
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-base font-semibold tracking-tight flex items-center gap-2 [font-family:var(--font-display)]">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10">
+                  <Bell className="h-3.5 w-3.5 text-primary" />
+                </span>
+                Insights &amp; Alerts
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Computed from your current period data. Open any alert to jump into its report.
+              </p>
+            </div>
+            <InsightsPanel
+              insights={insights}
+              getReportName={(reportId) =>
+                REPORTS.find((report) => report.id === reportId)?.name
+              }
+              isLoading={isOverviewLoading}
+              onOpen={(reportId) => {
+                const report = REPORTS.find((item) => item.id === reportId);
+                if (report) openReport(report);
+              }}
+            />
+          </section>
         </TabsContent>
 
         <TabsContent value="reports" className="mt-6 space-y-6">
@@ -1059,26 +1044,20 @@ export default function ReportsPage() {
             />
           )}
 
-          <Card className="border-border/70 bg-background/55 backdrop-blur-md">
-            <CardHeader>
-              <CardTitle className="[font-family:var(--font-display)]">
-                Quick Access
-              </CardTitle>
-              <CardDescription>
-                Recently run templates and workflow packs.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <QuickAccessPanel
-                recentReports={recentReports}
-                packs={REPORT_PACKS}
-                onOpenReport={(report) => openReport(report)}
-                onGeneratePack={(pack) => {
-                  void generatePack(pack);
-                }}
-              />
-            </CardContent>
-          </Card>
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-base font-semibold tracking-tight [font-family:var(--font-display)]">Quick Access</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Recently run templates and workflow packs.</p>
+            </div>
+            <QuickAccessPanel
+              recentReports={recentReports}
+              packs={REPORT_PACKS}
+              onOpenReport={(report) => openReport(report)}
+              onGeneratePack={(pack) => {
+                void generatePack(pack);
+              }}
+            />
+          </section>
 
           <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
             <ReportLibraryPanel

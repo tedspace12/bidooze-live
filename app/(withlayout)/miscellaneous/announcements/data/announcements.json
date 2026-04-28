@@ -1,0 +1,42 @@
+[
+  {
+    "id": "2026-04-card-tester-lockout",
+    "date": "2026-04-20",
+    "version": "1.4.0",
+    "title": "Card-tester lockout now configurable",
+    "body_md": "You can now set the failed-payment threshold and lockout window from **Company → Defaults & Policies**. Previously these were hardcoded to 10 attempts / 24 hours. Existing tenants retain those defaults; adjust in Company settings.",
+    "tags": ["security", "bidders", "payments"]
+  },
+  {
+    "id": "2026-03-formula-library",
+    "date": "2026-03-15",
+    "version": "1.3.0",
+    "title": "Reusable Formula library",
+    "body_md": "Buyer's premiums, taxes, commissions, and sliding scales can now be defined once under **Formulas** and referenced from any auction. Previously each auction required rates to be re-entered. Bulk rate changes now take effect across all auctions that reference the formula.",
+    "tags": ["formulas", "auctions", "rates"]
+  },
+  {
+    "id": "2026-02-locations",
+    "date": "2026-02-28",
+    "version": "1.2.0",
+    "title": "Reusable Locations",
+    "body_md": "Auction sites, pickup addresses, and warehouses can now be saved under **Locations** and referenced by ID on each auction record. No more copy-pasting addresses between auctions.",
+    "tags": ["locations", "auctions"]
+  },
+  {
+    "id": "2026-01-user-roles",
+    "date": "2026-01-10",
+    "version": "1.1.0",
+    "title": "Role-based team access",
+    "body_md": "Added five built-in roles: Owner, Admin, Clerk, Cataloger, Accountant — each with a pre-defined permission set. A Custom role lets you compose any combination. Per-auction access restriction is available for all non-Owner roles.",
+    "tags": ["users", "roles", "permissions"]
+  },
+  {
+    "id": "2025-12-miscellaneous",
+    "date": "2025-12-01",
+    "version": "1.0.0",
+    "title": "Miscellaneous section launched",
+    "body_md": "The Miscellaneous section is now live. It covers the full auctioneer configuration surface: Accounts, Formulas, Users, Company, Locations, and Announcements. This replaces the previous Settings page.",
+    "tags": ["launch", "miscellaneous"]
+  }
+]

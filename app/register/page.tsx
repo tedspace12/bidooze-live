@@ -5,7 +5,7 @@ import {
   REGISTRATION_STEPS,
 } from "@/components/auth/registration/RegistrationSidebar";
 import { StepOne, StepOneData } from "@/components/auth/registration/StepOne";
-import { StepTwo, StepTwoData } from "@/components/auth/registration/StepTwo";
+import { StepTwo, StepTwoData, SocialStepTwoData } from "@/components/auth/registration/StepTwo";
 import { StepThree, StepThreeData } from "@/components/auth/registration/StepThree";
 import { StepFour, StepFourData } from "@/components/auth/registration/StepFour";
 import { StepFive, StepFiveData } from "@/components/auth/registration/StepFive";
@@ -17,6 +17,7 @@ import { Check, CheckCircle } from "lucide-react";
 import { useRouter } from "@bprogress/next/app";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import { SiteLegalLinks } from "@/components/legal/site-legal-links";
 
 interface RegistrationData {
   stepOne?: StepOneData;
@@ -150,7 +151,7 @@ const Registration = () => {
   const router = useRouter();
 
   // Initialize React Query mutations and queries
-  const { stepOne, stepTwo, stepThree, stepFour, stepFive, useRegistrationProgress } = useRegistration();
+  const { stepOne, stepTwo, socialStepTwo, stepThree, stepFour, stepFive, useRegistrationProgress } = useRegistration();
   
   // Query registration progress only on initial load to resume registration
   const { data: progressData, refetch: refetchProgress } = useRegistrationProgress(registrationToken);
@@ -247,6 +248,38 @@ const Registration = () => {
         toast.error(errorMessage);
       }
       console.error("Step 2 error:", error);
+    }
+  };
+
+  const handleSocialStepTwoSubmit = async (data: SocialStepTwoData) => {
+    if (!registrationToken) {
+      toast.error("Registration token missing. Please start from Step 1.");
+      return;
+    }
+
+    try {
+      await socialStepTwo.mutateAsync({
+        registration_token: registrationToken,
+        provider: data.provider,
+        token: data.provider_token,
+        contact_name: data.contactName,
+        business_address: data.businessAddress,
+        phone_number: data.phoneNumber,
+        website: data.website,
+        socials: data.socials,
+      });
+      setFormData((prev) => ({ ...prev, stepTwo: undefined }));
+      setCurrentStep(3);
+      toast.success("Step 2 submitted successfully");
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, "Error submitting Step 2. Please try again.");
+      const validationMessages = getValidationMessages(error);
+
+      if (validationMessages.length > 0) {
+        validationMessages.forEach((msg) => toast.error(msg));
+      } else {
+        toast.error(errorMessage);
+      }
     }
   };
 
@@ -434,6 +467,9 @@ const Registration = () => {
                 <p className="text-xs text-muted-foreground text-center">
                   You will receive an email notification once your account is approved.
                 </p>
+                <div className="w-full rounded-lg border border-border bg-card/80 px-4 py-3 shadow-soft">
+                  <SiteLegalLinks className="justify-center" linkClassName="text-xs" />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -455,9 +491,11 @@ const Registration = () => {
               {currentStep === 2 && (
                 <StepTwo
                   onNext={handleStepTwoSubmit}
+                  onSocialNext={handleSocialStepTwoSubmit}
                   onBack={() => setCurrentStep(1)}
                   defaultValues={formData.stepTwo}
                   isLoading={stepTwo.isPending}
+                  isSocialLoading={socialStepTwo.isPending}
                   registrationToken={registrationToken}
                 />
               )}
@@ -488,6 +526,9 @@ const Registration = () => {
                   registrationToken={registrationToken}
                 />
               )}
+              </div>
+              <div className="rounded-lg border border-border bg-card/80 px-4 py-3 shadow-soft">
+                <SiteLegalLinks className="justify-center" linkClassName="text-xs" />
               </div>
             </div>
           </>

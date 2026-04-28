@@ -7,24 +7,31 @@ import {
 } from "@/components/ui/sidebar"
 import { cn } from '@/lib/utils'
 import { AuctioneerApprovedGuard } from "@/components/guards/AuctioneerApprovedGuard"
+import { NavigationProvider } from "@/context/nav-context"
+import { SubscriptionBanner } from "@/components/subscription/SubscriptionBanner"
+import { SubscriptionRequiredModal } from "@/components/subscription/SubscriptionRequiredModal"
 
 export default function BidoozeSellerLayout({ children }: { children: React.ReactNode }) {
 
     return (
-        <SidebarProvider>
-            <AppSidebar />
-            <SidebarInset>
-                <HeaderBreadcrumbs />
-                <div className="min-h-screen bg-background">
-                    <main className={cn(
-                        "transition-all duration-300"
-                    )}>
-                        <div className='pt-0 p-3 sm:p-4 md:p-6'>
-                            <AuctioneerApprovedGuard>{children}</AuctioneerApprovedGuard>
-                        </div>
-                    </main>
-                </div>
-            </SidebarInset>
-        </SidebarProvider>
+        <NavigationProvider>
+            <SidebarProvider>
+                <AppSidebar />
+                <SidebarInset className="min-w-0">
+                    <HeaderBreadcrumbs />
+                    <div className="min-h-screen min-w-0 bg-background">
+                        <main className={cn(
+                            "min-w-0 transition-all duration-300"
+                        )}>
+                            <div className='min-w-0 p-3 pt-0 sm:p-4 sm:pt-0 md:p-6 md:pt-0'>
+                                <SubscriptionBanner />
+                                <AuctioneerApprovedGuard>{children}</AuctioneerApprovedGuard>
+                                <SubscriptionRequiredModal />
+                            </div>
+                        </main>
+                    </div>
+                </SidebarInset>
+            </SidebarProvider>
+        </NavigationProvider>
     )
 }

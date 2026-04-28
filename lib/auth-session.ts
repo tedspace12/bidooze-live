@@ -16,6 +16,21 @@ export type AuthSessionPayload = {
     company_name: string | null;
   } | null;
   can_access_auctioneer_features: boolean;
+  team_member?: {
+    id: string;
+    role: "owner" | "admin" | "clerk" | "cataloger" | "accountant" | "custom";
+    custom_permissions: {
+      edit_miscellaneous: boolean;
+      create_edit_auctions: boolean;
+      run_live_auction: boolean;
+      process_payments: boolean;
+      view_reports: boolean;
+      export_financials: boolean;
+      manage_users: boolean;
+      transfer_ownership: boolean;
+      manage_billing: boolean;
+    } | null;
+  } | null;
 };
 
 export function parseSessionCookie(raw?: string | null): AuthSessionPayload | null {

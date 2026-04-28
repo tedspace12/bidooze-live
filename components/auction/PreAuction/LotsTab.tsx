@@ -17,6 +17,7 @@ import {
 import { useAuctionForm } from "@/context/auction-form-context";
 import { useAuction } from "@/features/auction/hooks/useAuction";
 import type { AuctionSeller, CreateAuctionLotInput, CreateSellerPayload } from "@/features/auction/types";
+import type { WizardFieldErrors } from "@/utils/auctionWizardValidation";
 
 interface LotFormState {
   lot_number: string;
@@ -37,6 +38,7 @@ interface NewSellerFormState {
   phone: string;
   address: string;
   notes: string;
+  commission_percent: string;
   status: "active" | "inactive" | "pending" | "suspended";
 }
 
@@ -59,6 +61,7 @@ const emptySellerForm: NewSellerFormState = {
   phone: "",
   address: "",
   notes: "",
+  commission_percent: "15",
   status: "active",
 };
 
@@ -178,10 +181,15 @@ const parseCsv = (input: string): string[][] => {
   return rows.filter((row) => row.some((cell) => cell.trim() !== ""));
 };
 
-export function LotsTab() {
+interface LotsTabProps {
+  fieldErrors?: WizardFieldErrors;
+}
+
+export function LotsTab({ fieldErrors }: LotsTabProps) {
   const { formState, updateFormState, clearLotImages } = useAuctionForm();
   const { useAuctioneerSellers, createAuctioneerSeller } = useAuction();
   const { data: sellers = [], isLoading: sellersLoading } = useAuctioneerSellers();
+  const errors = fieldErrors || {};
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -270,6 +278,61 @@ export function LotsTab() {
     },
   ];
 
+  const renderMobileLotCard = (item: LotRow) => (
+    <article
+      key={item.id}
+      className="rounded-xl border border-border bg-background p-4 shadow-sm"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Lot {item.lot_number}
+          </p>
+          <h4 className="mt-1 truncate text-sm font-semibold text-foreground">{item.title}</h4>
+        </div>
+        <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground">
+          Qty {item.quantity}
+        </span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <div className="rounded-lg bg-muted/40 px-3 py-2">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Starting Bid</p>
+          <p className="mt-1 font-medium text-foreground">{item.starting_bid ?? "-"}</p>
+        </div>
+        <div className="rounded-lg bg-muted/40 px-3 py-2">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Stagger</p>
+          <p className="mt-1 font-medium text-foreground">{item.lot_stagger_seconds ?? "-"}s</p>
+        </div>
+      </div>
+
+      {item.description && (
+        <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{item.description}</p>
+      )}
+
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <PremiumButton
+          type="button"
+          variant="outline"
+          className="w-full justify-center"
+          onClick={() => openEdit(item)}
+        >
+          <Edit2 className="mr-2 h-4 w-4" />
+          Edit Lot
+        </PremiumButton>
+        <PremiumButton
+          type="button"
+          variant="outline"
+          className="w-full justify-center text-destructive hover:text-destructive"
+          onClick={() => handleDelete(item.lot_number)}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete
+        </PremiumButton>
+      </div>
+    </article>
+  );
+
   const openAdd = () => {
     setEditingLotKey(null);
     setLotForm(emptyLotForm);
@@ -311,6 +374,11 @@ export function LotsTab() {
       toast.error("Seller phone is required.");
       return;
     }
+    const commissionPercent = Number(newSellerForm.commission_percent);
+    if (!Number.isFinite(commissionPercent) || commissionPercent < 0 || commissionPercent > 100) {
+      toast.error("Commission rate must be between 0 and 100.");
+      return;
+    }
 
     const payload: CreateSellerPayload = {
       name: newSellerForm.name.trim(),
@@ -318,6 +386,7 @@ export function LotsTab() {
       phone: newSellerForm.phone.trim(),
       address: newSellerForm.address.trim() || undefined,
       notes: newSellerForm.notes.trim() || undefined,
+      commission_rate: Math.max(0, Math.min(1, commissionPercent / 100)),
       status: newSellerForm.status,
     };
 
@@ -524,15 +593,15 @@ export function LotsTab() {
   return (
     <div className="space-y-6">
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+        <DialogContent className="flex h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-3xl flex-col overflow-hidden p-0 sm:h-auto sm:max-h-[90vh]">
+          <DialogHeader className="shrink-0 border-b px-4 pt-5 pb-4 sm:px-6 sm:pt-6">
             <DialogTitle>{editingLotKey ? "Edit Lot" : "Add Lot"}</DialogTitle>
             <DialogDescription>
               {editingLotKey ? "Update details for this lot." : "Add a new lot to this auction."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormInput
@@ -557,7 +626,13 @@ export function LotsTab() {
                     onValueChange={(value) => setLotForm((prev) => ({ ...prev, seller_id: value }))}
                     disabled={sellersLoading}
                   />
-                  <PremiumButton type="button" variant="ghost" size="sm" onClick={openNewSellerDialog}>
+                  <PremiumButton
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-center sm:w-auto"
+                    onClick={openNewSellerDialog}
+                  >
                     <Plus className="h-3.5 w-3.5 mr-1" />
                     Add New Seller
                   </PremiumButton>
@@ -636,25 +711,32 @@ export function LotsTab() {
             </div>
           </div>
 
-          <div className="px-6 py-4 border-t flex justify-end gap-3 shrink-0">
-            <PremiumButton type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+          <div className="shrink-0 border-t bg-background px-4 py-4 sm:px-6">
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <PremiumButton
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setIsDialogOpen(false)}
+            >
               Cancel
             </PremiumButton>
-            <PremiumButton type="button" onClick={handleSave}>
+            <PremiumButton type="button" className="w-full sm:w-auto" onClick={handleSave}>
               {editingLotKey ? "Save Changes" : "Add Lot"}
             </PremiumButton>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isSellerDialogOpen} onOpenChange={setIsSellerDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+        <DialogContent className="flex h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-2xl flex-col overflow-hidden p-0 sm:h-auto sm:max-h-[90vh]">
+          <DialogHeader className="shrink-0 border-b px-4 pt-5 pb-4 sm:px-6 sm:pt-6">
             <DialogTitle>Add New Seller</DialogTitle>
             <DialogDescription>Create a seller and assign it to this lot.</DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormInput
@@ -675,6 +757,18 @@ export function LotsTab() {
                   placeholder="+12025550111"
                   value={newSellerForm.phone}
                   onChange={(e) => setNewSellerForm((prev) => ({ ...prev, phone: e.target.value }))}
+                />
+                <FormInput
+                  label="Commission Rate (%) *"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  placeholder="15"
+                  value={newSellerForm.commission_percent}
+                  onChange={(e) =>
+                    setNewSellerForm((prev) => ({ ...prev, commission_percent: e.target.value }))
+                  }
                 />
                 <FormSelect
                   label="Status"
@@ -706,38 +800,53 @@ export function LotsTab() {
             </div>
           </div>
 
-          <div className="px-6 py-4 border-t flex justify-end gap-3 shrink-0">
-            <PremiumButton type="button" variant="outline" onClick={() => setIsSellerDialogOpen(false)}>
+          <div className="shrink-0 border-t bg-background px-4 py-4 sm:px-6">
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <PremiumButton
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setIsSellerDialogOpen(false)}
+            >
               Cancel
             </PremiumButton>
             <PremiumButton
               type="button"
+              className="w-full sm:w-auto"
               onClick={handleCreateSeller}
               isLoading={createAuctioneerSeller.isPending}
               disabled={createAuctioneerSeller.isPending}
             >
               Create Seller
             </PremiumButton>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
 
       <FormSection title="Lots Overview" description="Search and manage lots." className="space-y-4">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="relative w-full md:max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search lots..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-input bg-background text-sm"
-            />
+        {errors.lots && (
+          <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {errors.lots}
           </div>
-          <div className="flex items-center gap-3">
+        )}
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="flex w-full flex-col gap-3 xl:max-w-sm">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search lots..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-lg border border-input bg-background py-2 pl-10 pr-4 text-sm"
+              />
+            </div>
             <span className="text-sm text-muted-foreground">
               Total lots: <span className="font-medium text-foreground">{lots.length}</span>
             </span>
+          </div>
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3 xl:w-auto xl:min-w-[34rem]">
             <input
               type="file"
               id="lots-bulk-import"
@@ -745,16 +854,26 @@ export function LotsTab() {
               className="hidden"
               onChange={handleBulkImport}
             />
-            <PremiumButton type="button" variant="outline" onClick={() => document.getElementById("lots-bulk-import")?.click()}>
-              <Upload className="h-4 w-4 mr-2" />
+            <PremiumButton
+              type="button"
+              variant="outline"
+              className="w-full justify-center"
+              onClick={() => document.getElementById("lots-bulk-import")?.click()}
+            >
+              <Upload className="mr-2 h-4 w-4" />
               Bulk Import
             </PremiumButton>
-            <PremiumButton type="button" variant="ghost" onClick={downloadTemplate}>
-              <Download className="h-4 w-4 mr-2" />
+            <PremiumButton
+              type="button"
+              variant="ghost"
+              className="w-full justify-center"
+              onClick={downloadTemplate}
+            >
+              <Download className="mr-2 h-4 w-4" />
               Download Template
             </PremiumButton>
-            <PremiumButton type="button" onClick={openAdd}>
-              <Plus className="h-4 w-4 mr-2" />
+            <PremiumButton type="button" className="w-full justify-center" onClick={openAdd}>
+              <Plus className="mr-2 h-4 w-4" />
               Add Lot
             </PremiumButton>
           </div>
@@ -791,8 +910,20 @@ L-002,Oil Painting,Original canvas artwork,1,300,,500,900,30,`}
       </FormSection>
 
       <FormSection title="Lots Table" description="View and update your lots.">
+        {errors.lots && lots.length > 0 && (
+          <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {errors.lots}
+          </div>
+        )}
         {filteredLots.length > 0 ? (
-          <PremiumTable<LotRow> columns={columns} data={filteredLots} />
+          <>
+            <div className="space-y-3 md:hidden">
+              {filteredLots.map((item) => renderMobileLotCard(item))}
+            </div>
+            <div className="hidden md:block">
+              <PremiumTable<LotRow> columns={columns} data={filteredLots} />
+            </div>
+          </>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
             <p>No lots added yet. Create your first lot to get started.</p>
