@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Clock, Info, X } from "lucide-react";
+import { AlertTriangle, Clock, CreditCard, Info, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSubscriptionDetails } from "@/features/subscription/hooks/useSubscription";
 import { useAuthStore } from "@/features/auth/store/authStore";
@@ -14,7 +14,24 @@ export function SubscriptionBanner() {
 
   // Only show for approved auctioneers
   if (!auctioneer || auctioneer.status !== "approved") return null;
-  if (isLoading || !data?.subscription) return null;
+  if (isLoading) return null;
+
+  // Never subscribed (or record fully purged)
+  if (!data?.subscription) {
+    return (
+      <div className="mb-6 flex items-start gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3">
+        <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="flex-1 text-sm">
+          <span className="font-semibold">No active subscription — </span>
+          auction features are currently disabled.{" "}
+          <Link href="/billing?tab=plans" className="font-medium underline underline-offset-2 hover:text-foreground">
+            Choose a plan
+          </Link>{" "}
+          to get started.
+        </div>
+      </div>
+    );
+  }
 
   const sub = data.subscription;
   const { status, days_remaining, is_in_trial, is_in_grace } = sub;
@@ -79,9 +96,18 @@ export function SubscriptionBanner() {
             {status === "cancelled" ? "Subscription cancelled" : "Subscription expired"} —{" "}
           </span>
           creating and managing auctions is disabled.{" "}
+          <Link
+            href="/billing?tab=plans"
+            className="font-medium underline underline-offset-2 hover:text-destructive/80"
+          >
+            {status === "cancelled" ? "Resubscribe" : "Renew now"}
+          </Link>{" "}
+          to restore access.
         </div>
-        <Button asChild size="sm" className="shrink-0 h-7 px-3 text-xs">
-          <Link href="/billing?tab=plans">Renew</Link>
+        <Button asChild size="sm" variant="destructive" className="shrink-0 h-7 px-3 text-xs">
+          <Link href="/billing?tab=plans">
+            {status === "cancelled" ? "Resubscribe" : "Renew"}
+          </Link>
         </Button>
       </div>
     );
