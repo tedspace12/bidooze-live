@@ -101,9 +101,8 @@ export async function proxy(request: NextRequest) {
   }
 
   if (subdomain === AUCTIONEER_SUBDOMAIN) {
-    if (pathname === "/") {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
+    // "/" passes through — app/page.tsx is the landing page on this subdomain.
+    // Auth guard below handles logged-in redirect to /auctioneer/dashboard.
     const blocked = AUCTIONEER_BLOCKED_PREFIXES.some((p) => pathname.startsWith(p));
     if (blocked) {
       return NextResponse.redirect(new URL("/login", request.url));
