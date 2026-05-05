@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useMemo, useState, useEffect } from "react";
 import { Save, Settings, Plus, Trash2, TrendingUp } from "lucide-react";
 import { toast } from "sonner";

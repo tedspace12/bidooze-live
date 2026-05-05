@@ -370,39 +370,6 @@ const validateFormState = (formState: AuctionEditFormState) => {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function RadioCard({
-  selected,
-  onClick,
-  label,
-  description,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  label: string;
-  description: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "relative flex w-full flex-col gap-1 rounded-xl border p-4 text-left transition-all",
-        selected
-          ? "border-primary bg-primary/5 ring-1 ring-primary"
-          : "border-border bg-card hover:border-muted-foreground/40 hover:bg-muted/30"
-      )}
-    >
-      {selected && (
-        <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
-          <Check className="h-3 w-3 text-primary-foreground" />
-        </span>
-      )}
-      <span className="pr-6 text-sm font-medium text-foreground">{label}</span>
-      <span className="text-xs leading-relaxed text-muted-foreground">{description}</span>
-    </button>
-  );
-}
-
 function CategoryPicker({
   selectedIds,
   onChange,

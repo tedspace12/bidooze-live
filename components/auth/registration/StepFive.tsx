@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
@@ -66,7 +66,10 @@ export function StepFive({ defaultValues, onSubmit, onBack, isLoading, registrat
     });
   };
 
-  const backgroundCheckConsent = form.watch("backgroundCheckConsent");
+  const backgroundCheckConsent = useWatch({
+    control: form.control,
+    name: "backgroundCheckConsent",
+  });
   const canSubmit = !!backgroundCheckConsent && !!identityUrls && !!businessUrls && !!complianceUrls && !isLoading;
 
   const base = `auctioneers/${registrationToken ?? "draft"}`;

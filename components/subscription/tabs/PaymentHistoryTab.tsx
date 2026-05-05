@@ -34,7 +34,6 @@ export function PaymentHistoryTab() {
 
   const payments = data?.data ?? [];
   const total = data?.total ?? 0;
-  const perPage = data?.per_page ?? 20;
   const lastPage = data?.last_page ?? 1;
 
   if (payments.length === 0) {

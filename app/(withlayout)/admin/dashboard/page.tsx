@@ -10,10 +10,7 @@ import {
   CheckCircle,
   XCircle,
   Eye,
-  TrendingUp,
   UserCheck,
-  UserX,
-  ShieldOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

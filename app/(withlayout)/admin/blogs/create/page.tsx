@@ -189,6 +189,7 @@ export default function CreateBlogPage() {
                   placeholder="https://..."
                 />
                 {featuredImage && (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={featuredImage} alt="Preview" className="w-full rounded-lg object-cover aspect-video" />
                 )}
               </CardContent>

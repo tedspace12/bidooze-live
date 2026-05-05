@@ -540,8 +540,8 @@ export default function FeatureSlotsPage() {
   const activeAuctions = useMemo(() => myAuctions.data ?? [], [myAuctions.data]);
 
   const openSlotsData = openSlots.data ?? [];
-  const activeWins = myWins.data?.active ?? [];
-  const allWins = myWins.data?.data ?? [];
+  const activeWins = useMemo(() => myWins.data?.active ?? [], [myWins.data?.active]);
+  const allWins = useMemo(() => myWins.data?.data ?? [], [myWins.data?.data]);
   const pastWins = useMemo(
     () => allWins.filter((w) => !activeWins.some((a) => a.id === w.id)),
     [allWins, activeWins]

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OverviewTab } from "@/components/subscription/tabs/OverviewTab";
@@ -14,16 +13,10 @@ type Tab = (typeof TABS)[number];
 export default function BillingPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
-
-  // Honour ?tab= query param (used by banner CTAs and external links)
-  useEffect(() => {
-    const tab = searchParams.get("tab") as Tab | null;
-    if (tab && TABS.includes(tab)) setActiveTab(tab);
-  }, [searchParams]);
+  const tab = searchParams.get("tab") as Tab | null;
+  const activeTab = tab && TABS.includes(tab) ? tab : "overview";
 
   const handleTabChange = (tab: string) => {
-    setActiveTab(tab as Tab);
     router.replace(`/billing?tab=${tab}`, { scroll: false });
   };
 

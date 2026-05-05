@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { AcceptInvitePageContent } from "./AcceptInvitePageContent";
 
 export default function AcceptInvitePage() {
@@ -8,7 +9,7 @@ export default function AcceptInvitePage() {
       {/* Form side */}
       <div className="flex flex-col gap-4 p-6 md:p-10 order-2">
         <div className="flex justify-center gap-2 md:justify-start">
-          <a href="/" className="flex items-center gap-2 font-medium">
+          <Link href="/" className="flex items-center gap-2 font-medium">
             <Image
               src="/logo/Bidooze.svg"
               alt="Bidooze"
@@ -16,7 +17,7 @@ export default function AcceptInvitePage() {
               height={225}
               className="w-auto h-16"
             />
-          </a>
+          </Link>
         </div>
         <div className="flex flex-1 items-center justify-center">
           <div className="w-full max-w-xs">

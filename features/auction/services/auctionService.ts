@@ -262,7 +262,9 @@ export const auctionService = {
         return extractPayloadData<Auction>(res.data);
       }
 
-      const { feature_image_files: _f, feature_image_urls: _u, ...rest } = data;
+      const rest = { ...data };
+      delete rest.feature_image_files;
+      delete rest.feature_image_urls;
       const payload = Object.fromEntries(
         Object.entries(rest).filter(([, value]) => value !== undefined),
       ) as UpdateAuctionPayload;

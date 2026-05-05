@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -82,8 +82,6 @@ function AddCardForm({ onClose }: { onClose: () => void }) {
     },
   });
 
-  const [expiry, setExpiry] = form.watch ? [form.watch("expiry"), undefined] : ["", undefined];
-
   const handleSubmit = async (values: AddCardFields) => {
     const [month, year] = values.expiry.split("/");
     await addMethod.mutateAsync(
@@ -111,10 +109,10 @@ function AddCardForm({ onClose }: { onClose: () => void }) {
     return digits;
   };
 
-  const cardNumber = form.watch("card_number");
-  const expiryVal = form.watch("expiry");
-  const cvv = form.watch("cvv");
-  const name = form.watch("card_holder_name");
+  const [cardNumber, expiryVal, cvv, name] = useWatch({
+    control: form.control,
+    name: ["card_number", "expiry", "cvv", "card_holder_name"],
+  });
   const canSubmit = !addMethod.isPending && !!cardNumber && !!expiryVal && !!cvv && !!name;
 
   return (
