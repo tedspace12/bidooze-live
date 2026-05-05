@@ -330,9 +330,10 @@ export const StepThree = ({ onNext, onBack, defaultValues, isLoading }: StepThre
     const selectedCountry = useWatch({ control: form.control, name: "country" });
   const countryConfig = COUNTRY_BANK_CONFIG[selectedCountry];
 
-  const [bankName, accountHolderName, accountNumber, accountType, bankIdentifiers] = form.watch([
-    "bankName", "accountHolderName", "accountNumber", "accountType", "bankIdentifiers",
-  ]);
+  const [bankName, accountHolderName, accountNumber, accountType, bankIdentifiers] = useWatch({
+    control: form.control,
+    name: ["bankName", "accountHolderName", "accountNumber", "accountType", "bankIdentifiers"],
+  });
 
   const identifiersComplete = !selectedCountry || (countryConfig?.identifiers ?? []).every(
     (id) => !!bankIdentifiers?.[id.key]?.trim()

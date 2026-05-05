@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, MoreHorizontal, Pencil, Trash2, Database } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,6 +36,7 @@ function surchargeLabel(acc: Account): string {
   return `${parts.join(" + ")} (${acc.surcharge_target})`;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ROUNDING_SHORT: Record<string, string> = {
   none: "—",
   nickel: "¢5",
@@ -44,7 +45,7 @@ const ROUNDING_SHORT: Record<string, string> = {
 };
 
 export function AccountsTable() {
-  const { accounts, create, update, remove, seedDefaults } = useMiscAccounts();
+  const { accounts, create, update, remove } = useMiscAccounts();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);

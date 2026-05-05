@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useEffect, useState, useCallback } from "react";
 import { Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -62,7 +63,16 @@ export function CompanyForm() {
 
   useEffect(() => {
     if (company.data) {
-      const { id: _id, tenant_id: _tid, created_at: _ca, updated_at: _ua, ...rest } = company.data;
+      const rest = { ...company.data } as CompanyDraft & {
+        id?: unknown;
+        tenant_id?: unknown;
+        created_at?: unknown;
+        updated_at?: unknown;
+      };
+      delete rest.id;
+      delete rest.tenant_id;
+      delete rest.created_at;
+      delete rest.updated_at;
       setDraft(rest);
       setDirty(false);
     }

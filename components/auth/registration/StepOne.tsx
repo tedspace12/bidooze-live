@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -45,9 +45,10 @@ export const StepOne = ({ onNext, defaultValues, isLoading }: StepOneProps) => {
     },
   });
 
-  const [companyName, registerationNumber, tin, businessType, yearsInBusiness] = form.watch([
-    "companyName", "registerationNumber", "tin", "businessType", "yearsInBusiness",
-  ]);
+  const [companyName, registerationNumber, tin, businessType, yearsInBusiness] = useWatch({
+    control: form.control,
+    name: ["companyName", "registerationNumber", "tin", "businessType", "yearsInBusiness"],
+  });
   const canSubmit = !isLoading &&
     !!companyName?.trim() &&
     !!registerationNumber?.trim() &&
@@ -129,15 +130,6 @@ export const StepOne = ({ onNext, defaultValues, isLoading }: StepOneProps) => {
               control={form.control}
               name="specialization"
               render={({ field }) => {
-                const addValue = (value: string) => {
-                  const trimmed = value.trim();
-                  if (!trimmed) return;
-                  if (field.value?.includes(trimmed)) return;
-
-                  field.onChange([...(field.value || []), trimmed]);
-                  setSpecializationInput("");
-                };
-
                 const removeValue = (index: number) => {
                   const updated = (field.value || []).filter((_, i) => i !== index);
                   field.onChange(updated);

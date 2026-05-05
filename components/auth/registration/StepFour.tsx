@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
@@ -61,8 +61,10 @@ export function StepFour({ defaultValues, onNext, onBack, isLoading, registratio
     onNext({ ...fields, licenseDocuments: licenseUrls });
   };
 
-  const licenseNumber = form.watch("licenseNumber");
-  const licenseExpirationDate = form.watch("licenseExpirationDate");
+  const [licenseNumber, licenseExpirationDate] = useWatch({
+    control: form.control,
+    name: ["licenseNumber", "licenseExpirationDate"],
+  });
   const canSubmit = !!licenseNumber?.trim() && !!licenseExpirationDate && !!licenseUrls && !isLoading;
 
   const folder = `auctioneers/${registrationToken ?? "draft"}/licenses`;

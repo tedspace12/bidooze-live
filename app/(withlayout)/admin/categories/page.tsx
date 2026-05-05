@@ -166,6 +166,7 @@ function CategoryNode({
 
         {/* Icon */}
         {category.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img src={category.image} alt="" className="h-7 w-7 rounded object-cover shrink-0" />
         ) : (
           <div className="h-7 w-7 rounded bg-slate-100 flex items-center justify-center shrink-0">

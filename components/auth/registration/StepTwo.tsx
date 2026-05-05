@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -170,9 +170,10 @@ function SocialContactForm({
     onSubmit({ ...data, provider, provider_token: providerToken });
   };
 
-  const [socialContactName, socialBusinessAddress, socialPhoneNumber] = form.watch([
-    "contactName", "businessAddress", "phoneNumber",
-  ]);
+  const [socialContactName, socialBusinessAddress, socialPhoneNumber] = useWatch({
+    control: form.control,
+    name: ["contactName", "businessAddress", "phoneNumber"],
+  });
   const canSubmitSocial = !isLoading &&
     !!socialContactName?.trim() &&
     !!socialBusinessAddress?.trim() &&
@@ -367,9 +368,10 @@ export const StepTwo = ({
     name: "socials",
   });
 
-  const [contactName, businessAddress, phoneNumber, email, password, password_confirmation] = form.watch([
-    "contactName", "businessAddress", "phoneNumber", "email", "password", "password_confirmation",
-  ]);
+  const [contactName, businessAddress, phoneNumber, email, password, password_confirmation] = useWatch({
+    control: form.control,
+    name: ["contactName", "businessAddress", "phoneNumber", "email", "password", "password_confirmation"],
+  });
   const canSubmit = !isLoading &&
     !!contactName?.trim() &&
     !!businessAddress?.trim() &&

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Bell, X } from "lucide-react";
+import { Bell } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Sheet,
@@ -32,10 +32,8 @@ interface NotificationPopoverProps {
 
 function NotificationContent({
   basePath,
-  onClose,
 }: {
   basePath: NotificationBasePath;
-  onClose: () => void;
 }) {
   const { useUnreadCount, useNotificationList, markAsRead, markAllRead } =
     useNotifications(basePath);
@@ -87,7 +85,7 @@ function NotificationContent({
           <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
             <Bell className="h-10 w-10 opacity-20" />
             <div>
-              <p className="text-sm font-medium">You're all caught up</p>
+              <p className="text-sm font-medium">You&apos;re all caught up</p>
               <p className="text-xs mt-0.5">No notifications right now.</p>
             </div>
           </div>
@@ -158,7 +156,7 @@ export function NotificationPopover({
           <div className="flex justify-center pt-3 pb-1 shrink-0">
             <div className="h-1.5 w-10 rounded-full bg-muted-foreground/30" />
           </div>
-          <NotificationContent basePath={basePath} onClose={() => setOpen(false)} />
+          <NotificationContent basePath={basePath} />
         </SheetContent>
       </Sheet>
     );
@@ -175,7 +173,7 @@ export function NotificationPopover({
         align={align}
         sideOffset={sideOffset}
       >
-        <NotificationContent basePath={basePath} onClose={() => setOpen(false)} />
+        <NotificationContent basePath={basePath} />
       </PopoverContent>
     </Popover>
   );

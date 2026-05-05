@@ -3,6 +3,7 @@ import announcementsData from "@/app/(withlayout)/miscellaneous/announcements/da
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
     month: "long",
