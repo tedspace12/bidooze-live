@@ -17,6 +17,7 @@ import { Check, CheckCircle } from "lucide-react";
 import { useRouter } from "@bprogress/next/app";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import Link from "next/link";
 import { SiteLegalLinks } from "@/components/legal/site-legal-links";
 
 interface RegistrationData {
@@ -135,6 +136,16 @@ const getValidationMessages = (error: unknown): string[] => {
   });
 };
 
+const getCompletedSocials = (
+  socials: Array<{ platform?: string; url?: string }>
+): Array<{ platform: string; url: string }> =>
+  socials
+    .map((social) => ({
+      platform: social.platform?.trim() || "",
+      url: social.url?.trim() || "",
+    }))
+    .filter((social): social is { platform: string; url: string } => !!social.platform && !!social.url);
+
 const Registration = () => {
   // Try to restore registration token from sessionStorage on mount
   const [registrationToken, setRegistrationToken] = useState<string | null>(() => {
@@ -156,11 +167,22 @@ const Registration = () => {
   // Query registration progress only on initial load to resume registration
   const { data: progressData, refetch: refetchProgress } = useRegistrationProgress(registrationToken);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const resumeStep = Number(sessionStorage.getItem("registration_resume_step"));
+    if (resumeStep >= 1 && resumeStep <= 5) {
+      sessionStorage.removeItem("registration_resume_step");
+      setCurrentStep(resumeStep);
+      setHasResumedFromProgress(true);
+    }
+  }, []);
+
   // Resume to the correct step only once on initial load (when page refreshes)
   useEffect(() => {
     // Only resume if we haven't already resumed and we have progress data
     if (hasResumedFromProgress || !progressData || isCompleted) return;
-    
+
     const targetStep = progressData.next_step || progressData.registration_step;
     if (targetStep && targetStep >= 1 && targetStep <= 5) {
       setCurrentStep(targetStep);
@@ -183,7 +205,7 @@ const Registration = () => {
         tax_id: data.tin,
         business_type: data.businessType,
         specialization: data.specialization,
-        years_in_business: data.yearsInBusiness,
+        years_in_business: Number(data.yearsInBusiness),
       };
 
       const result = await stepOne.mutateAsync(payload);  
@@ -231,13 +253,17 @@ const Registration = () => {
         password: data.password,
         password_confirmation: data.password_confirmation,
         website: data.website,
-        socials: data.socials,
+        wants_subdomain: data.wants_subdomain,
+        socials: getCompletedSocials(data.socials),
       };
 
-      await stepTwo.mutateAsync(payload);
+      const result = await stepTwo.mutateAsync(payload);
       setFormData((prev) => ({ ...prev, stepTwo: data }));
+      await refetchProgress();
       setCurrentStep(3);
-      toast.success("Step 2 submitted successfully");
+      toast.success("Step 2 submitted successfully", {
+        description: result.subdomain ? `Generated subdomain: ${result.subdomain}` : undefined,
+      });
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error, "Error submitting Step 2. Please try again.");
       const validationMessages = getValidationMessages(error);
@@ -258,7 +284,7 @@ const Registration = () => {
     }
 
     try {
-      await socialStepTwo.mutateAsync({
+      const result = await socialStepTwo.mutateAsync({
         registration_token: registrationToken,
         provider: data.provider,
         token: data.provider_token,
@@ -266,11 +292,15 @@ const Registration = () => {
         business_address: data.businessAddress,
         phone_number: data.phoneNumber,
         website: data.website,
-        socials: data.socials,
+        wants_subdomain: data.wants_subdomain,
+        socials: getCompletedSocials(data.socials),
       });
       setFormData((prev) => ({ ...prev, stepTwo: undefined }));
+      await refetchProgress();
       setCurrentStep(3);
-      toast.success("Step 2 submitted successfully");
+      toast.success("Step 2 submitted successfully", {
+        description: result.subdomain ? `Generated subdomain: ${result.subdomain}` : undefined,
+      });
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error, "Error submitting Step 2. Please try again.");
       const validationMessages = getValidationMessages(error);
@@ -288,23 +318,41 @@ const Registration = () => {
       toast.error("Registration token missing. Please start from Step 1.");
       return;
     }
+    if (!data.paymentProvider) {
+      toast.error("Please select a payment provider.");
+      return;
+    }
 
     try {
-      const routingNumber = data.bankIdentifiers?.routing_number || "";
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
 
       const payload = {
         registration_token: registrationToken,
-        country: data.country,
-        bank_name: data.bankName,
-        account_name: data.accountHolderName,
-        account_number: data.accountNumber || "",
-        routing_number: routingNumber,
-        account_type: data.accountType,
-        bank_identifiers: data.bankIdentifiers,
+        payment_provider: data.paymentProvider,
+        ...(data.paymentProvider === "stripe"
+          ? {
+              stripe_return_url: `${origin}/auctioneer/register/payment-return`,
+              stripe_refresh_url: `${origin}/auctioneer/register/payment-refresh`,
+            }
+          : {
+              country: data.paystackCountry,
+              bank_code: data.bankCode,
+              bank_name: data.bankName,
+              account_number: data.accountNumber,
+              business_name: data.businessName,
+            }),
       };
 
-      await stepThree.mutateAsync(payload);
+      const result = await stepThree.mutateAsync(payload);
       setFormData((prev) => ({ ...prev, stepThree: data }));
+
+      const redirectUrl = result.data?.redirect_url;
+      if (data.paymentProvider === "stripe" && redirectUrl) {
+        toast.success("Redirecting to Stripe");
+        window.location.href = redirectUrl;
+        return;
+      }
+
       setCurrentStep(4);
       toast.success("Step 3 submitted successfully");
     } catch (error: unknown) {
@@ -318,6 +366,13 @@ const Registration = () => {
       }
       console.error("Step 3 error:", error);
     }
+  };
+
+  const handleStepThreeSkip = () => {
+    setCurrentStep(4);
+    toast.info("Payment setup skipped", {
+      description: "You can complete payout setup later before account activity.",
+    });
   };
 
   const handleStepFourSubmit = async (data: StepFourData) => {
@@ -353,6 +408,13 @@ const Registration = () => {
     }
   };
 
+  const handleStepFourSkip = () => {
+    setCurrentStep(5);
+    toast.info("Credentials skipped", {
+      description: "You can add professional credentials later.",
+    });
+  };
+
   const handleFinalSubmit = async (data: StepFiveData) => {
     if (!registrationToken) {
       toast.error("Registration token missing. Please start from Step 1.");
@@ -366,7 +428,6 @@ const Registration = () => {
         identity_verification: data.identityVerification,
         business_verification: data.businessVerification,
         background_check_consent: data.backgroundCheckConsent,
-        compliance_documentation: data.complianceDocumentation,
       };
 
       const result = await stepFive.mutateAsync(stepFivePayload);
@@ -395,6 +456,10 @@ const Registration = () => {
       }
       console.error("Final submission error:", error);
     }
+  };
+
+  const handleFinalSkip = () => {
+    void handleFinalSubmit({});
   };
 
   return (
@@ -502,15 +567,18 @@ const Registration = () => {
               {currentStep === 3 && (
                 <StepThree
                   onNext={handleStepThreeSubmit}
+                  onSkip={handleStepThreeSkip}
                   onBack={() => setCurrentStep(2)}
                   defaultValues={formData.stepThree}
                   isLoading={stepThree.isPending}
                   registrationToken={registrationToken}
+                  businessName={formData.stepOne?.companyName}
                 />
               )}
               {currentStep === 4 && (
                 <StepFour
                   onNext={handleStepFourSubmit}
+                  onSkip={handleStepFourSkip}
                   onBack={() => setCurrentStep(3)}
                   defaultValues={formData.stepFour}
                   isLoading={stepFour.isPending}
@@ -520,6 +588,7 @@ const Registration = () => {
               {currentStep === 5 && (
                 <StepFive
                   onSubmit={handleFinalSubmit}
+                  onSkip={handleFinalSkip}
                   onBack={() => setCurrentStep(4)}
                   defaultValues={formData.stepFive}
                   isLoading={stepFive.isPending}
@@ -527,7 +596,13 @@ const Registration = () => {
                 />
               )}
               </div>
-              <div className="rounded-lg border border-border bg-card/80 px-4 py-3 shadow-soft">
+              <div className="rounded-lg border border-border bg-card/80 px-4 py-3 shadow-soft space-y-2">
+                <p className="text-center text-sm text-muted-foreground">
+                  Already have an account?{" "}
+                  <Link href="/login" className="font-medium hover:underline">
+                    Sign in
+                  </Link>
+                </p>
                 <SiteLegalLinks className="justify-center" linkClassName="text-xs" />
               </div>
             </div>

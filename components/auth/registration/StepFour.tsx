@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
@@ -19,8 +19,8 @@ import { Loader2 } from "lucide-react";
 import { FileUploader } from "./FileUploader";
 
 const stepFourSchema = z.object({
-  licenseNumber: z.string().trim().min(1, "License number is required"),
-  licenseExpirationDate: z.string().min(1, "Expiration date is required"),
+  licenseNumber: z.string().trim().optional(),
+  licenseExpirationDate: z.string().optional(),
   certifications: z.string().optional(),
   associations: z.string().optional(),
 });
@@ -33,17 +33,17 @@ export type StepFourData = StepFourFields & {
 
 interface StepFourProps {
   onNext: (data: StepFourData) => void;
+  onSkip: () => void;
   onBack: () => void;
   defaultValues?: StepFourData;
   isLoading?: boolean;
   registrationToken?: string | null;
 }
 
-export function StepFour({ defaultValues, onNext, onBack, isLoading, registrationToken }: StepFourProps) {
+export function StepFour({ defaultValues, onNext, onSkip, onBack, isLoading, registrationToken }: StepFourProps) {
   const [licenseUrls, setLicenseUrls] = useState<string[] | null>(
     defaultValues?.licenseDocuments?.length ? defaultValues.licenseDocuments : null
   );
-  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const form = useForm<StepFourFields>({
     resolver: zodResolver(stepFourSchema),
@@ -56,27 +56,20 @@ export function StepFour({ defaultValues, onNext, onBack, isLoading, registratio
   });
 
   const handleSubmit = (fields: StepFourFields) => {
-    setSubmitAttempted(true);
-    if (!licenseUrls) return; // upload not complete
-    onNext({ ...fields, licenseDocuments: licenseUrls });
+    onNext({ ...fields, licenseDocuments: licenseUrls ?? [] });
   };
 
-  const [licenseNumber, licenseExpirationDate] = useWatch({
-    control: form.control,
-    name: ["licenseNumber", "licenseExpirationDate"],
-  });
-  const canSubmit = !!licenseNumber?.trim() && !!licenseExpirationDate && !!licenseUrls && !isLoading;
+  const canSubmit = !isLoading;
 
   const folder = `auctioneers/${registrationToken ?? "draft"}/licenses`;
-  const uploadMissing = submitAttempted && !licenseUrls;
 
   return (
     <div className="max-w-3xl w-full space-y-8">
       <header>
         <p className="text-muted-foreground text-sm mb-2">Step 4/5</p>
-        <h2 className="text-3xl font-bold mb-1">Auctioneer Credentials</h2>
+        <h2 className="text-3xl font-bold mb-1">Auctioneer Credentials (Optional)</h2>
         <p className="text-muted-foreground">
-          Provide your professional credentials and upload your license documents.
+          This page is optional during registration. You can provide credentials now, or skip and add them later.
         </p>
       </header>
 
@@ -90,7 +83,7 @@ export function StepFour({ defaultValues, onNext, onBack, isLoading, registratio
               <FormItem>
                 <FormLabel>Auctioneer License Number</FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter your license number" {...field} />
+                  <Input placeholder="Enter your license number (optional)" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -145,31 +138,41 @@ export function StepFour({ defaultValues, onNext, onBack, isLoading, registratio
 
           <FileUploader
             folder={folder}
-            label="Upload License Documents"
-            required
+            label="Upload License Documents (optional)"
             onChange={setLicenseUrls}
-            error={uploadMissing ? "Please upload at least one document" : undefined}
           />
 
-          <div className="flex flex-col-reverse md:flex-row gap-3 pt-4">
+          <div className="flex flex-col-reverse gap-3 pt-4 md:flex-row md:items-center md:justify-between">
             <Button
               type="button"
               variant="outline"
               onClick={onBack}
-              className="w-full md:w-auto h-12 md:h-10 md:min-w-32 md:flex-none"
+              className="w-full md:w-auto h-12 md:h-10 md:min-w-32"
               size="lg"
               disabled={isLoading}
             >
               Back
             </Button>
-            <Button
-              type="submit"
-              className="w-full h-12 md:h-10 md:flex-1"
-              size="lg"
-              disabled={!canSubmit}
-            >
-              {isLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</> : "Next"}
-            </Button>
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onSkip}
+                className="w-full sm:w-auto"
+                size="lg"
+                disabled={isLoading}
+              >
+                Skip
+              </Button>
+              <Button
+                type="submit"
+                className="w-full sm:w-auto h-12 md:h-10 md:min-w-32"
+                size="lg"
+                disabled={!canSubmit}
+              >
+                {isLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</> : "Next"}
+              </Button>
+            </div>
           </div>
         </form>
       </Form>

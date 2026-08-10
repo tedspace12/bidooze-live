@@ -34,6 +34,11 @@ export const useRegistration = () => {
     mutationKey: ["registration", "step-five"],
   });
 
+  const submitRegistration = useMutation({
+    mutationFn: registrationService.submitRegistration,
+    mutationKey: ["registration", "submit"],
+  });
+
 
   const useRegistrationProgress = (registrationToken: string | null) => {
     return useQuery({
@@ -60,6 +65,7 @@ export const useRegistration = () => {
     stepThree,
     stepFour,
     stepFive,
+    submitRegistration,
     useRegistrationProgress,
   };
 };
