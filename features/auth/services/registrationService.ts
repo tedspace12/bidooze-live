@@ -9,6 +9,10 @@ import type {
   RegistrationCompleteResponse,
   SubmitRegistrationPayload,
   RegistrationProgressResponse,
+  PaymentAccountResponse,
+  PaymentAccountStatusResponse,
+  PaystackBank,
+  PaystackResolveAccountResponse,
 } from "../types";
 
 type ApiErrorLike = {
@@ -20,6 +24,7 @@ type ApiErrorLike = {
 
 type RegistrationStepResponse = {
   message?: string;
+  subdomain?: string | null;
   data?: unknown;
 } & Record<string, unknown>;
 
@@ -31,6 +36,7 @@ export interface SocialContactInfoPayload {
   business_address: string;
   phone_number: string;
   website?: string;
+  wants_subdomain: boolean;
   socials?: Array<{ platform: string; url: string }>;
 }
 
@@ -98,15 +104,58 @@ export const registrationService = {
   },
 
   /**
-   * Step 3: Bank Information
+   * Step 3: Payment Account Setup
    */
-  async submitStepThree(data: StepThreePayload): Promise<RegistrationStepResponse> {
+  async submitStepThree(data: StepThreePayload): Promise<PaymentAccountResponse> {
     try {
-      const res = await withoutAuth.post<RegistrationStepResponse>(
-        "/auctioneer/bank-info",
+      const res = await withoutAuth.post<PaymentAccountResponse>(
+        "/auctioneer/payment-account",
         data
       );
-      return extractPayloadData<RegistrationStepResponse>(res.data);
+      return res.data;
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
+  async getPaystackBanks(country = "nigeria", currency = "NGN"): Promise<PaystackBank[]> {
+    try {
+      const res = await withoutAuth.get<{ data: PaystackBank[] }>(
+        "/auctioneer/paystack/banks",
+        {
+          params: { country, currency },
+        }
+      );
+      return res.data.data || [];
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
+  async getPaymentAccountStatus(registrationToken: string): Promise<PaymentAccountStatusResponse> {
+    try {
+      const res = await withoutAuth.get<PaymentAccountStatusResponse>(
+        "/auctioneer/payment-account/status",
+        {
+          params: { registration_token: registrationToken },
+        }
+      );
+      return res.data;
+    } catch (error: unknown) {
+      throw rethrowApiError(error);
+    }
+  },
+
+  async resolvePaystackAccount(data: {
+    account_number: string;
+    bank_code: string;
+  }): Promise<PaystackResolveAccountResponse> {
+    try {
+      const res = await withoutAuth.post<PaystackResolveAccountResponse>(
+        "/auctioneer/paystack/resolve-account",
+        data
+      );
+      return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
     }
@@ -118,16 +167,19 @@ export const registrationService = {
    */
   async submitStepFour(data: StepFourPayload): Promise<RegistrationStepResponse> {
     try {
+      const payload: StepFourPayload = {
+        registration_token: data.registration_token,
+      };
+
+      if (data.licenseNumber?.trim()) payload.licenseNumber = data.licenseNumber;
+      if (data.licenseExpirationDate?.trim()) payload.licenseExpirationDate = data.licenseExpirationDate;
+      if (data.certifications?.trim()) payload.certifications = data.certifications;
+      if (data.associations?.trim()) payload.associations = data.associations;
+      if (data.licenseDocuments?.length) payload.licenseDocuments = data.licenseDocuments;
+
       const res = await withoutAuth.post<RegistrationStepResponse>(
         "/auctioneer/credentials-documents",
-        {
-          registration_token: data.registration_token,
-          licenseNumber: data.licenseNumber,
-          licenseExpirationDate: data.licenseExpirationDate,
-          certifications: data.certifications,
-          associations: data.associations,
-          licenseDocuments: data.licenseDocuments, // string[] of Cloudinary URLs
-        }
+        payload
       );
       return extractPayloadData<RegistrationStepResponse>(res.data);
     } catch (error: unknown) {
@@ -141,15 +193,17 @@ export const registrationService = {
    */
   async submitStepFive(data: StepFivePayload): Promise<RegistrationCompleteResponse> {
     try {
+      const payload: StepFivePayload = {
+        registration_token: data.registration_token,
+      };
+
+      if (data.background_check_consent) payload.background_check_consent = data.background_check_consent;
+      if (data.identity_verification?.length) payload.identity_verification = data.identity_verification;
+      if (data.business_verification?.length) payload.business_verification = data.business_verification;
+
       const res = await withoutAuth.post<RegistrationCompleteResponse>(
         "/auctioneer/submit",
-        {
-          registration_token: data.registration_token,
-          background_check_consent: data.background_check_consent,
-          identity_verification: data.identity_verification,   // string[]
-          business_verification: data.business_verification,   // string[]
-          compliance_documentation: data.compliance_documentation, // string[]
-        }
+        payload
       );
       return extractPayloadData<RegistrationCompleteResponse>(res.data);
     } catch (error: unknown) {
@@ -189,4 +243,3 @@ export const registrationService = {
     }
   },
 };
-

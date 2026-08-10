@@ -101,10 +101,13 @@ export const StepOne = ({ onNext, defaultValues, isLoading }: StepOneProps) => {
               name="tin"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tax identification number (TIN)</FormLabel>
+                  <FormLabel>EIN/SSN/TIN</FormLabel>
                   <FormControl>
-                    <Input placeholder="123456789.." {...field} />
+                    <Input placeholder="EIN, SSN, or TIN" {...field} />
                   </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Enter whichever tax identifier applies to your business: EIN, SSN, or TIN.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

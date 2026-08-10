@@ -120,25 +120,29 @@ export interface AuctioneerDetails {
   status: string;
   registration_step: number;
   company_info: {
-    company_name: string | null;
-    registration_no: string | null;
-    business_type: string | null;
-    tax_id: string | null;
-    years_in_business: number | null;
+    company_name: string;
+    registration_no: string;
+    business_type: string;
+    tax_id: string;
+    years_in_business: number;
     industries: string[];
+    // Only submitted at step 4 — null for anyone who hasn't reached it, still nullable even then.
     license_number: string | null;
     license_expiration_date: string | null;
-    certifications: string;
-    associations: string;
+    certifications: string | null;
+    associations: string | null;
   };
+  // Required once present (step 2); website/subdomain are the only nullable sub-fields.
   contacts: {
     id: number;
     auctioneer_id: number;
     contact_name: string;
     phone: string;
     email: string;
-    website?: string | null;
-    address?: string | null;
+    website: string | null;
+    wants_subdomain: boolean;
+    subdomain: string | null;
+    address: string;
     created_at?: string;
     updated_at?: string;
   } | null;
@@ -150,21 +154,29 @@ export interface AuctioneerDetails {
     created_at?: string;
     updated_at?: string;
   }>;
+  // Null until step 3 (bankInfo/gateway connect) is completed. Shape differs by payment_gateway —
+  // for stripe, account_name/bank_name/account_number_last4 are never populated.
   bank: {
-    id: number;
-    auctioneer_id: number;
-    bank_name: string;
-    account_name: string;
-    account_type: string;
-    created_at?: string;
-    updated_at?: string;
+    payment_gateway: "paystack" | "stripe" | null;
+    gateway_account_id: string | null;
+    gateway_account_status: string | null;
+    business_name: string | null;
+    account_name: string | null;
+    bank_name: string | null;
+    account_number_last4: string | null;
+    country: string | null;
+    currency: string | null;
+    onboarding_completed: boolean;
+    onboarding_completed_at: string | null;
+    // The one field safe to branch UI on regardless of gateway — computed server-side.
+    payment_account_connected: boolean;
   } | null;
   documents: Array<{
     id: number;
     auctioneer_id: number;
-    type: string;
+    type: "license" | "government_id" | "business_doc" | string;
     file_url: string;
-    status: string;
+    status: "temp" | "submitted" | "approved" | string;
     created_at?: string;
     updated_at?: string;
   }>;

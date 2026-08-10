@@ -50,7 +50,9 @@ export default function AuctioneerDetailsPage() {
   const { suspendAuctioneer, unsuspendAuctioneer, banAuctioneer } = useAdminSubscription();
   const [notes, setNotes] = useState("");
   const [rejectReason, setRejectReason] = useState("");
-  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [requestReviewOpen, setRequestReviewOpen] = useState(false);
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [suspendReason, setSuspendReason] = useState("");
   const [banOpen, setBanOpen] = useState(false);
@@ -64,26 +66,19 @@ export default function AuctioneerDetailsPage() {
   const auctioneer = response;
 
   const handleApprove = async () => {
-    if (window.confirm("Are you sure you want to approve this application?")) {
-      await approveAuctioneer.mutateAsync({ id: Number(id), notes });
-    }
+    await approveAuctioneer.mutateAsync({ id: Number(id), notes });
+    setApproveOpen(false);
   };
 
   const handleReject = async () => {
-    if (!rejectReason) {
-      alert("Please provide a reason for rejection.");
-      return;
-    }
     await rejectAuctioneer.mutateAsync({ id: Number(id), reason: rejectReason, notes });
-    setShowRejectForm(false);
+    setRejectOpen(false);
+    setRejectReason("");
   };
 
   const handleRequestReview = async () => {
-    if (!notes) {
-      alert("Please provide notes for the review request.");
-      return;
-    }
     await requestReview.mutateAsync({ id: Number(id), notes });
+    setRequestReviewOpen(false);
   };
 
   if (isLoading) {
@@ -251,6 +246,12 @@ export default function AuctioneerDetailsPage() {
                         </a>
                       ) : <p className="text-slate-400 italic">N/A</p>}
                     </div>
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Subdomain</p>
+                      {auctioneer.contacts.wants_subdomain && auctioneer.contacts.subdomain ? (
+                        <p className="font-medium text-slate-900">{auctioneer.contacts.subdomain}.bidooze.com</p>
+                      ) : <p className="text-slate-400 italic">Not requested</p>}
+                    </div>
                   </div>
                   <div className="space-y-4">
                     <div>
@@ -261,10 +262,10 @@ export default function AuctioneerDetailsPage() {
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Social Media</p>
                       <div className="flex flex-wrap gap-3 mt-2">
                         {auctioneer.socials?.length > 0 ? auctioneer.socials.map((social) => (
-                          <a 
-                            key={social.id} 
-                            href={social.url} 
-                            target="_blank" 
+                          <a
+                            key={social.id}
+                            href={social.url}
+                            target="_blank"
                             rel="noopener noreferrer"
                             className="p-2 rounded-full bg-slate-100 text-slate-600 hover:bg-primary hover:text-white transition-colors"
                             title={social.platform}
@@ -276,7 +277,13 @@ export default function AuctioneerDetailsPage() {
                     </div>
                   </div>
                 </div>
-              ) : <p className="text-muted-foreground italic">No contact information provided.</p>}
+              ) : (
+                <p className="text-muted-foreground italic">
+                  {auctioneer.registration_step < 2
+                    ? "Not yet submitted — auctioneer hasn't reached contact info (Step 2)."
+                    : "No contact information provided."}
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -284,28 +291,74 @@ export default function AuctioneerDetailsPage() {
           <Card>
             <CardHeader className="border-b bg-slate-50/50">
               <CardTitle className="flex items-center gap-2 text-lg">
-                <CreditCard className="h-5 w-5 text-primary" /> Banking Information
+                <CreditCard className="h-5 w-5 text-primary" /> Payout Account
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
               {auctioneer.bank ? (
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Bank Name</p>
-                    <p className="font-medium text-slate-900">{auctioneer.bank.bank_name}</p>
+                <div className="space-y-6">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="bg-slate-50 capitalize">
+                      {auctioneer.bank.payment_gateway ?? "Unknown gateway"}
+                    </Badge>
+                    <Badge className={auctioneer.bank.payment_account_connected ? "bg-green-500" : "bg-slate-400"}>
+                      {auctioneer.bank.payment_account_connected ? "Connected" : "Not connected"}
+                    </Badge>
+                    {auctioneer.bank.onboarding_completed_at && (
+                      <span className="text-xs text-muted-foreground">
+                        Completed {new Date(auctioneer.bank.onboarding_completed_at).toLocaleDateString()}
+                      </span>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Account Name</p>
-                    <p className="font-medium text-slate-900">{auctioneer.bank.account_name}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Account Type</p>
-                      <Badge variant="outline" className="mt-1 bg-slate-50 capitalize">
-                        {auctioneer.bank.account_type.replace('_', ' ')}
-                      </Badge>
+
+                  <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-3">
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Business Name</p>
+                      <p className="font-medium text-slate-900">{auctioneer.bank.business_name || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Bank Name</p>
+                      <p className="font-medium text-slate-900">
+                        {auctioneer.bank.payment_gateway === "stripe"
+                          ? "Not applicable for Stripe"
+                          : auctioneer.bank.bank_name || "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Account Name</p>
+                      <p className="font-medium text-slate-900">
+                        {auctioneer.bank.payment_gateway === "stripe"
+                          ? "Not applicable for Stripe"
+                          : auctioneer.bank.account_name || "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Account Number</p>
+                      <p className="font-medium text-slate-900">
+                        {auctioneer.bank.payment_gateway === "stripe"
+                          ? "Not applicable for Stripe"
+                          : auctioneer.bank.account_number_last4
+                            ? `••••${auctioneer.bank.account_number_last4}`
+                            : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Country</p>
+                      <p className="font-medium text-slate-900">{auctioneer.bank.country || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Currency</p>
+                      <p className="font-medium text-slate-900">{auctioneer.bank.currency || "N/A"}</p>
+                    </div>
                   </div>
                 </div>
-              ) : <p className="text-muted-foreground italic">No bank details provided.</p>}
+              ) : (
+                <p className="text-muted-foreground italic">
+                  {auctioneer.registration_step < 3
+                    ? "Not yet submitted — auctioneer hasn't reached payment setup (Step 3)."
+                    : "No bank details provided."}
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -400,51 +453,31 @@ export default function AuctioneerDetailsPage() {
                   />
                 </div>
 
-                {showRejectForm ? (
-                  <div className="space-y-3 p-4 bg-red-50 rounded-lg border border-red-100">
-                    <label className="text-sm font-bold text-red-800">Rejection Reason (Required)</label>
-                    <textarea
-                      className="w-full min-h-24 p-2 border border-red-200 rounded-md text-sm focus:ring-2 focus:ring-red-200 outline-none"
-                      placeholder="Why is this application being rejected?"
-                      value={rejectReason}
-                      onChange={(e) => setRejectReason(e.target.value)}
-                    />
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <Button variant="destructive" size="sm" className="flex-1" onClick={handleReject} disabled={rejectAuctioneer.isPending}>
-                        Confirm Reject
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => setShowRejectForm(false)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    <Button
-                      className="bg-green-600 hover:bg-green-700 w-full py-6"
-                      onClick={handleApprove}
-                      disabled={approveAuctioneer.isPending}
-                    >
-                      <CheckCircle className="h-5 w-5 mr-2" /> Approve Application
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full border-blue-200 py-6 text-blue-600 hover:bg-blue-50"
-                      onClick={handleRequestReview}
-                      disabled={requestReview.isPending}
-                    >
-                      <MessageSquare className="h-5 w-5 mr-2" /> Request More Info
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      className="w-full py-6"
-                      onClick={() => setShowRejectForm(true)}
-                      disabled={auctioneer.status === "rejected" || rejectAuctioneer.isPending}
-                    >
-                      <XCircle className="h-5 w-5 mr-2" /> Reject Application
-                    </Button>
-                  </div>
-                )}
+                <div className="flex flex-col gap-3">
+                  <Button
+                    className="bg-green-600 hover:bg-green-700 w-full py-6"
+                    onClick={() => setApproveOpen(true)}
+                    disabled={approveAuctioneer.isPending}
+                  >
+                    <CheckCircle className="h-5 w-5 mr-2" /> Approve Application
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full border-blue-200 py-6 text-blue-600 hover:bg-blue-50"
+                    onClick={() => setRequestReviewOpen(true)}
+                    disabled={requestReview.isPending}
+                  >
+                    <MessageSquare className="h-5 w-5 mr-2" /> Request More Info
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="w-full py-6"
+                    onClick={() => setRejectOpen(true)}
+                    disabled={auctioneer.status === "rejected" || rejectAuctioneer.isPending}
+                  >
+                    <XCircle className="h-5 w-5 mr-2" /> Reject Application
+                  </Button>
+                </div>
 
                 <div className="pt-4 border-t">
                   <p className="text-xs text-muted-foreground text-center">
@@ -490,14 +523,14 @@ export default function AuctioneerDetailsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Permanently ban this auctioneer?</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <span>This action is irreversible. The auctioneer will lose all access.</span>
-              <div className="mt-2">
-                <Label>Reason <span className="text-red-500">*</span></Label>
-                <Input value={banReason} onChange={(e) => setBanReason(e.target.value)} className="mt-1" placeholder="Repeated violations" />
-              </div>
+            <AlertDialogDescription>
+              This action is irreversible. The auctioneer will lose all access.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div>
+            <Label>Reason <span className="text-red-500">*</span></Label>
+            <Input value={banReason} onChange={(e) => setBanReason(e.target.value)} className="mt-1" placeholder="Repeated violations" />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setBanReason("")}>Cancel</AlertDialogCancel>
             <AlertDialogAction
@@ -511,6 +544,93 @@ export default function AuctioneerDetailsPage() {
             >
               {banAuctioneer.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Ban Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Approve dialog */}
+      <AlertDialog open={approveOpen} onOpenChange={setApproveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approve this application?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The auctioneer will be notified and gain full access to their account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-green-600 hover:bg-green-700"
+              disabled={approveAuctioneer.isPending}
+              onClick={handleApprove}
+            >
+              {approveAuctioneer.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Approve
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Request more info dialog */}
+      <AlertDialog open={requestReviewOpen} onOpenChange={setRequestReviewOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Request more information?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The auctioneer will be notified and asked to provide the details below.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div>
+            <Label>Notes for auctioneer <span className="text-red-500">*</span></Label>
+            <textarea
+              className="mt-1 w-full min-h-24 p-2 border rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+              placeholder="What additional information is needed?"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={!notes.trim() || requestReview.isPending}
+              onClick={handleRequestReview}
+            >
+              {requestReview.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Request Info
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reject dialog */}
+      <AlertDialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject this application?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will notify the auctioneer that their application was rejected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div>
+            <Label>Rejection reason <span className="text-red-500">*</span></Label>
+            <textarea
+              className="mt-1 w-full min-h-24 p-2 border rounded-md text-sm focus:ring-2 focus:ring-red-200 focus:border-red-300 outline-none"
+              placeholder="Why is this application being rejected?"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setRejectReason("")}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={!rejectReason.trim() || rejectAuctioneer.isPending}
+              onClick={handleReject}
+            >
+              {rejectAuctioneer.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirm Reject
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

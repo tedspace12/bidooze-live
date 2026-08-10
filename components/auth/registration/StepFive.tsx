@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
@@ -17,36 +17,32 @@ import { Loader2 } from "lucide-react";
 import { FileUploader } from "./FileUploader";
 
 const stepFiveSchema = z.object({
-  backgroundCheckConsent: z.boolean().refine((v) => v === true, "Consent is required"),
+  backgroundCheckConsent: z.boolean().optional(),
 });
 
 type StepFiveFields = z.infer<typeof stepFiveSchema>;
 
 export type StepFiveData = StepFiveFields & {
-  identityVerification: string[];    // Cloudinary URLs
-  businessVerification: string[];
-  complianceDocumentation: string[];
+  identityVerification?: string[];    // Cloudinary URLs
+  businessVerification?: string[];
 };
 
 interface StepFiveProps {
   defaultValues?: StepFiveData;
   onSubmit: (data: StepFiveData) => void;
+  onSkip: () => void;
   onBack: () => void;
   isLoading?: boolean;
   registrationToken?: string | null;
 }
 
-export function StepFive({ defaultValues, onSubmit, onBack, isLoading, registrationToken }: StepFiveProps) {
+export function StepFive({ defaultValues, onSubmit, onSkip, onBack, isLoading, registrationToken }: StepFiveProps) {
   const [identityUrls, setIdentityUrls] = useState<string[] | null>(
     defaultValues?.identityVerification?.length ? defaultValues.identityVerification : null
   );
   const [businessUrls, setBusinessUrls] = useState<string[] | null>(
     defaultValues?.businessVerification?.length ? defaultValues.businessVerification : null
   );
-  const [complianceUrls, setComplianceUrls] = useState<string[] | null>(
-    defaultValues?.complianceDocumentation?.length ? defaultValues.complianceDocumentation : null
-  );
-  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const form = useForm<StepFiveFields>({
     resolver: zodResolver(stepFiveSchema),
@@ -56,21 +52,14 @@ export function StepFive({ defaultValues, onSubmit, onBack, isLoading, registrat
   });
 
   const handleSubmit = (fields: StepFiveFields) => {
-    setSubmitAttempted(true);
-    if (!identityUrls || !businessUrls || !complianceUrls) return;
     onSubmit({
       ...fields,
-      identityVerification: identityUrls,
-      businessVerification: businessUrls,
-      complianceDocumentation: complianceUrls,
+      identityVerification: identityUrls ?? undefined,
+      businessVerification: businessUrls ?? undefined,
     });
   };
 
-  const backgroundCheckConsent = useWatch({
-    control: form.control,
-    name: "backgroundCheckConsent",
-  });
-  const canSubmit = !!backgroundCheckConsent && !!identityUrls && !!businessUrls && !!complianceUrls && !isLoading;
+  const canSubmit = !isLoading;
 
   const base = `auctioneers/${registrationToken ?? "draft"}`;
 
@@ -78,37 +67,28 @@ export function StepFive({ defaultValues, onSubmit, onBack, isLoading, registrat
     <div className="max-w-3xl w-full space-y-8">
       <header>
         <p className="text-muted-foreground text-sm mb-2">Step 5/5</p>
-        <h2 className="text-3xl font-bold mb-1">Verification</h2>
+        <h2 className="text-3xl font-bold mb-1">Verification (Optional)</h2>
         <p className="text-muted-foreground">
-          Upload your verification documents and consent to a background check.
+          This page is optional during registration. You can upload verification documents now, or skip and submit for review.
         </p>
       </header>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            All fields and document uploads on this page are optional. These may be required later before account activity.
+          </div>
 
           <FileUploader
             folder={`${base}/identity`}
             label="Identity Verification (Government ID)"
-            required
             onChange={setIdentityUrls}
-            error={submitAttempted && !identityUrls ? "Please upload your government ID" : undefined}
           />
 
           <FileUploader
             folder={`${base}/business`}
             label="Business Verification (Registration Documents)"
-            required
             onChange={setBusinessUrls}
-            error={submitAttempted && !businessUrls ? "Please upload your registration documents" : undefined}
-          />
-
-          <FileUploader
-            folder={`${base}/compliance`}
-            label="Compliance Documentation"
-            required
-            onChange={setComplianceUrls}
-            error={submitAttempted && !complianceUrls ? "Please upload compliance documentation" : undefined}
           />
 
           <FormField
@@ -132,25 +112,37 @@ export function StepFive({ defaultValues, onSubmit, onBack, isLoading, registrat
             )}
           />
 
-          <div className="flex flex-col-reverse md:flex-row gap-3 pt-4">
+          <div className="flex flex-col-reverse gap-3 pt-4 md:flex-row md:items-center md:justify-between">
             <Button
               type="button"
               variant="outline"
               onClick={onBack}
-              className="w-full md:w-auto h-12 md:h-10 md:min-w-32 md:flex-none"
+              className="w-full md:w-auto h-12 md:h-10 md:min-w-32"
               size="lg"
               disabled={isLoading}
             >
               Back
             </Button>
-            <Button
-              type="submit"
-              className="w-full h-12 md:h-10 md:flex-1"
-              size="lg"
-              disabled={!canSubmit}
-            >
-              {isLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</> : "Complete"}
-            </Button>
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onSkip}
+                className="w-full sm:w-auto"
+                size="lg"
+                disabled={isLoading}
+              >
+                Skip and submit
+              </Button>
+              <Button
+                type="submit"
+                className="w-full sm:w-auto h-12 md:h-10 md:min-w-32"
+                size="lg"
+                disabled={!canSubmit}
+              >
+                {isLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</> : "Complete"}
+              </Button>
+            </div>
           </div>
         </form>
       </Form>

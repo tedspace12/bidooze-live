@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { getSocialToken, type SocialProvider } from "@/lib/social-auth";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -22,8 +23,8 @@ import { Loader2 } from "lucide-react";
 
 const socialsField = z.array(
   z.object({
-    platform: z.string().min(1, "Select a platform"),
-    url: z.string().url("Enter a valid URL"),
+    platform: z.string().optional(),
+    url: z.string().trim().optional().or(z.literal("")),
   })
 );
 
@@ -35,17 +36,20 @@ const stepTwoSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters").trim(),
   password_confirmation: z.string().trim(),
   website: z.string().trim().url("Invalid website URL").optional().or(z.literal("")),
+  wants_subdomain: z.boolean(),
   socials: socialsField,
-}).refine((data) => data.password === data.password_confirmation, {
-  message: "Passwords do not match",
-  path: ["password_confirmation"],
-});
+})
+  .refine((data) => data.password === data.password_confirmation, {
+    message: "Passwords do not match",
+    path: ["password_confirmation"],
+  });
 
 const socialStepTwoSchema = z.object({
   contactName: z.string().trim().min(1, "Contact name is required").max(100),
   businessAddress: z.string().trim().min(1, "Business address is required"),
   phoneNumber: z.string().trim().min(1, "Phone number is required").max(15),
   website: z.string().trim().url("Invalid website URL").optional().or(z.literal("")),
+  wants_subdomain: z.boolean(),
   socials: socialsField,
 });
 
@@ -157,6 +161,7 @@ function SocialContactForm({
       businessAddress: "",
       phoneNumber: "",
       website: "",
+      wants_subdomain: false,
       socials: [{ platform: "", url: "" }],
     },
   });
@@ -255,6 +260,27 @@ function SocialContactForm({
             </FormItem>
           )}
         />
+
+        <div className="space-y-4 rounded-lg border border-border bg-muted/30 p-4">
+          <FormField
+            control={form.control}
+            name="wants_subdomain"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between gap-4">
+                <div>
+                  <FormLabel>Reserve a Bidooze subdomain</FormLabel>
+                  <p className="text-xs text-muted-foreground">
+                    We will generate it from your company name, such as acme-auctions-llc. If it already exists, we will add -2, -3, and so on.
+                  </p>
+                </div>
+                <FormControl>
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+        </div>
 
         <div className="space-y-4">
           <FormLabel className="text-lg font-semibold">Social Media Profiles</FormLabel>
@@ -359,6 +385,7 @@ export const StepTwo = ({
       password: "",
       password_confirmation: "",
       website: "",
+      wants_subdomain: false,
       socials: [{ platform: "", url: "" }],
     },
   });
@@ -532,6 +559,26 @@ export const StepTwo = ({
                   </FormItem>
                 )}
               />
+
+              <div className="space-y-4 rounded-lg border border-border bg-muted/30 p-4">
+                <FormField
+                  control={form.control}
+                  name="wants_subdomain"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between gap-4">
+                      <div>
+                        <FormLabel>Reserve a Bidooze subdomain</FormLabel>
+                        <p className="text-xs text-muted-foreground">
+                          We will generate it from your company name, such as acme-auctions-llc. If it already exists, we will add -2, -3, and so on.
+                        </p>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <div className="space-y-4">
                 <FormLabel className="text-lg font-semibold">Social Media Profiles</FormLabel>

@@ -5,7 +5,7 @@ export interface StepOnePayload {
   tax_id: string;
   business_type: string;
   specialization: string[];
-  years_in_business: string;
+  years_in_business: number;
 }
 
 export interface StepTwoPayload {
@@ -17,38 +17,87 @@ export interface StepTwoPayload {
   password: string;
   password_confirmation: string;
   website?: string;
+  wants_subdomain: boolean;
   socials: Array<{
     platform: string;
     url: string;
   }>;
 }
 
+export type PaymentProvider = "stripe" | "paystack";
+
 export interface StepThreePayload {
   registration_token: string;
-  country: string;
-  bank_name: string;
-  account_name: string;
+  payment_provider: PaymentProvider;
+  country?: string;
+  stripe_return_url?: string;
+  stripe_refresh_url?: string;
+  bank_code?: string;
+  bank_name?: string;
   account_number?: string;
-  routing_number?: string;
-  account_type: string;
-  bank_identifiers?: Record<string, string>;
+  business_name?: string;
+}
+
+export interface PaymentAccountResponse {
+  message?: string;
+  data?: {
+    payment_provider?: PaymentProvider;
+    connected_account_id?: string;
+    redirect_url?: string;
+    subaccount_code?: string;
+    business_name?: string;
+    account_name?: string;
+    bank_name?: string;
+    account_number_last4?: string;
+    payment_provider_connected?: boolean;
+    onboarding_completed?: boolean;
+  };
+  step?: number;
+}
+
+export interface PaymentAccountStatusResponse {
+  data?: {
+    payment_provider?: PaymentProvider;
+    payment_provider_connected?: boolean;
+    onboarding_completed?: boolean;
+    charges_enabled?: boolean;
+    payouts_enabled?: boolean;
+    details_submitted?: boolean;
+    step?: number;
+  };
+}
+
+export interface PaystackBank {
+  name: string;
+  slug: string;
+  code: string;
+  longcode?: string;
+  country: string;
+  currency: string;
+  type?: string;
+}
+
+export interface PaystackResolveAccountResponse {
+  data: {
+    account_number: string;
+    account_name: string;
+  };
 }
 
 export interface StepFourPayload {
   registration_token: string;
-  licenseNumber: string;
-  licenseExpirationDate: string;
+  licenseNumber?: string;
+  licenseExpirationDate?: string;
   certifications?: string;
   associations?: string;
-  licenseDocuments: string[]; // Cloudinary URLs — uploaded directly before this call
+  licenseDocuments?: string[]; // Cloudinary URLs — uploaded directly before this call
 }
 
 export interface StepFivePayload {
   registration_token: string;
-  identity_verification: string[];    // Cloudinary URLs
-  business_verification: string[];
-  background_check_consent: boolean;
-  compliance_documentation: string[];
+  identity_verification?: string[];    // Cloudinary URLs
+  business_verification?: string[];
+  background_check_consent?: boolean;
 }
 
 // Registration Response Types
