@@ -3,6 +3,7 @@
 import Echo from "laravel-echo";
 import Pusher from "pusher-js";
 import { API_BASE_URL, getToken } from "@/services/api";
+import { currentAuthPanel } from "@/lib/auth-panel";
 
 type EchoInstance = Echo<"pusher">;
 
@@ -39,7 +40,7 @@ export const getEcho = () => {
   if (typeof window === "undefined") return null;
   if (!isBroadcastingConfigured()) return null;
 
-  const token = getToken();
+  const token = getToken(currentAuthPanel());
   if (echoInstance && echoToken === token) return echoInstance;
 
   if (echoInstance) {

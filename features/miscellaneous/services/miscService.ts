@@ -1,4 +1,4 @@
-import { withAuth } from "@/services/api";
+import { withAuctioneerAuth } from "@/services/api";
 import type {
   Account,
   Formula,
@@ -31,7 +31,7 @@ export const miscService = {
   // ── Accounts ──────────────────────────────────────────────────────────────
   async listAccounts(): Promise<Account[]> {
     try {
-      const res = await withAuth.get("/miscellaneous/accounts");
+      const res = await withAuctioneerAuth.get("/miscellaneous/accounts");
       return extractData<Account[]>(res.data) ?? [];
     } catch (e) {
       return rethrow(e);
@@ -40,7 +40,7 @@ export const miscService = {
 
   async createAccount(payload: CreateAccountPayload): Promise<Account> {
     try {
-      const res = await withAuth.post("/miscellaneous/accounts", payload);
+      const res = await withAuctioneerAuth.post("/miscellaneous/accounts", payload);
       return extractData<Account>(res.data);
     } catch (e) {
       return rethrow(e);
@@ -49,7 +49,7 @@ export const miscService = {
 
   async updateAccount(id: number, payload: Partial<CreateAccountPayload>): Promise<Account> {
     try {
-      const res = await withAuth.patch(`/miscellaneous/accounts/${id}`, payload);
+      const res = await withAuctioneerAuth.patch(`/miscellaneous/accounts/${id}`, payload);
       return extractData<Account>(res.data);
     } catch (e) {
       return rethrow(e);
@@ -58,7 +58,7 @@ export const miscService = {
 
   async deleteAccount(id: number): Promise<void> {
     try {
-      await withAuth.delete(`/miscellaneous/accounts/${id}`);
+      await withAuctioneerAuth.delete(`/miscellaneous/accounts/${id}`);
     } catch (e) {
       rethrow(e);
     }
@@ -66,7 +66,7 @@ export const miscService = {
 
   async seedDefaultAccounts(): Promise<Account[]> {
     try {
-      const res = await withAuth.post("/miscellaneous/accounts/seed-defaults", {});
+      const res = await withAuctioneerAuth.post("/miscellaneous/accounts/seed-defaults", {});
       return extractData<Account[]>(res.data) ?? [];
     } catch (e) {
       return rethrow(e);
@@ -76,7 +76,7 @@ export const miscService = {
   // ── Formulas ──────────────────────────────────────────────────────────────
   async listFormulas(): Promise<Formula[]> {
     try {
-      const res = await withAuth.get("/miscellaneous/formulas");
+      const res = await withAuctioneerAuth.get("/miscellaneous/formulas");
       return extractData<Formula[]>(res.data) ?? [];
     } catch (e) {
       return rethrow(e);
@@ -85,7 +85,7 @@ export const miscService = {
 
   async createFormula(payload: FormulaPayload): Promise<Formula> {
     try {
-      const res = await withAuth.post("/miscellaneous/formulas", payload);
+      const res = await withAuctioneerAuth.post("/miscellaneous/formulas", payload);
       return extractData<Formula>(res.data);
     } catch (e) {
       return rethrow(e);
@@ -94,7 +94,7 @@ export const miscService = {
 
   async updateFormula(id: string, payload: Partial<FormulaPayload>): Promise<Formula> {
     try {
-      const res = await withAuth.patch(`/miscellaneous/formulas/${id}`, payload);
+      const res = await withAuctioneerAuth.patch(`/miscellaneous/formulas/${id}`, payload);
       return extractData<Formula>(res.data);
     } catch (e) {
       return rethrow(e);
@@ -103,7 +103,7 @@ export const miscService = {
 
   async deleteFormula(id: string): Promise<void> {
     try {
-      await withAuth.delete(`/miscellaneous/formulas/${id}`);
+      await withAuctioneerAuth.delete(`/miscellaneous/formulas/${id}`);
     } catch (e) {
       rethrow(e);
     }
@@ -112,7 +112,7 @@ export const miscService = {
   // ── Company ──────────────────────────────────────────────────────────────
   async getCompany(): Promise<Company> {
     try {
-      const res = await withAuth.get("/miscellaneous/company");
+      const res = await withAuctioneerAuth.get("/miscellaneous/company");
       return extractData<Company>(res.data);
     } catch (e) {
       return rethrow(e);
@@ -121,7 +121,7 @@ export const miscService = {
 
   async updateCompany(payload: CompanyPayload): Promise<Company> {
     try {
-      const res = await withAuth.patch("/miscellaneous/company", payload);
+      const res = await withAuctioneerAuth.patch("/miscellaneous/company", payload);
       return extractData<Company>(res.data);
     } catch (e) {
       return rethrow(e);
@@ -133,7 +133,7 @@ export const miscService = {
       const form = new FormData();
       form.append("file", file);
       form.append("type", type);
-      const res = await withAuth.post("/miscellaneous/company/logo", form, {
+      const res = await withAuctioneerAuth.post("/miscellaneous/company/logo", form, {
         headers: { "Content-Type": "multipart/form-data" },
       } as never);
       return extractData<Company>(res.data);
@@ -144,7 +144,7 @@ export const miscService = {
 
   async deleteCompanyLogo(type: "logo" | "logo_mono"): Promise<Company> {
     try {
-      const res = await withAuth.delete("/miscellaneous/company/logo", { data: { type } } as never);
+      const res = await withAuctioneerAuth.delete("/miscellaneous/company/logo", { data: { type } } as never);
       return extractData<Company>(res.data);
     } catch (e) {
       return rethrow(e);
@@ -154,7 +154,7 @@ export const miscService = {
   // ── Users ─────────────────────────────────────────────────────────────────
   async listUsers(): Promise<User[]> {
     try {
-      const res = await withAuth.get("/miscellaneous/users");
+      const res = await withAuctioneerAuth.get("/miscellaneous/users");
       return extractData<User[]>(res.data) ?? [];
     } catch (e) {
       return rethrow(e);
@@ -163,7 +163,7 @@ export const miscService = {
 
   async inviteUser(payload: InviteUserPayload): Promise<User> {
     try {
-      const res = await withAuth.post("/miscellaneous/users/invite", payload);
+      const res = await withAuctioneerAuth.post("/miscellaneous/users/invite", payload);
       return extractData<User>(res.data);
     } catch (e) {
       return rethrow(e);
@@ -175,7 +175,7 @@ export const miscService = {
     payload: Partial<Pick<User, "role" | "custom_permissions" | "auction_access" | "is_active">>
   ): Promise<User> {
     try {
-      const res = await withAuth.patch(`/miscellaneous/users/${id}`, payload);
+      const res = await withAuctioneerAuth.patch(`/miscellaneous/users/${id}`, payload);
       return extractData<User>(res.data);
     } catch (e) {
       return rethrow(e);
@@ -184,7 +184,7 @@ export const miscService = {
 
   async transferOwnership(toUserId: string): Promise<void> {
     try {
-      await withAuth.post("/miscellaneous/users/transfer-ownership", { to_user_id: toUserId });
+      await withAuctioneerAuth.post("/miscellaneous/users/transfer-ownership", { to_user_id: toUserId });
     } catch (e) {
       rethrow(e);
     }
@@ -192,7 +192,7 @@ export const miscService = {
 
   async removeUser(id: string): Promise<void> {
     try {
-      await withAuth.delete(`/miscellaneous/users/${id}`);
+      await withAuctioneerAuth.delete(`/miscellaneous/users/${id}`);
     } catch (e) {
       rethrow(e);
     }
@@ -201,7 +201,7 @@ export const miscService = {
   // ── Locations ─────────────────────────────────────────────────────────────
   async listLocations(): Promise<Location[]> {
     try {
-      const res = await withAuth.get("/miscellaneous/locations");
+      const res = await withAuctioneerAuth.get("/miscellaneous/locations");
       return extractData<Location[]>(res.data) ?? [];
     } catch (e) {
       return rethrow(e);
@@ -210,7 +210,7 @@ export const miscService = {
 
   async createLocation(payload: CreateLocationPayload): Promise<Location> {
     try {
-      const res = await withAuth.post("/miscellaneous/locations", payload);
+      const res = await withAuctioneerAuth.post("/miscellaneous/locations", payload);
       return extractData<Location>(res.data);
     } catch (e) {
       return rethrow(e);
@@ -219,7 +219,7 @@ export const miscService = {
 
   async updateLocation(id: string, payload: Partial<CreateLocationPayload>): Promise<Location> {
     try {
-      const res = await withAuth.patch(`/miscellaneous/locations/${id}`, payload);
+      const res = await withAuctioneerAuth.patch(`/miscellaneous/locations/${id}`, payload);
       return extractData<Location>(res.data);
     } catch (e) {
       return rethrow(e);
@@ -228,7 +228,7 @@ export const miscService = {
 
   async deleteLocation(id: string): Promise<void> {
     try {
-      await withAuth.delete(`/miscellaneous/locations/${id}`);
+      await withAuctioneerAuth.delete(`/miscellaneous/locations/${id}`);
     } catch (e) {
       rethrow(e);
     }

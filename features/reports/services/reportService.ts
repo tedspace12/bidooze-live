@@ -1,4 +1,4 @@
-import { withAuth } from "@/services/api";
+import { withAuctioneerAuth } from "@/services/api";
 import type { ExportFormat, ExportStatus } from "@/components/reports/report-types";
 
 type ApiErrorLike = {
@@ -223,7 +223,7 @@ export const reportService = {
     idempotencyKey?: string
   ): Promise<QueueReportRunResponse> {
     try {
-      const res = await withAuth.post<MessageEnvelope | ReportRunResource>(
+      const res = await withAuctioneerAuth.post<MessageEnvelope | ReportRunResource>(
         "/auctioneer/reports/runs",
         payload,
         idempotencyKey
@@ -251,7 +251,7 @@ export const reportService = {
 
   async getRun(runId: string): Promise<QueueReportRunResponse> {
     try {
-      const res = await withAuth.get<MessageEnvelope | ReportRunResource>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | ReportRunResource>(
         `/auctioneer/reports/runs/${runId}`
       );
 
@@ -274,7 +274,7 @@ export const reportService = {
     format: ExportFormat
   ): Promise<{ message: string; data: ReportExportResource }> {
     try {
-      const res = await withAuth.post<MessageEnvelope | ReportExportResource>(
+      const res = await withAuctioneerAuth.post<MessageEnvelope | ReportExportResource>(
         `/auctioneer/reports/runs/${runId}/exports`,
         { format }
       );
@@ -299,7 +299,7 @@ export const reportService = {
     per_page?: number;
   }): Promise<ReportExportsListResponse> {
     try {
-      const res = await withAuth.get<MessageEnvelope | ReportExportResource[]>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | ReportExportResource[]>(
         "/auctioneer/reports/exports",
         { params }
       );
@@ -317,7 +317,7 @@ export const reportService = {
 
   async downloadExport(exportId: string): Promise<Blob> {
     try {
-      const res = await withAuth.get<Blob>(
+      const res = await withAuctioneerAuth.get<Blob>(
         `/auctioneer/reports/exports/${exportId}/download`,
         { responseType: "blob" }
       );
@@ -332,7 +332,7 @@ export const reportService = {
     per_page?: number;
   }): Promise<ReportPresetsListResponse> {
     try {
-      const res = await withAuth.get<MessageEnvelope | ReportPresetResource[]>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | ReportPresetResource[]>(
         "/auctioneer/reports/presets",
         { params }
       );
@@ -353,7 +353,7 @@ export const reportService = {
     payload: CreateReportPresetPayload
   ): Promise<{ message: string; data: ReportPresetResource }> {
     try {
-      const res = await withAuth.post<MessageEnvelope | ReportPresetResource>(
+      const res = await withAuctioneerAuth.post<MessageEnvelope | ReportPresetResource>(
         "/auctioneer/reports/presets",
         payload
       );
@@ -374,7 +374,7 @@ export const reportService = {
 
   async deletePreset(presetId: string): Promise<DeleteReportPresetResponse> {
     try {
-      const res = await withAuth.delete<MessageEnvelope | DeleteReportPresetResponse["data"]>(
+      const res = await withAuctioneerAuth.delete<MessageEnvelope | DeleteReportPresetResponse["data"]>(
         `/auctioneer/reports/presets/${presetId}`
       );
 
@@ -397,7 +397,7 @@ export const reportService = {
     payload?: { filters?: ReportFiltersInput }
   ): Promise<QueueReportRunResponse> {
     try {
-      const res = await withAuth.post<MessageEnvelope | ReportRunResource>(
+      const res = await withAuctioneerAuth.post<MessageEnvelope | ReportRunResource>(
         `/auctioneer/reports/presets/${presetId}/run`,
         payload ?? {}
       );
@@ -420,7 +420,7 @@ export const reportService = {
     filters?: ReportFiltersInput
   ): Promise<ReportsOverviewResponse> {
     try {
-      const res = await withAuth.get<MessageEnvelope | ReportsOverviewResponse["data"]>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | ReportsOverviewResponse["data"]>(
         "/auctioneer/reports/overview",
         { params: filters }
       );

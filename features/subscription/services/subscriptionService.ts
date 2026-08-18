@@ -1,4 +1,4 @@
-import { withAuth } from "@/services/api";
+import { withAuctioneerAuth } from "@/services/api";
 import type {
   SubscriptionDetailsResponse,
   PlansResponse,
@@ -26,7 +26,7 @@ const rethrow = (error: unknown): never => {
 export const subscriptionService = {
   async getSubscription(): Promise<SubscriptionDetailsResponse["data"]> {
     try {
-      const res = await withAuth.get<SubscriptionDetailsResponse>("/auctioneer/subscription");
+      const res = await withAuctioneerAuth.get<SubscriptionDetailsResponse>("/auctioneer/subscription");
       return res.data.data;
     } catch (e) {
       throw rethrow(e);
@@ -35,7 +35,7 @@ export const subscriptionService = {
 
   async getPlans(): Promise<PlansResponse["data"]> {
     try {
-      const res = await withAuth.get<PlansResponse>("/auctioneer/subscription/plans");
+      const res = await withAuctioneerAuth.get<PlansResponse>("/auctioneer/subscription/plans");
       return res.data.data;
     } catch (e) {
       throw rethrow(e);
@@ -44,7 +44,7 @@ export const subscriptionService = {
 
   async initiatePayment(payload: InitiatePaymentPayload): Promise<InitiatePaymentResponse["data"]> {
     try {
-      const res = await withAuth.post<InitiatePaymentResponse>(
+      const res = await withAuctioneerAuth.post<InitiatePaymentResponse>(
         "/auctioneer/subscription/initiate",
         payload
       );
@@ -56,7 +56,7 @@ export const subscriptionService = {
 
   async updateAutoRenew(auto_renew: boolean): Promise<AutoRenewResponse["data"]> {
     try {
-      const res = await withAuth.patch<AutoRenewResponse>(
+      const res = await withAuctioneerAuth.patch<AutoRenewResponse>(
         "/auctioneer/subscription/auto-renew",
         { auto_renew }
       );
@@ -68,7 +68,7 @@ export const subscriptionService = {
 
   async cancelSubscription(reason?: string): Promise<CancelSubscriptionResponse["data"]> {
     try {
-      const res = await withAuth.post<CancelSubscriptionResponse>(
+      const res = await withAuctioneerAuth.post<CancelSubscriptionResponse>(
         "/auctioneer/subscription/cancel",
         { reason }
       );
@@ -80,7 +80,7 @@ export const subscriptionService = {
 
   async getPayments(page = 1): Promise<PaymentsResponse["data"]> {
     try {
-      const res = await withAuth.get<PaymentsResponse>("/auctioneer/subscription/payments", {
+      const res = await withAuctioneerAuth.get<PaymentsResponse>("/auctioneer/subscription/payments", {
         params: { page },
       });
       return res.data.data;
@@ -91,7 +91,7 @@ export const subscriptionService = {
 
   async getPaymentMethods(): Promise<PaymentMethodsResponse["data"]> {
     try {
-      const res = await withAuth.get<PaymentMethodsResponse>("/auctioneer/payment-methods");
+      const res = await withAuctioneerAuth.get<PaymentMethodsResponse>("/auctioneer/payment-methods");
       return res.data.data;
     } catch (e) {
       throw rethrow(e);
@@ -100,7 +100,7 @@ export const subscriptionService = {
 
   async addPaymentMethod(payload: AddPaymentMethodPayload): Promise<PaymentMethodResponse["data"]> {
     try {
-      const res = await withAuth.post<PaymentMethodResponse>(
+      const res = await withAuctioneerAuth.post<PaymentMethodResponse>(
         "/auctioneer/payment-methods",
         payload
       );
@@ -112,7 +112,7 @@ export const subscriptionService = {
 
   async setDefaultPaymentMethod(id: number): Promise<PaymentMethodResponse["data"]> {
     try {
-      const res = await withAuth.patch<PaymentMethodResponse>(
+      const res = await withAuctioneerAuth.patch<PaymentMethodResponse>(
         `/auctioneer/payment-methods/${id}/default`
       );
       return res.data.data;
@@ -123,7 +123,7 @@ export const subscriptionService = {
 
   async deletePaymentMethod(id: number): Promise<void> {
     try {
-      await withAuth.delete(`/auctioneer/payment-methods/${id}`);
+      await withAuctioneerAuth.delete(`/auctioneer/payment-methods/${id}`);
     } catch (e) {
       throw rethrow(e);
     }
@@ -131,7 +131,7 @@ export const subscriptionService = {
 
   async validateCoupon(coupon_code: string): Promise<CouponValidationResponse["data"]> {
     try {
-      const res = await withAuth.post<CouponValidationResponse>(
+      const res = await withAuctioneerAuth.post<CouponValidationResponse>(
         "/auctioneer/subscription/validate-coupon",
         { coupon_code }
       );

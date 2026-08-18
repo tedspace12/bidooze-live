@@ -4,13 +4,11 @@ import { cn } from "@/lib/utils";
 import { FormSection } from "../FormSection";
 import { FormInput } from "../FormInput";
 import { FormTextarea } from "../FormTextarea";
-import { FormCheckbox } from "../FormCheckbox";
 import { PremiumButton } from "../PremiumButton";
 import { DateTimePicker } from "../DateTimePicker";
 import { useAuctionForm } from "@/context/auction-form-context";
 import type { CreateAuctionPayload } from "@/features/auction/types";
-import { TimezoneSelect } from "@/components/ui/timezone-select";
-import { CurrencySelect } from "@/components/ui/currency-select";
+import { TimezoneField } from "../TimezoneField";
 import { useDetectedTimezone } from "@/lib/timezones";
 import {
   CountrySelect,
@@ -304,52 +302,13 @@ export function DetailsTab({ initialData, fieldErrors }: DetailsTabProps) {
             error={errors.auction_end_at}
           />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Timezone</label>
-            <TimezoneSelect
-              name="timezone"
-              value={formState.timezone || detectedTimezone || ""}
-              onChange={(value) => updateFormState({ timezone: value })}
-              placeholder="Search timezone..."
-              error={!!errors.timezone}
-            />
-            {errors.timezone ? (
-              <p className="text-xs text-destructive">{errors.timezone}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Stored in IANA format (for example: Europe/Zurich).
-              </p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Currency</label>
-            <CurrencySelect
-              name="currency"
-              value={formState.currency || "USD"}
-              onChange={(value) =>
-                updateFormState({
-                  currency: (value || formState.currency || "USD") as CreateAuctionPayload["currency"],
-                })
-              }
-              error={!!errors.currency}
-            />
-            {errors.currency ? (
-              <p className="text-xs text-destructive">{errors.currency}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Stored as ISO-4217 currency code (for example: USD, EUR, CHF).
-              </p>
-            )}
-          </div>
-        </div>
         <div className="mt-6">
-          <FormCheckbox
-            label="Tax Exempt All"
-            description="Apply tax exemption to all items."
-            name="tax_exempt_all"
-            checked={!!formState.tax_exempt_all}
-            onChange={(e) => updateFormState({ tax_exempt_all: e.target.checked })}
+          <TimezoneField
+            value={formState.timezone || detectedTimezone || ""}
+            onChange={(value) => updateFormState({ timezone: value })}
+            detectedTimezone={detectedTimezone}
+            error={!!errors.timezone}
+            errorMessage={errors.timezone}
           />
         </div>
       </FormSection>
@@ -369,18 +328,6 @@ export function DetailsTab({ initialData, fieldErrors }: DetailsTabProps) {
             error={errors.preview_end_at}
           />
           <DateTimePicker
-            label="Checkout Start"
-            value={formState.checkout_start_at || ""}
-            onChange={(value) => updateFormState({ checkout_start_at: value || undefined })}
-            error={errors.checkout_start_at}
-          />
-          <DateTimePicker
-            label="Checkout End"
-            value={formState.checkout_end_at || ""}
-            onChange={(value) => updateFormState({ checkout_end_at: value || undefined })}
-            error={errors.checkout_end_at}
-          />
-          <DateTimePicker
             label="Open Bidding At"
             value={formState.open_bidding_at || ""}
             onChange={(value) => updateFormState({ open_bidding_at: value || undefined })}
@@ -391,6 +338,18 @@ export function DetailsTab({ initialData, fieldErrors }: DetailsTabProps) {
             value={formState.close_bidding_at || ""}
             onChange={(value) => updateFormState({ close_bidding_at: value || undefined })}
             error={errors.close_bidding_at}
+          />
+          <DateTimePicker
+            label="Checkout Start"
+            value={formState.checkout_start_at || ""}
+            onChange={(value) => updateFormState({ checkout_start_at: value || undefined })}
+            error={errors.checkout_start_at}
+          />
+          <DateTimePicker
+            label="Checkout End"
+            value={formState.checkout_end_at || ""}
+            onChange={(value) => updateFormState({ checkout_end_at: value || undefined })}
+            error={errors.checkout_end_at}
           />
         </div>
       </FormSection>

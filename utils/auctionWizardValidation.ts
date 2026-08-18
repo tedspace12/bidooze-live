@@ -3,9 +3,7 @@ import { detectUserTimezone } from "@/lib/timezones";
 
 export type WizardTabId = "details" | "upload" | "lots" | "images" | "preview";
 export type WizardTabStatus = "locked" | "invalid" | "complete" | "current";
-export type AuctionWizardState = Omit<CreateAuctionPayload, "feature_images"> & {
-  feature_images?: File[];
-};
+export type AuctionWizardState = CreateAuctionPayload;
 export type WizardFieldErrors = Partial<Record<string, string>>;
 
 const toTimestamp = (value?: string) => {

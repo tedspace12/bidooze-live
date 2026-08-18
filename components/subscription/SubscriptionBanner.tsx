@@ -5,12 +5,24 @@ import { AlertTriangle, Clock, CreditCard, Info, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSubscriptionDetails } from "@/features/subscription/hooks/useSubscription";
 import { useAuthStore } from "@/features/auth/store/authStore";
+import { useHasMounted } from "@/hooks/useHasMounted";
 import { useState } from "react";
 
 export function SubscriptionBanner() {
   const { auctioneer } = useAuthStore();
   const { data, isLoading } = useSubscriptionDetails();
   const [trialDismissed, setTrialDismissed] = useState(false);
+
+  // This component lives on /dashboard, which can be a fresh SSR + hydrate
+  // load (e.g. reached via proxy.ts's redirect chain, or a plain refresh
+  // while logged in). The server never sees the auth cookie, so it always
+  // renders nothing here — but the client's first paint can already have
+  // real `auctioneer` data, which used to make this branch render a whole
+  // banner where the server rendered null: a hydration mismatch. Gating on
+  // `mounted` forces the first client render to match the server; the real
+  // banner then appears as an ordinary post-mount update.
+  const mounted = useHasMounted();
+  if (!mounted) return null;
 
   // Only show for approved auctioneers
   if (!auctioneer || auctioneer.status !== "approved") return null;

@@ -1,13 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { CreateAuctionPayload, CreateAuctionLotInput } from '@/features/auction/types';
-import {
-  revokeRemovedObjectUrls,
-  revokeRemovedObjectUrlsForLotImages,
-} from '@/lib/file-previews';
 
-interface AuctionFormState extends Omit<CreateAuctionPayload, "feature_images"> {
-  feature_images?: File[];
-}
+type AuctionFormState = CreateAuctionPayload;
 
 interface AuctionFormContextType {
   formState: AuctionFormState;
@@ -15,8 +9,8 @@ interface AuctionFormContextType {
   initializeFormState: (updates?: Partial<AuctionFormState>) => void;
   resetFormState: () => void;
   setLotsPayload: (lots: CreateAuctionLotInput[]) => void;
-  setLotImages: (lotKey: string, files: File[]) => void;
-  removeLotImage: (lotKey: string, fileIndex: number) => void;
+  setLotImages: (lotKey: string, urls: string[]) => void;
+  removeLotImage: (lotKey: string, imageIndex: number) => void;
   clearLotImages: (lotKey: string) => void;
 }
 
@@ -52,8 +46,6 @@ const initialFormState: AuctionFormState = {
   buyer_premium_percentage: undefined,
   buyer_tax_percentage: undefined,
   seller_tax_percentage: undefined,
-  buyer_lot_charge_1: undefined,
-  buyer_lot_charge_2: undefined,
   minimum_bid_amount: undefined,
   tax_exempt_all: undefined,
   shipping_availability: undefined,
@@ -95,12 +87,11 @@ const initialFormState: AuctionFormState = {
   shipping_pickup_info: undefined,
   bidding_notice: undefined,
   auction_notice: undefined,
-  short_bp_explanation: undefined,
   auction_links: [],
   email_subject: undefined,
   email_body: undefined,
   lots: [],
-  feature_images: undefined,
+  feature_images: [],
   lot_images: undefined,
 };
 
@@ -108,62 +99,44 @@ export const AuctionFormProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [formState, setFormState] = useState<AuctionFormState>(initialFormState);
 
   const updateFormState = useCallback((updates: Partial<AuctionFormState>) => {
-    setFormState(prevState => {
-      const nextState = {
-        ...prevState,
-        ...updates,
-      };
-
-      revokeRemovedObjectUrls(prevState.feature_images, nextState.feature_images);
-      revokeRemovedObjectUrlsForLotImages(prevState.lot_images, nextState.lot_images);
-
-      return nextState;
-    });
+    setFormState(prevState => ({
+      ...prevState,
+      ...updates,
+    }));
   }, []);
 
   const initializeFormState = useCallback((updates?: Partial<AuctionFormState>) => {
     const normalizedUpdates = updates ? omitNilValues(updates) : undefined;
-    setFormState(prevState => {
-      const nextState = {
-        ...initialFormState,
-        ...(normalizedUpdates || {}),
-      };
-
-      revokeRemovedObjectUrls(prevState.feature_images, nextState.feature_images);
-      revokeRemovedObjectUrlsForLotImages(prevState.lot_images, nextState.lot_images);
-
-      return nextState;
+    setFormState({
+      ...initialFormState,
+      ...(normalizedUpdates || {}),
     });
   }, []);
 
   const resetFormState = useCallback(() => {
-    setFormState(prevState => {
-      revokeRemovedObjectUrls(prevState.feature_images, initialFormState.feature_images);
-      revokeRemovedObjectUrlsForLotImages(prevState.lot_images, initialFormState.lot_images);
-      return initialFormState;
-    });
+    setFormState(initialFormState);
   }, []);
 
   const setLotsPayload = useCallback((lots: CreateAuctionLotInput[]) => {
     updateFormState({ lots });
   }, [updateFormState]);
 
-  const setLotImages = useCallback((lotKey: string, files: File[]) => {
+  const setLotImages = useCallback((lotKey: string, urls: string[]) => {
     updateFormState({
       lot_images: {
         ...(formState.lot_images || {}),
-        [lotKey]: files,
+        [lotKey]: urls,
       },
     });
   }, [formState.lot_images, updateFormState]);
 
-  const removeLotImage = useCallback((lotKey: string, fileIndex: number) => {
+  const removeLotImage = useCallback((lotKey: string, imageIndex: number) => {
     const current = formState.lot_images || {};
-    const nextFiles = (current[lotKey] || []).filter((_, index) => index !== fileIndex);
+    const nextUrls = (current[lotKey] || []).filter((_, index) => index !== imageIndex);
     updateFormState({
       lot_images: {
         ...current,
-        [lotKey]: nextFiles,
+        [lotKey]: nextUrls,
       },
     });
   }, [formState.lot_images, updateFormState]);

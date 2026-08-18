@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { AUTH_SESSION_COOKIE, parseSessionCookie } from "@/lib/auth-session";
+import { parseSessionCookie } from "@/lib/auth-session";
+import { detectAuthPanel, sessionCookieName, tokenCookieName } from "@/lib/auth-panel";
 
 // ── Subdomain routing ──────────────────────────────────────────────────────
 // Production: admin.bidooze.com  →  only admin paths
@@ -77,17 +78,19 @@ const approvedOnlyAuctioneerRoutes = [
 const auctioneerStatusRoutes = ["/auctioneer/application-status"];
 
 const ALLOWED_ROLES = ["auctioneer", "admin", "superadmin"];
-const TOKEN_COOKIE = "bidooze_auth_token";
 
-function clearAuthCookies(response: NextResponse) {
-  response.cookies.set(AUTH_SESSION_COOKIE, "", { path: "/", maxAge: 0 });
-  response.cookies.set(TOKEN_COOKIE, "", { path: "/", maxAge: 0 });
+// Clears only the current panel's cookies — a session on the other panel
+// (if any) is untouched, so admin and auctioneer stay signed in independently.
+function clearAuthCookies(response: NextResponse, panel: ReturnType<typeof detectAuthPanel>) {
+  response.cookies.set(sessionCookieName(panel), "", { path: "/", maxAge: 0 });
+  response.cookies.set(tokenCookieName(panel), "", { path: "/", maxAge: 0 });
 }
 
 export async function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const subdomain = getSubdomain(host);
   const { pathname } = request.nextUrl;
+  const panel = detectAuthPanel(pathname);
 
   // ── 1. Subdomain enforcement ─────────────────────────────────────────────
   if (subdomain === ADMIN_SUBDOMAIN) {
@@ -110,8 +113,10 @@ export async function proxy(request: NextRequest) {
   }
 
   // ── 2. Auth guards ────────────────────────────────────────────────────────
-  const token = request.cookies.get(TOKEN_COOKIE)?.value || null;
-  const sessionRaw = request.cookies.get(AUTH_SESSION_COOKIE)?.value || null;
+  // Reads only the cookie pair for the panel this route belongs to, so an
+  // admin session and an auctioneer session never interfere with each other.
+  const token = request.cookies.get(tokenCookieName(panel))?.value || null;
+  const sessionRaw = request.cookies.get(sessionCookieName(panel))?.value || null;
   const session = parseSessionCookie(sessionRaw);
   const userRole = session?.user?.role;
   const accountStatus = session?.user?.account_status;
@@ -139,7 +144,7 @@ export async function proxy(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("blocked", "1");
     const response = NextResponse.redirect(loginUrl);
-    clearAuthCookies(response);
+    clearAuthCookies(response, panel);
     return response;
   }
 

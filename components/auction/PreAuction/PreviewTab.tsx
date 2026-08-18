@@ -146,12 +146,6 @@ export function PreviewTab({ onGoToTab }: PreviewTabProps) {
             <p className="font-medium">Seller Tax %</p>
             <p className="text-muted-foreground">{formState.seller_tax_percentage ?? "-"}</p>
           </div>
-          <div>
-            <p className="font-medium">Buyer Charges</p>
-            <p className="text-muted-foreground">
-              {formState.buyer_lot_charge_1 ?? "-"} / {formState.buyer_lot_charge_2 ?? "-"}
-            </p>
-          </div>
         </div>
       </FormSection>
 
@@ -228,24 +222,6 @@ export function PreviewTab({ onGoToTab }: PreviewTabProps) {
               </div>
             </>
           )}
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-sm mt-6">
-          <div>
-            <p className="font-medium">Mastercard</p>
-            <p className="text-muted-foreground">{formState.accept_mastercard ? "Yes" : "No"}</p>
-          </div>
-          <div>
-            <p className="font-medium">Visa</p>
-            <p className="text-muted-foreground">{formState.accept_visa ? "Yes" : "No"}</p>
-          </div>
-          <div>
-            <p className="font-medium">American Express</p>
-            <p className="text-muted-foreground">{formState.accept_amex ? "Yes" : "No"}</p>
-          </div>
-          <div>
-            <p className="font-medium">Discover</p>
-            <p className="text-muted-foreground">{formState.accept_discover ? "Yes" : "No"}</p>
-          </div>
         </div>
       </FormSection>
 

@@ -1,12 +1,11 @@
-import { useMemo } from "react";
 import Image from "next/image";
-import { Upload, X } from "lucide-react";
+import { Loader2, RotateCcw, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { FormSection } from "../FormSection";
 import { useAuctionForm } from "@/context/auction-form-context";
+import { useCloudinaryImageUpload } from "@/hooks/useCloudinaryImageUpload";
 import type { CreateAuctionPayload } from "@/features/auction/types";
 import type { WizardFieldErrors } from "@/utils/auctionWizardValidation";
-import { getObjectUrlMapForLotImages } from "@/lib/file-previews";
 
 const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 const maxSize = 10 * 1024 * 1024;
@@ -20,10 +19,14 @@ export function LotImagesTab({ initialData, fieldErrors }: LotImagesTabProps) {
   void initialData;
   const { formState, setLotImages, removeLotImage } = useAuctionForm();
   const errors = fieldErrors || {};
-  const previewMap = useMemo(
-    () => getObjectUrlMapForLotImages(formState.lot_images),
-    [formState.lot_images]
-  );
+
+  const { uploadFiles, itemsForGroup, dismissError } = useCloudinaryImageUpload({
+    folderFor: (lotKey) => `auctions/new/lot-images/${lotKey}`,
+    onUploaded: (lotKey, urls) => {
+      const existing = formState.lot_images?.[lotKey] || [];
+      setLotImages(lotKey, [...existing, ...urls]);
+    },
+  });
 
   const missingImages = (formState.lots || []).filter((lot, index) => {
     const byIndex = formState.lot_images?.[String(index)]?.length || 0;
@@ -33,6 +36,7 @@ export function LotImagesTab({ initialData, fieldErrors }: LotImagesTabProps) {
 
   const handleLotImageChange = (lotKey: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
+    e.target.value = "";
     const validFiles = files.filter((file) => {
       if (file.size > maxSize) {
         toast.error(`${file.name} exceeds 10MB limit`);
@@ -46,9 +50,7 @@ export function LotImagesTab({ initialData, fieldErrors }: LotImagesTabProps) {
     });
 
     if (validFiles.length > 0) {
-      const existing = formState.lot_images?.[lotKey] || [];
-      setLotImages(lotKey, [...existing, ...validFiles]);
-      toast.success(`${validFiles.length} image(s) added for lot ${lotKey}`);
+      void uploadFiles(lotKey, validFiles);
     }
   };
 
@@ -69,7 +71,8 @@ export function LotImagesTab({ initialData, fieldErrors }: LotImagesTabProps) {
         {formState.lots && formState.lots.length > 0 ? (
           formState.lots.map((lot, index) => {
             const lotKey = String(index);
-            const previews = previewMap[lotKey] || previewMap[lot.lot_number] || [];
+            const urls = formState.lot_images?.[lotKey] || formState.lot_images?.[lot.lot_number] || [];
+            const uploading = itemsForGroup(lotKey);
             return (
               <div key={lotKey} className="border rounded-xl p-4 mb-4">
                 <h3 className="font-semibold text-lg mb-2">
@@ -99,9 +102,9 @@ export function LotImagesTab({ initialData, fieldErrors }: LotImagesTabProps) {
                   </div>
                 </label>
 
-                {previews.length > 0 && (
+                {(urls.length > 0 || uploading.length > 0) && (
                   <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {previews.map((url, fileIdx) => (
+                    {urls.map((url, fileIdx) => (
                       <div key={url} className="relative group">
                         <Image
                           src={url}
@@ -118,6 +121,41 @@ export function LotImagesTab({ initialData, fieldErrors }: LotImagesTabProps) {
                         >
                           <X className="h-3 w-3" />
                         </button>
+                      </div>
+                    ))}
+                    {uploading.map((item) => (
+                      <div
+                        key={item.id}
+                        className="relative flex h-32 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 p-2 text-center"
+                      >
+                        {item.error ? (
+                          <>
+                            <p className="line-clamp-2 text-[11px] text-destructive">{item.error}</p>
+                            <div className="flex gap-3">
+                              <button
+                                type="button"
+                                onClick={() => void uploadFiles(lotKey, [item.file])}
+                                className="text-muted-foreground hover:text-foreground"
+                                aria-label="Retry upload"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => dismissError(item.id)}
+                                className="text-muted-foreground hover:text-foreground"
+                                aria-label="Dismiss"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                            <p className="text-[11px] text-muted-foreground">{item.progress}%</p>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>

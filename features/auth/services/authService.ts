@@ -1,5 +1,8 @@
 import { withAuth, withoutAuth, getToken, setToken, removeToken } from "@/services/api";
-import type { AuthUser, AuctioneerProfile, TeamMemberInfo } from "../types";
+import { currentAuthPanel, type AuthPanel } from "@/lib/auth-panel";
+import type { AuthUser, AuctioneerProfile, TeamMemberInfo, RegistrationProgress } from "../types";
+
+export type { AuthPanel } from "@/lib/auth-panel";
 
 type ApiErrorLike = {
   response?: {
@@ -21,6 +24,10 @@ export interface LoginSuccessResponse {
   team_member?: TeamMemberInfo | null;
   token: string;
   token_type: string;
+  // Only present for auctioneer logins — reflects whatever registration
+  // steps (payout, credentials, documents) were skipped during signup,
+  // even for already-approved accounts, since submit() never required them.
+  registration_progress?: RegistrationProgress;
 }
 
 export interface LoginMfaRequiredResponse {
@@ -49,8 +56,6 @@ export interface AcceptInviteResponse {
   message: string;
   token: string;
 }
-
-export type AuthPanel = "auctioneer" | "admin";
 
 export interface SocialLoginPayload {
   provider: "google" | "facebook";
@@ -84,7 +89,7 @@ export const authService = {
     try {
       const res = await withoutAuth.post<LoginResponse>("/auctioneer/login", { email, password });
       if ("token" in res.data && res.data.token) {
-        setToken(res.data.token);
+        setToken(res.data.token, "auctioneer");
       }
       return res.data;
     } catch (error: unknown) {
@@ -101,7 +106,7 @@ export const authService = {
     try {
       const res = await withoutAuth.post<AuctioneerSocialLoginResponse>("/auctioneer/social", payload);
       if ("token" in res.data && res.data.token) {
-        setToken(res.data.token);
+        setToken(res.data.token, "auctioneer");
       }
       return res.data;
     } catch (error: unknown) {
@@ -116,7 +121,7 @@ export const authService = {
     try {
       const res = await withoutAuth.post<LoginResponse>("/admin/login", { email, password });
       if ("token" in res.data && res.data.token) {
-        setToken(res.data.token);
+        setToken(res.data.token, "admin");
       }
       return res.data;
     } catch (error: unknown) {
@@ -126,12 +131,18 @@ export const authService = {
 
   /**
    * Verify MFA
+   * `panel` identifies which login (admin or auctioneer) started this MFA
+   * challenge — /auth/mfa is a shared route, so it can't be inferred from
+   * the URL the way other auth calls can.
    */
-  async verifyMfa(payload: { email: string; otp: string }): Promise<LoginSuccessResponse> {
+  async verifyMfa(payload: { email: string; otp: string; panel: AuthPanel }): Promise<LoginSuccessResponse> {
     try {
-      const res = await withoutAuth.post<LoginSuccessResponse>("/auth/mfa/verify", payload);
+      const res = await withoutAuth.post<LoginSuccessResponse>("/auth/mfa/verify", {
+        email: payload.email,
+        otp: payload.otp,
+      });
       if (res.data.token) {
-        setToken(res.data.token);
+        setToken(res.data.token, payload.panel);
       }
       return res.data;
     } catch (error: unknown) {
@@ -189,14 +200,18 @@ export const authService = {
 
   /**
    * Logout
+   * Ambiguous by nature (called identically from both panels' UIs), so this
+   * resolves the panel itself from the current route rather than requiring
+   * every caller to plumb one through.
    */
   async logout(): Promise<void> {
+    const panel = currentAuthPanel();
     try {
-      await withAuth.post("/logout");
+      await withAuth.post("/logout", undefined, { panel });
     } catch {
       // Continue even if logout fails
     } finally {
-      removeToken();
+      removeToken(panel);
     }
   },
 
@@ -205,7 +220,7 @@ export const authService = {
    */
   async getCurrentUser(): Promise<CurrentUserResponse> {
     try {
-      const res = await withAuth.get<CurrentUserResponse>("/user");
+      const res = await withAuth.get<CurrentUserResponse>("/user", { panel: currentAuthPanel() });
       return res.data;
     } catch (error: unknown) {
       return rethrowApiError(error);
@@ -219,7 +234,8 @@ export const authService = {
     try {
       const res = await withoutAuth.post<AcceptInviteResponse>("/auth/accept-invite", payload);
       if (res.data.token) {
-        setToken(res.data.token);
+        // Team invites are always for the auctioneer panel.
+        setToken(res.data.token, "auctioneer");
       }
       return res.data;
     } catch (error: unknown) {
@@ -231,6 +247,6 @@ export const authService = {
    * Check if user is authenticated
    */
   isAuthenticated(): boolean {
-    return !!getToken();
+    return !!getToken(currentAuthPanel());
   },
 };

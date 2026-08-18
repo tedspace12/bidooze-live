@@ -169,8 +169,15 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
     (item) => !item.permission || hasPermission(item.permission)
   );
 
+  // Admin only gets the notification bell here (no "Support" entry — that's
+  // an auctioneer-facing flow). This is also now the ONLY place admins get a
+  // notification trigger: NavUser used to render a second one nested inside
+  // the account dropdown, but a Popover nested inside a DropdownMenu fights
+  // Radix's own dismissable-layer/focus handling and kept closing itself on
+  // hover or click — removed there in favor of this already-working,
+  // non-nested trigger.
   const secondaryItems = isAdmin
-    ? []
+    ? secondaryNav.filter((item) => item.title === "Notification")
     : canAccessAuctioneerFeatures
       ? secondaryNav
       : secondaryNav.filter((item) => item.title === "Support");
@@ -264,7 +271,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
             </Link>
           </div>
         )}
-        {!isAdmin && secondaryItems.length > 0 && <NavSecondary items={secondaryItems} className="mt-auto" />}
+        {secondaryItems.length > 0 && <NavSecondary items={secondaryItems} className="mt-auto" />}
       </SidebarContent>
 
       <SidebarFooter>

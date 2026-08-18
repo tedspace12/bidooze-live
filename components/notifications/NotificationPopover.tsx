@@ -66,8 +66,13 @@ function NotificationContent({
         )}
       </div>
 
-      {/* List */}
-      <ScrollArea className="flex-1">
+      {/* List — min-h-0 is required here: a flex child defaults to
+          min-height:auto, which lets it grow to fit its content instead of
+          being clamped by the popover's max-h, so nothing ever overflowed
+          and the list couldn't scroll. min-h-0 lets it actually shrink to
+          the remaining space, which is what makes ScrollArea's own overflow
+          (and scrollbar) kick in. */}
+      <ScrollArea className="flex-1 min-h-0">
         {isLoading ? (
           <div className="divide-y">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -168,7 +173,7 @@ export function NotificationPopover({
         {renderTrigger({ unreadCount })}
       </PopoverTrigger>
       <PopoverContent
-        className="w-80 p-0 flex flex-col max-h-[520px]"
+        className="w-80 p-0 flex flex-col max-h-[520px] overflow-hidden"
         side={side}
         align={align}
         sideOffset={sideOffset}

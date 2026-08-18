@@ -27,8 +27,6 @@ interface FinancialSettingsForm {
   buyer_premium_percentage: number;
   buyer_tax_percentage: number;
   seller_tax_percentage: number;
-  buyer_lot_charge_1: number;
-  buyer_lot_charge_2: number;
   minimum_bid_amount: number;
   tax_exempt_all: boolean;
 }
@@ -38,8 +36,6 @@ const DEFAULT_FINANCIAL_FORM_DATA: FinancialSettingsForm = {
   buyer_premium_percentage: 0,
   buyer_tax_percentage: 0,
   seller_tax_percentage: 0,
-  buyer_lot_charge_1: 0,
-  buyer_lot_charge_2: 0,
   minimum_bid_amount: 0,
   tax_exempt_all: false,
 };
@@ -371,22 +367,6 @@ export default function FinancialsTab({ auction }: FinancialsTabProps) {
               type="number"
               value={formData.seller_tax_percentage}
               onChange={(e) => handleChange("seller_tax_percentage", Number(e.target.value))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Buyer Lot Charge 1</Label>
-            <Input
-              type="number"
-              value={formData.buyer_lot_charge_1}
-              onChange={(e) => handleChange("buyer_lot_charge_1", Number(e.target.value))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Buyer Lot Charge 2</Label>
-            <Input
-              type="number"
-              value={formData.buyer_lot_charge_2}
-              onChange={(e) => handleChange("buyer_lot_charge_2", Number(e.target.value))}
             />
           </div>
           <div className="space-y-2">

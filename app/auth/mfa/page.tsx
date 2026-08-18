@@ -59,7 +59,11 @@ export default function MfaVerifyPage() {
       router.replace("/login");
       return;
     }
-    await verifyMfa.mutateAsync({ email: session.email, otp: code });
+    try {
+      await verifyMfa.mutateAsync({ email: session.email, otp: code, panel: session.panel });
+    } catch {
+      // Toast is handled in the auth hook.
+    }
   };
 
   const handleResend = async () => {
@@ -68,7 +72,12 @@ export default function MfaVerifyPage() {
       router.replace("/login");
       return;
     }
-    await resendMfa.mutateAsync({ email: session.email });
+    try {
+      await resendMfa.mutateAsync({ email: session.email, panel: session.panel });
+    } catch {
+      // Toast is handled in the auth hook.
+      return;
+    }
     const updated = readMfaSession();
     setExpiresAt(updated?.expires_at ?? null);
   };

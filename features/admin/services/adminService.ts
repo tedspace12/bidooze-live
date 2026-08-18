@@ -1,4 +1,4 @@
-import { withAuth } from "@/services/api";
+import { withAdminAuth } from "@/services/api";
 
 export interface AdminStats {
     users: {
@@ -434,7 +434,7 @@ export const adminService = {
    * Get Dashboard Statistics
    */
   async getDashboardStats(): Promise<AdminStats> {
-    const res = await withAuth.get<{ data: AdminStats }>("/admin/dashboard");
+    const res = await withAdminAuth.get<{ data: AdminStats }>("/admin/dashboard");
     return res.data.data;
   },
 
@@ -442,7 +442,7 @@ export const adminService = {
    * Get Auctioneer Statistics
    */
   async getAuctioneerStats(): Promise<AuctioneerStats> {
-    const res = await withAuth.get<{ data: AuctioneerStats }>("/admin/auctioneers/statistics");
+    const res = await withAdminAuth.get<{ data: AuctioneerStats }>("/admin/auctioneers/statistics");
     return res.data.data;
   },
 
@@ -450,7 +450,7 @@ export const adminService = {
    * Get Bidder Statistics
    */
   async getBidderStatistics(): Promise<BidderStatistics> {
-    const res = await withAuth.get<{ data: BidderStatistics }>("/admin/bidders/statistics");
+    const res = await withAdminAuth.get<{ data: BidderStatistics }>("/admin/bidders/statistics");
     return res.data.data;
   },
 
@@ -458,7 +458,7 @@ export const adminService = {
    * Get Pending Auctioneer Applications
    */
   async getPendingApplications(): Promise<PendingApplication[]> {
-    const res = await withAuth.get<{ data: PendingApplication[] }>("/admin/dashboard/pending-applications");
+    const res = await withAdminAuth.get<{ data: PendingApplication[] }>("/admin/dashboard/pending-applications");
     return res.data.data;
   },
 
@@ -474,7 +474,7 @@ export const adminService = {
     date_from?: string;
     date_to?: string;
   }): Promise<{ data: ActivityLogItem[]; links: PaginationLinks; meta: PaginationMeta }> {
-    const res = await withAuth.get<{ data: ActivityLogItem[]; links: PaginationLinks; meta: PaginationMeta }>(
+    const res = await withAdminAuth.get<{ data: ActivityLogItem[]; links: PaginationLinks; meta: PaginationMeta }>(
       "/admin/activity-logs",
       { params }
     );
@@ -485,7 +485,7 @@ export const adminService = {
    * Get Activity Log Detail
    */
   async getActivityLogDetail(id: string): Promise<ActivityLogDetail> {
-    const res = await withAuth.get<{ data: ActivityLogDetail }>(`/admin/activity-logs/${id}`);
+    const res = await withAdminAuth.get<{ data: ActivityLogDetail }>(`/admin/activity-logs/${id}`);
     return res.data.data;
   },
 
@@ -493,7 +493,7 @@ export const adminService = {
    * Get System Health
    */
   async getSystemHealth(): Promise<SystemHealth> {
-    const res = await withAuth.get<{ data: SystemHealth; generated_at: string }>("/admin/dashboard/system-health");
+    const res = await withAdminAuth.get<{ data: SystemHealth; generated_at: string }>("/admin/dashboard/system-health");
     return res.data.data;
   },
 
@@ -501,7 +501,7 @@ export const adminService = {
    * Get Admin Profile
    */
   async getAdminProfile(): Promise<AdminProfile> {
-    const res = await withAuth.get<{ data: AdminProfile }>("/admin/profile");
+    const res = await withAdminAuth.get<{ data: AdminProfile }>("/admin/profile");
     return res.data.data;
   },
 
@@ -509,7 +509,7 @@ export const adminService = {
    * Update Admin Profile
    */
   async updateAdminProfile(payload: { name: string; email: string; bio?: string | null }): Promise<AdminProfile> {
-    const res = await withAuth.patch<{ data: AdminProfile }>("/admin/profile", payload);
+    const res = await withAdminAuth.patch<{ data: AdminProfile }>("/admin/profile", payload);
     return res.data.data;
   },
 
@@ -519,7 +519,7 @@ export const adminService = {
   async uploadAdminAvatar(file: File): Promise<{ avatar_url: string }> {
     const formData = new FormData();
     formData.append("avatar", file);
-    const res = await withAuth.post<{ data: { avatar_url: string } }>("/admin/profile/avatar", formData, {
+    const res = await withAdminAuth.post<{ data: { avatar_url: string } }>("/admin/profile/avatar", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
     return res.data.data;
@@ -533,7 +533,7 @@ export const adminService = {
     new_password: string;
     new_password_confirmation: string;
   }): Promise<{ message: string }> {
-    const res = await withAuth.put<{ message: string }>("/admin/profile/password", payload);
+    const res = await withAdminAuth.put<{ message: string }>("/admin/profile/password", payload);
     return res.data;
   },
 
@@ -541,7 +541,7 @@ export const adminService = {
    * Update Admin MFA
    */
   async updateAdminMfa(payload: { enabled: boolean }): Promise<{ mfa_enabled: boolean }> {
-    const res = await withAuth.patch<{ data: { mfa_enabled: boolean } }>("/admin/profile/mfa", payload);
+    const res = await withAdminAuth.patch<{ data: { mfa_enabled: boolean } }>("/admin/profile/mfa", payload);
     return res.data.data;
   },
 
@@ -549,12 +549,12 @@ export const adminService = {
    * Update Notification Preferences
    */
   async getNotificationPreferences(): Promise<NotificationPreferences> {
-    const res = await withAuth.get<{ data: NotificationPreferences }>("/admin/notification-preferences");
+    const res = await withAdminAuth.get<{ data: NotificationPreferences }>("/admin/notification-preferences");
     return res.data.data;
   },
 
   async updateNotificationPreferences(payload: NotificationPreferences): Promise<NotificationPreferences> {
-    const res = await withAuth.patch<{ data: NotificationPreferences }>("/admin/notification-preferences", payload);
+    const res = await withAdminAuth.patch<{ data: NotificationPreferences }>("/admin/notification-preferences", payload);
     return res.data.data;
   },
 
@@ -562,12 +562,12 @@ export const adminService = {
    * Update Access Control (Superadmin only)
    */
   async getAccessControl(): Promise<AccessControlSettings> {
-    const res = await withAuth.get<{ data: AccessControlSettings }>("/admin/access-control");
+    const res = await withAdminAuth.get<{ data: AccessControlSettings }>("/admin/access-control");
     return res.data.data;
   },
 
   async updateAccessControl(payload: AccessControlSettings): Promise<AccessControlSettings> {
-    const res = await withAuth.patch<{ data: AccessControlSettings }>("/admin/access-control", payload);
+    const res = await withAdminAuth.patch<{ data: AccessControlSettings }>("/admin/access-control", payload);
     return res.data.data;
   },
 
@@ -575,7 +575,7 @@ export const adminService = {
    * List Auctioneers with filter and pagination
    */
   async getAuctioneers(params?: { status?: string; search?: string; page?: number; per_page?: number }): Promise<{ data: AuctioneerListItem[], meta: PaginationMeta }> {
-    const res = await withAuth.get<{ data: AuctioneerListItem[], meta: PaginationMeta }>("/admin/auctioneers", { params });
+    const res = await withAdminAuth.get<{ data: AuctioneerListItem[], meta: PaginationMeta }>("/admin/auctioneers", { params });
     return res.data;
   },
 
@@ -583,7 +583,7 @@ export const adminService = {
    * Get Single Auctioneer
    */
   async getAuctioneer(id: number): Promise<AuctioneerDetails> {
-    const res = await withAuth.get<{ data: AuctioneerDetails }>(`/admin/auctioneers/${id}`);
+    const res = await withAdminAuth.get<{ data: AuctioneerDetails }>(`/admin/auctioneers/${id}`);
     return res.data.data;
   },
 
@@ -591,7 +591,7 @@ export const adminService = {
    * Approve Auctioneer
    */
   async approveAuctioneer(id: number, notes?: string): Promise<unknown> {
-    const res = await withAuth.post(`/admin/auctioneers/${id}/approve`, { notes });
+    const res = await withAdminAuth.post(`/admin/auctioneers/${id}/approve`, { notes });
     return res.data;
   },
 
@@ -599,7 +599,7 @@ export const adminService = {
    * Reject Auctioneer
    */
   async rejectAuctioneer(id: number, reason: string, notes?: string): Promise<unknown> {
-    const res = await withAuth.post(`/admin/auctioneers/${id}/reject`, { reason, notes });
+    const res = await withAdminAuth.post(`/admin/auctioneers/${id}/reject`, { reason, notes });
     return res.data;
   },
 
@@ -607,7 +607,7 @@ export const adminService = {
    * Request Review for Auctioneer
    */
   async requestReview(id: number, notes: string): Promise<unknown> {
-    const res = await withAuth.post(`/admin/auctioneers/${id}/request-review`, { notes });
+    const res = await withAdminAuth.post(`/admin/auctioneers/${id}/request-review`, { notes });
     return res.data;
   },
 
@@ -620,7 +620,7 @@ export const adminService = {
     page?: number;
     per_page?: number;
   }): Promise<BidderListResponse> {
-    const res = await withAuth.get<BidderListResponse>("/admin/bidders", { params });
+    const res = await withAdminAuth.get<BidderListResponse>("/admin/bidders", { params });
     return res.data;
   },
 
@@ -628,7 +628,7 @@ export const adminService = {
    * Get Single Bidder (full details)
    */
   async getBidder(id: number): Promise<BidderDetails> {
-    const res = await withAuth.get<{ data: BidderDetails }>(`/admin/bidders/${id}`);
+    const res = await withAdminAuth.get<{ data: BidderDetails }>(`/admin/bidders/${id}`);
     // Support both wrapped and unwrapped responses
     return (res.data as unknown as { data?: BidderDetails }).data ?? (res.data as unknown as BidderDetails);
   },
@@ -637,7 +637,7 @@ export const adminService = {
    * Update Bidder Status
    */
   async updateBidderStatus(id: number, status: string): Promise<Bidder> {
-    const res = await withAuth.put<Bidder>(`/admin/bidders/${id}/status`, { status });
+    const res = await withAdminAuth.put<Bidder>(`/admin/bidders/${id}/status`, { status });
     return res.data;
   },
 
@@ -645,54 +645,54 @@ export const adminService = {
    * Create New Admin (Superadmin only)
    */
   async createAdmin(data: { name: string; email: string}): Promise<unknown> {
-    const res = await withAuth.post("/admin/create", data);
+    const res = await withAdminAuth.post("/admin/create", data);
     return res.data;
   },
 
   // ─── Categories ─────────────────────────────────────────────────────────────
 
   async getCategories(params?: { search?: string }): Promise<Category[]> {
-    const res = await withAuth.get<{ data: Category[] }>("/admin/categories", { params });
+    const res = await withAdminAuth.get<{ data: Category[] }>("/admin/categories", { params });
     return res.data.data ?? [];
   },
 
   async createCategory(payload: CreateCategoryPayload): Promise<Category> {
-    const res = await withAuth.post<{ data: Category }>("/admin/categories", payload);
+    const res = await withAdminAuth.post<{ data: Category }>("/admin/categories", payload);
     return res.data.data;
   },
 
   async updateCategory(id: number, payload: UpdateCategoryPayload): Promise<Category> {
-    const res = await withAuth.patch<{ data: Category }>(`/admin/categories/${id}`, payload);
+    const res = await withAdminAuth.patch<{ data: Category }>(`/admin/categories/${id}`, payload);
     return res.data.data;
   },
 
   async deleteCategory(id: number): Promise<void> {
-    await withAuth.delete(`/admin/categories/${id}`);
+    await withAdminAuth.delete(`/admin/categories/${id}`);
   },
 
   // ─── Blogs ──────────────────────────────────────────────────────────────────
 
   async getBlogs(params?: { search?: string; category?: string; page?: number; per_page?: number }): Promise<BlogListResponse> {
-    const res = await withAuth.get<BlogListResponse>("/admin/blogs", { params });
+    const res = await withAdminAuth.get<BlogListResponse>("/admin/blogs", { params });
     return res.data;
   },
 
   async getBlog(id: number): Promise<BlogPost> {
-    const res = await withAuth.get<{ data: BlogPost }>(`/admin/blogs/${id}`);
+    const res = await withAdminAuth.get<{ data: BlogPost }>(`/admin/blogs/${id}`);
     return res.data.data;
   },
 
   async createBlog(payload: CreateBlogPayload): Promise<BlogPost> {
-    const res = await withAuth.post<{ data: BlogPost }>("/admin/blogs", payload);
+    const res = await withAdminAuth.post<{ data: BlogPost }>("/admin/blogs", payload);
     return res.data.data;
   },
 
   async updateBlog(id: number, payload: UpdateBlogPayload): Promise<BlogPost> {
-    const res = await withAuth.put<{ data: BlogPost }>(`/admin/blogs/${id}`, payload);
+    const res = await withAdminAuth.put<{ data: BlogPost }>(`/admin/blogs/${id}`, payload);
     return res.data.data;
   },
 
   async deleteBlog(id: number): Promise<void> {
-    await withAuth.delete(`/admin/blogs/${id}`);
+    await withAdminAuth.delete(`/admin/blogs/${id}`);
   },
 };

@@ -2,7 +2,6 @@
 
 import {
   BadgeCheck,
-  Bell,
   ChevronsUpDown,
   CreditCard,
   LogOut,
@@ -28,13 +27,16 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { useAuth } from "@/features/auth/hooks/useAuth"
 import { useAuthStore } from "@/features/auth/store/authStore"
-import { NotificationPopover } from "@/components/notifications/NotificationPopover"
-import type { NotificationBasePath } from "@/features/notifications/services/notificationService"
 
+// Notifications are NOT rendered here on purpose. A Radix Popover nested
+// inside a Radix DropdownMenuItem fights the dropdown's own focus/dismiss
+// handling — it kept closing itself the moment you tried to click or even
+// hover inside it. The notification bell now lives only in NavSecondary
+// (components/app-sidebar.tsx), rendered as its own standalone sidebar
+// trigger, which doesn't have this problem.
 export function NavUser({
   user,
 }: {
@@ -49,8 +51,6 @@ export function NavUser({
   const { user: currentUser, canAccessAuctioneerFeatures } = useAuthStore()
   const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
   const isApprovedAuctioneer = currentUser?.role === "auctioneer" && canAccessAuctioneerFeatures;
-
-  const notificationBasePath: NotificationBasePath = isAdmin ? "admin" : "auctioneer";
 
   const handleLogout = async () => {
     try {
@@ -122,32 +122,6 @@ export function NavUser({
                   Billing
                 </DropdownMenuItem>
                 </Link>
-              )}
-              {(isAdmin || isApprovedAuctioneer) && (
-                <NotificationPopover
-                  basePath={notificationBasePath}
-                  side={isMobile ? "top" : "right"}
-                  align="end"
-                  renderTrigger={({ unreadCount }) => (
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                      <div className="relative">
-                        <Bell />
-                        {unreadCount > 0 && (
-                          <span className="absolute -top-1 -right-1 h-2.5 w-2.5 bg-destructive rounded-full border-2 border-background" />
-                        )}
-                      </div>
-                      Notifications
-                      {unreadCount > 0 && (
-                        <Badge
-                          variant="destructive"
-                          className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-xs"
-                        >
-                          {unreadCount > 9 ? "9+" : unreadCount}
-                        </Badge>
-                      )}
-                    </DropdownMenuItem>
-                  )}
-                />
               )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

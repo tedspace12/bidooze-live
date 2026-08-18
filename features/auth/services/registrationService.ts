@@ -195,11 +195,11 @@ export const registrationService = {
     try {
       const payload: StepFivePayload = {
         registration_token: data.registration_token,
+        identity_verification: data.identity_verification,
+        business_verification: data.business_verification,
       };
 
       if (data.background_check_consent) payload.background_check_consent = data.background_check_consent;
-      if (data.identity_verification?.length) payload.identity_verification = data.identity_verification;
-      if (data.business_verification?.length) payload.business_verification = data.business_verification;
 
       const res = await withoutAuth.post<RegistrationCompleteResponse>(
         "/auctioneer/submit",

@@ -420,6 +420,10 @@ const Registration = () => {
       toast.error("Registration token missing. Please start from Step 1.");
       return;
     }
+    if (!data.identityVerification?.length || !data.businessVerification?.length) {
+      toast.error("Please upload both identity verification and business verification documents.");
+      return;
+    }
 
     try {
       // Step 1: Submit Step 5 data (documents)
@@ -456,10 +460,6 @@ const Registration = () => {
       }
       console.error("Final submission error:", error);
     }
-  };
-
-  const handleFinalSkip = () => {
-    void handleFinalSubmit({});
   };
 
   return (
@@ -588,7 +588,6 @@ const Registration = () => {
               {currentStep === 5 && (
                 <StepFive
                   onSubmit={handleFinalSubmit}
-                  onSkip={handleFinalSkip}
                   onBack={() => setCurrentStep(4)}
                   defaultValues={formData.stepFive}
                   isLoading={stepFive.isPending}

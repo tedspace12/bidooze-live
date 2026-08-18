@@ -42,8 +42,8 @@ export function LinearTabs({ tabs, activeTab, onTabChange, className }: LinearTa
         >
           <span className="inline-flex items-center gap-2">
             {tab.status === "complete" && (
-              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary/20 text-primary">
-                <Check className="h-3 w-3" />
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <Check className="h-3 w-3" strokeWidth={3} />
               </span>
             )}
             {tab.status === "invalid" && (
