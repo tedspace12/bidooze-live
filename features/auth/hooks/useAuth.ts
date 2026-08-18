@@ -14,6 +14,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuthStore } from "@/features/auth/store/authStore";
 import { clearMfaSession, saveMfaSession } from "@/lib/mfa-session";
+import { clearRegistrationReminderState, saveRegistrationProgress } from "@/lib/registration-reminder";
+import { currentAuthPanel } from "@/lib/auth-panel";
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (error && typeof error === "object" && "errors" in error) {
@@ -50,9 +52,13 @@ export const useAuth = () => {
   } = useAuthStore();
 
   // Get current user
+  // Cache key is namespaced by panel — admin and auctioneer sessions share one
+  // QueryClient (single tab, client-side nav between panels), so an
+  // unnamespaced key would let one panel's login overwrite the other's
+  // cached user, showing stale/wrong data on whichever panel refetches later.
   const useCurrentUser = () => {
     const query = useQuery<CurrentUserResponse>({
-      queryKey: ["current-user"],
+      queryKey: ["current-user", currentAuthPanel()],
       queryFn: () => authService.getCurrentUser(),
       retry: false,
       staleTime: 1000 * 60 * 5, // 5 minutes
@@ -130,6 +136,7 @@ export const useAuth = () => {
         clearSession();
         saveMfaSession({
           email: variables.email,
+          panel: "auctioneer",
           mfa_channel: data.mfa_channel || "email",
           expires_at: Date.now() + (data.expires_in ?? 300) * 1000,
         });
@@ -161,12 +168,15 @@ export const useAuth = () => {
         can_access_auctioneer_features: success.can_access_auctioneer_features,
         team_member: success.team_member ?? null,
       });
-      queryClient.setQueryData(["current-user"], {
+      queryClient.setQueryData(["current-user", "auctioneer"], {
         user: userWithAvatar,
         auctioneer: success.auctioneer,
         can_access_auctioneer_features: success.can_access_auctioneer_features,
         team_member: success.team_member ?? null,
       });
+      if (success.can_access_auctioneer_features) {
+        saveRegistrationProgress(success.registration_progress);
+      }
       toast.success("Login successful!");
       router.push(
         success.can_access_auctioneer_features ? "/auctioneer/dashboard" : "/auctioneer/application-status"
@@ -215,7 +225,7 @@ export const useAuth = () => {
         can_access_auctioneer_features: success.can_access_auctioneer_features,
         team_member: success.team_member ?? null,
       });
-      queryClient.setQueryData(["current-user"], {
+      queryClient.setQueryData(["current-user", "auctioneer"], {
         user: userWithAvatar,
         auctioneer: success.auctioneer,
         can_access_auctioneer_features: success.can_access_auctioneer_features,
@@ -259,6 +269,7 @@ export const useAuth = () => {
         clearSession();
         saveMfaSession({
           email: variables.email,
+          panel: "admin",
           mfa_channel: data.mfa_channel || "email",
           expires_at: Date.now() + (data.expires_in ?? 300) * 1000,
         });
@@ -283,7 +294,7 @@ export const useAuth = () => {
         auctioneer: success.auctioneer,
         can_access_auctioneer_features: true,
       });
-      queryClient.setQueryData(["current-user"], {
+      queryClient.setQueryData(["current-user", "admin"], {
         user: userWithAvatar,
         auctioneer: success.auctioneer,
         can_access_auctioneer_features: true,
@@ -305,6 +316,7 @@ export const useAuth = () => {
       queryClient.clear();
       clearSession();
       clearMfaSession();
+      clearRegistrationReminderState();
       toast.success("Logged out successfully");
       router.push("/login");
     },
@@ -313,15 +325,16 @@ export const useAuth = () => {
       queryClient.clear();
       clearSession();
       clearMfaSession();
+      clearRegistrationReminderState();
       router.push("/login");
     },
   });
 
   const verifyMfa = useMutation({
-    mutationFn: (payload: { email: string; otp: string }) =>
+    mutationFn: (payload: { email: string; otp: string; panel: AuthPanel }) =>
       authService.verifyMfa(payload),
     mutationKey: ["auth", "mfa", "verify"],
-    onSuccess: (data: LoginSuccessResponse) => {
+    onSuccess: (data: LoginSuccessResponse, variables: { email: string; otp: string; panel: AuthPanel }) => {
       clearMfaSession();
       const userWithAvatar = {
         ...data.user,
@@ -333,8 +346,9 @@ export const useAuth = () => {
         auctioneer: data.auctioneer,
         can_access_auctioneer_features: data.can_access_auctioneer_features,
         team_member: data.team_member ?? null,
+        panel: variables.panel,
       });
-      queryClient.setQueryData(["current-user"], {
+      queryClient.setQueryData(["current-user", variables.panel], {
         user: userWithAvatar,
         auctioneer: data.auctioneer,
         can_access_auctioneer_features: data.can_access_auctioneer_features,
@@ -356,11 +370,13 @@ export const useAuth = () => {
   });
 
   const resendMfa = useMutation({
-    mutationFn: (payload: { email: string }) => authService.resendMfa(payload),
+    mutationFn: (payload: { email: string; panel: AuthPanel }) =>
+      authService.resendMfa({ email: payload.email }),
     mutationKey: ["auth", "mfa", "resend"],
-    onSuccess: (data, variables: { email: string }) => {
+    onSuccess: (data, variables: { email: string; panel: AuthPanel }) => {
       saveMfaSession({
         email: variables.email,
+        panel: variables.panel,
         expires_at: Date.now() + (data.expires_in ?? 300) * 1000,
         mfa_channel: "email",
       });

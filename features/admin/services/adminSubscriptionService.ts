@@ -1,4 +1,4 @@
-import { withAuth } from "@/services/api";
+import { withAdminAuth } from "@/services/api";
 
 // ─── Shared ───────────────────────────────────────────────────────────────────
 
@@ -209,7 +209,7 @@ export const adminSubscriptionService = {
 
   async suspendAuctioneer(id: number, payload: SuspendAuctioneerPayload) {
     try {
-      const res = await withAuth.post<{ message: string; data: { user_id: number; suspended_at: string; suspension_reason: string } }>(
+      const res = await withAdminAuth.post<{ message: string; data: { user_id: number; suspended_at: string; suspension_reason: string } }>(
         `/admin/auctioneers/${id}/suspend`, payload
       );
       return res.data.data;
@@ -218,14 +218,14 @@ export const adminSubscriptionService = {
 
   async unsuspendAuctioneer(id: number) {
     try {
-      const res = await withAuth.post<{ message: string }>(`/admin/auctioneers/${id}/unsuspend`);
+      const res = await withAdminAuth.post<{ message: string }>(`/admin/auctioneers/${id}/unsuspend`);
       return res.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async banAuctioneer(id: number, reason: string) {
     try {
-      const res = await withAuth.post<{ message: string; data: { user_id: number; account_status: string; reason: string } }>(
+      const res = await withAdminAuth.post<{ message: string; data: { user_id: number; account_status: string; reason: string } }>(
         `/admin/auctioneers/${id}/ban`, { reason }
       );
       return res.data.data;
@@ -236,77 +236,77 @@ export const adminSubscriptionService = {
 
   async getSubscriptions(params?: { status?: string; search?: string; page?: number; per_page?: number }): Promise<PaginatedAdminSubscriptions> {
     try {
-      const res = await withAuth.get<{ data: PaginatedAdminSubscriptions }>("/admin/subscriptions", { params });
+      const res = await withAdminAuth.get<{ data: PaginatedAdminSubscriptions }>("/admin/subscriptions", { params });
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async getSubscription(id: number): Promise<AdminSubscriptionDetail> {
     try {
-      const res = await withAuth.get<{ data: AdminSubscriptionDetail }>(`/admin/subscriptions/${id}`);
+      const res = await withAdminAuth.get<{ data: AdminSubscriptionDetail }>(`/admin/subscriptions/${id}`);
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async getSubscriptionStats(): Promise<AdminSubscriptionStats> {
     try {
-      const res = await withAuth.get<{ data: AdminSubscriptionStats }>("/admin/subscriptions/stats");
+      const res = await withAdminAuth.get<{ data: AdminSubscriptionStats }>("/admin/subscriptions/stats");
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async getSubscriptionReports(params?: { from?: string; to?: string; group_by?: "day" | "month" }): Promise<AdminSubscriptionReport> {
     try {
-      const res = await withAuth.get<{ data: AdminSubscriptionReport }>("/admin/subscriptions/reports", { params });
+      const res = await withAdminAuth.get<{ data: AdminSubscriptionReport }>("/admin/subscriptions/reports", { params });
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async getExpiringSoon(params?: { days?: number; per_page?: number }): Promise<PaginatedAdminSubscriptions> {
     try {
-      const res = await withAuth.get<{ data: PaginatedAdminSubscriptions }>("/admin/subscriptions/expiring-soon", { params });
+      const res = await withAdminAuth.get<{ data: PaginatedAdminSubscriptions }>("/admin/subscriptions/expiring-soon", { params });
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async getInGrace(params?: { per_page?: number }): Promise<PaginatedAdminSubscriptions> {
     try {
-      const res = await withAuth.get<{ data: PaginatedAdminSubscriptions }>("/admin/subscriptions/in-grace", { params });
+      const res = await withAdminAuth.get<{ data: PaginatedAdminSubscriptions }>("/admin/subscriptions/in-grace", { params });
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async activateSubscription(id: number, days: number, notes?: string): Promise<AdminSubscription> {
     try {
-      const res = await withAuth.post<{ data: AdminSubscription }>(`/admin/subscriptions/${id}/activate`, { days, notes });
+      const res = await withAdminAuth.post<{ data: AdminSubscription }>(`/admin/subscriptions/${id}/activate`, { days, notes });
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async extendSubscription(id: number, days: number, notes?: string): Promise<AdminSubscription> {
     try {
-      const res = await withAuth.post<{ data: AdminSubscription }>(`/admin/subscriptions/${id}/extend`, { days, notes });
+      const res = await withAdminAuth.post<{ data: AdminSubscription }>(`/admin/subscriptions/${id}/extend`, { days, notes });
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async expireSubscription(id: number, notes?: string): Promise<AdminSubscription> {
     try {
-      const res = await withAuth.post<{ data: AdminSubscription }>(`/admin/subscriptions/${id}/expire`, { notes });
+      const res = await withAdminAuth.post<{ data: AdminSubscription }>(`/admin/subscriptions/${id}/expire`, { notes });
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async cancelSubscription(id: number, reason?: string): Promise<AdminSubscription> {
     try {
-      const res = await withAuth.post<{ data: AdminSubscription }>(`/admin/subscriptions/${id}/cancel`, { reason });
+      const res = await withAdminAuth.post<{ data: AdminSubscription }>(`/admin/subscriptions/${id}/cancel`, { reason });
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async changeSubscriptionDates(id: number, payload: { ends_at: string; starts_at?: string; notes?: string }): Promise<AdminSubscription> {
     try {
-      const res = await withAuth.post<{ data: AdminSubscription }>(`/admin/subscriptions/${id}/change-dates`, payload);
+      const res = await withAdminAuth.post<{ data: AdminSubscription }>(`/admin/subscriptions/${id}/change-dates`, payload);
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
@@ -322,7 +322,7 @@ export const adminSubscriptionService = {
     plan_id?: number;
   }): Promise<{ subscription: AdminSubscription; payment: AdminSubscriptionPayment }> {
     try {
-      const res = await withAuth.post<{ data: { subscription: AdminSubscription; payment: AdminSubscriptionPayment } }>(
+      const res = await withAdminAuth.post<{ data: { subscription: AdminSubscription; payment: AdminSubscriptionPayment } }>(
         `/admin/subscriptions/${id}/record-payment`, payload
       );
       return res.data.data;
@@ -331,7 +331,7 @@ export const adminSubscriptionService = {
 
   async resendPaymentLink(id: number): Promise<{ message: string; renew_url: string }> {
     try {
-      const res = await withAuth.post<{ message: string; renew_url: string }>(`/admin/subscriptions/${id}/resend-payment-link`);
+      const res = await withAdminAuth.post<{ message: string; renew_url: string }>(`/admin/subscriptions/${id}/resend-payment-link`);
       return res.data;
     } catch (e) { throw rethrow(e); }
   },
@@ -340,7 +340,7 @@ export const adminSubscriptionService = {
 
   async getPayments(params?: { status?: string; provider?: string; from?: string; to?: string; search?: string; per_page?: number; page?: number }): Promise<PaginatedAdminPayments> {
     try {
-      const res = await withAuth.get<{ data: PaginatedAdminPayments }>("/admin/subscription-payments", { params });
+      const res = await withAdminAuth.get<{ data: PaginatedAdminPayments }>("/admin/subscription-payments", { params });
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
@@ -349,21 +349,21 @@ export const adminSubscriptionService = {
 
   async getPlans(): Promise<AdminPlan[]> {
     try {
-      const res = await withAuth.get<{ data: AdminPlan[] }>("/admin/subscription-plans");
+      const res = await withAdminAuth.get<{ data: AdminPlan[] }>("/admin/subscription-plans");
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async createPlan(payload: CreatePlanPayload): Promise<AdminPlan> {
     try {
-      const res = await withAuth.post<{ data: AdminPlan }>("/admin/subscription-plans", payload);
+      const res = await withAdminAuth.post<{ data: AdminPlan }>("/admin/subscription-plans", payload);
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async updatePlan(id: number, payload: UpdatePlanPayload): Promise<AdminPlan> {
     try {
-      const res = await withAuth.patch<{ data: AdminPlan }>(`/admin/subscription-plans/${id}`, payload);
+      const res = await withAdminAuth.patch<{ data: AdminPlan }>(`/admin/subscription-plans/${id}`, payload);
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
@@ -372,42 +372,42 @@ export const adminSubscriptionService = {
 
   async getCoupons(params?: { is_active?: boolean; search?: string; per_page?: number; page?: number }): Promise<PaginatedAdminCoupons> {
     try {
-      const res = await withAuth.get<{ data: PaginatedAdminCoupons }>("/admin/coupons", { params });
+      const res = await withAdminAuth.get<{ data: PaginatedAdminCoupons }>("/admin/coupons", { params });
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async getCoupon(id: number): Promise<AdminCouponDetail> {
     try {
-      const res = await withAuth.get<{ data: AdminCouponDetail }>(`/admin/coupons/${id}`);
+      const res = await withAdminAuth.get<{ data: AdminCouponDetail }>(`/admin/coupons/${id}`);
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async createCoupon(payload: CreateCouponPayload): Promise<AdminCoupon> {
     try {
-      const res = await withAuth.post<{ data: AdminCoupon }>("/admin/coupons", payload);
+      const res = await withAdminAuth.post<{ data: AdminCoupon }>("/admin/coupons", payload);
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async updateCoupon(id: number, payload: UpdateCouponPayload): Promise<AdminCoupon> {
     try {
-      const res = await withAuth.patch<{ data: AdminCoupon }>(`/admin/coupons/${id}`, payload);
+      const res = await withAdminAuth.patch<{ data: AdminCoupon }>(`/admin/coupons/${id}`, payload);
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async deleteCoupon(id: number): Promise<{ message: string }> {
     try {
-      const res = await withAuth.delete<{ message: string }>(`/admin/coupons/${id}`);
+      const res = await withAdminAuth.delete<{ message: string }>(`/admin/coupons/${id}`);
       return res.data;
     } catch (e) { throw rethrow(e); }
   },
 
   async assignCoupon(id: number, user_id: number): Promise<{ message: string; discount_applied_usd: number }> {
     try {
-      const res = await withAuth.post<{ message: string; discount_applied_usd: number }>(`/admin/coupons/${id}/assign`, { user_id });
+      const res = await withAdminAuth.post<{ message: string; discount_applied_usd: number }>(`/admin/coupons/${id}/assign`, { user_id });
       return res.data;
     } catch (e) { throw rethrow(e); }
   },
@@ -416,7 +416,7 @@ export const adminSubscriptionService = {
 
   async getUserSubscription(userId: number): Promise<AdminSubscription | null> {
     try {
-      const res = await withAuth.get<{ data: AdminSubscription | null }>(`/admin/users/${userId}/subscription`);
+      const res = await withAdminAuth.get<{ data: AdminSubscription | null }>(`/admin/users/${userId}/subscription`);
       return res.data.data;
     } catch (e) { throw rethrow(e); }
   },

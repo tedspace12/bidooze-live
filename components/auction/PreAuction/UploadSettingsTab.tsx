@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import Image from "next/image";
-import { Plus, Upload, X } from "lucide-react";
+import { Loader2, Plus, RotateCcw, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { FormSection } from "../FormSection";
 import { FormInput } from "../FormInput";
@@ -8,7 +8,9 @@ import { FormSelect } from "../FormSelect";
 import { FormCheckbox } from "../FormCheckbox";
 import { FormTextarea } from "../FormTextarea";
 import { PremiumButton } from "../PremiumButton";
+import { CurrencySelect } from "@/components/ui/currency-select";
 import { useAuctionForm } from "@/context/auction-form-context";
+import { useCloudinaryImageUpload } from "@/hooks/useCloudinaryImageUpload";
 import type {
   AuctionFormat,
   BidAmountType,
@@ -24,7 +26,8 @@ import type {
   CreateAuctionPayload,
 } from "@/features/auction/types";
 import type { WizardFieldErrors } from "@/utils/auctionWizardValidation";
-import { getObjectUrlsForFiles, revokeObjectUrlForFile } from "@/lib/file-previews";
+
+const FEATURE_IMAGE_GROUP = "feature";
 
 interface UploadSettingsTabProps {
   initialData?: Partial<CreateAuctionPayload>;
@@ -41,10 +44,14 @@ export function UploadSettingsTab({ initialData, fieldErrors }: UploadSettingsTa
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : undefined;
   };
-  const featurePreviews = useMemo(
-    () => getObjectUrlsForFiles(formState.feature_images),
-    [formState.feature_images]
-  );
+
+  const { uploadFiles: uploadFeatureImages, itemsForGroup, dismissError } = useCloudinaryImageUpload({
+    folderFor: () => "auctions/new/feature-images",
+    onUploaded: (_group, urls) => {
+      updateFormState({ feature_images: [...(formState.feature_images || []), ...urls] });
+    },
+  });
+  const uploadingFeatureImages = itemsForGroup(FEATURE_IMAGE_GROUP);
 
   useEffect(() => {
     const nextDefaults: Partial<CreateAuctionPayload> = {};
@@ -90,6 +97,7 @@ export function UploadSettingsTab({ initialData, fieldErrors }: UploadSettingsTa
 
   const handleFeatureImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
+    e.target.value = "";
     if (!files.length) return;
 
     const maxSize = 10 * 1024 * 1024;
@@ -108,20 +116,14 @@ export function UploadSettingsTab({ initialData, fieldErrors }: UploadSettingsTa
       validFiles.push(file);
     });
 
-    if (!validFiles.length) {
-      e.target.value = "";
-      return;
-    }
-
-    updateFormState({ feature_images: [...(formState.feature_images || []), ...validFiles] });
-    e.target.value = "";
+    if (!validFiles.length) return;
+    void uploadFeatureImages(FEATURE_IMAGE_GROUP, validFiles);
   };
 
   const removeFeatureImage = (index: number) => {
     const next = [...(formState.feature_images || [])];
-    const [removedFile] = next.splice(index, 1);
-    revokeObjectUrlForFile(removedFile);
-    updateFormState({ feature_images: next.length ? next : undefined });
+    next.splice(index, 1);
+    updateFormState({ feature_images: next });
   };
 
   const setBidIncrementRows = (rows: BidIncrementInput[]) => {
@@ -175,14 +177,14 @@ export function UploadSettingsTab({ initialData, fieldErrors }: UploadSettingsTa
           multiple
           onChange={handleFeatureImageChange}
         />
-        {featurePreviews.length > 0 ? (
+        {(formState.feature_images?.length || uploadingFeatureImages.length) ? (
           <div className="relative">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {featurePreviews.map((preview, index) => (
-                <div key={preview} className="relative group">
+              {(formState.feature_images || []).map((url, index) => (
+                <div key={url} className="relative group">
                   <Image
-                    src={preview}
-                    alt={`Feature preview ${index + 1}`}
+                    src={url}
+                    alt={`Feature image ${index + 1}`}
                     width={320}
                     height={128}
                     unoptimized
@@ -196,6 +198,41 @@ export function UploadSettingsTab({ initialData, fieldErrors }: UploadSettingsTa
                   >
                     <X className="h-3 w-3" />
                   </button>
+                </div>
+              ))}
+              {uploadingFeatureImages.map((item) => (
+                <div
+                  key={item.id}
+                  className="relative flex h-32 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 p-2 text-center"
+                >
+                  {item.error ? (
+                    <>
+                      <p className="line-clamp-2 text-[11px] text-destructive">{item.error}</p>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => void uploadFeatureImages(FEATURE_IMAGE_GROUP, [item.file])}
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label="Retry upload"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => dismissError(item.id)}
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label="Dismiss"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                      <p className="text-[11px] text-muted-foreground">{item.progress}%</p>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -248,44 +285,67 @@ export function UploadSettingsTab({ initialData, fieldErrors }: UploadSettingsTa
             onChange={(e) => updateFormState({ shipping_account: e.target.value })}
           />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+        <div className="mt-6">
           <FormCheckbox
             label="Add Handling Charges"
+            description="Charge buyers a separate handling fee in addition to shipping."
             name="add_handling_charges"
             checked={!!formState.add_handling_charges}
             onChange={(e) => updateFormState({ add_handling_charges: e.target.checked })}
           />
-          <FormSelect
-            label="Handling Charge Type"
-            name="handling_charge_type"
-            options={[
-              { value: "flat", label: "Flat Fee" },
-              { value: "percentage", label: "Percentage" },
-              { value: "per-item", label: "Per Item" },
-            ]}
-            value={formState.handling_charge_type || ""}
-            onValueChange={(value) => updateFormState({ handling_charge_type: value as HandlingChargeType })}
-            disabled={!formState.add_handling_charges}
-            error={errors.handling_charge_type}
-          />
-          <FormInput
-            label="Handling Charge Amount"
-            name="handling_charge_amount"
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            value={formState.handling_charge_amount || ""}
-            onChange={(e) =>
-              updateFormState({ handling_charge_amount: parseFloat(e.target.value) || undefined })
-            }
-            disabled={!formState.add_handling_charges}
-            error={errors.handling_charge_amount}
-          />
         </div>
+        {formState.add_handling_charges && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <FormSelect
+              label="Handling Charge Type"
+              name="handling_charge_type"
+              options={[
+                { value: "flat", label: "Flat Fee" },
+                { value: "percentage", label: "Percentage" },
+                { value: "per-item", label: "Per Item" },
+              ]}
+              value={formState.handling_charge_type || ""}
+              onValueChange={(value) => updateFormState({ handling_charge_type: value as HandlingChargeType })}
+              error={errors.handling_charge_type}
+            />
+            <FormInput
+              label="Handling Charge Amount"
+              name="handling_charge_amount"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              value={formState.handling_charge_amount || ""}
+              onChange={(e) =>
+                updateFormState({ handling_charge_amount: parseFloat(e.target.value) || undefined })
+              }
+              error={errors.handling_charge_amount}
+            />
+          </div>
+        )}
       </FormSection>
 
-      <FormSection title="Fees & Taxes" description="Commission, premium, and tax settings.">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <FormSection title="Fees & Taxes" description="Currency, commission, premium, and tax settings.">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Currency</label>
+            <CurrencySelect
+              name="currency"
+              value={formState.currency || "USD"}
+              onChange={(value) =>
+                updateFormState({
+                  currency: (value || formState.currency || "USD") as CreateAuctionPayload["currency"],
+                })
+              }
+              error={!!errors.currency}
+            />
+            {errors.currency ? (
+              <p className="text-xs text-destructive">{errors.currency}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Stored as ISO-4217 currency code (for example: USD, EUR, CHF).
+              </p>
+            )}
+          </div>
           <FormInput
             label="Commission Percentage (%)"
             name="commission_percentage"
@@ -305,67 +365,47 @@ export function UploadSettingsTab({ initialData, fieldErrors }: UploadSettingsTa
             onChange={(e) => updateFormState({ buyer_premium_percentage: parseFloat(e.target.value) || undefined })}
           />
         </div>
+        {!formState.tax_exempt_all && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <FormInput
+              label="Buyer Tax Percentage (%)"
+              name="buyer_tax_percentage"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              value={formState.buyer_tax_percentage || ""}
+              onChange={(e) => updateFormState({ buyer_tax_percentage: parseFloat(e.target.value) || undefined })}
+            />
+            <FormInput
+              label="Seller Tax Percentage (%)"
+              name="seller_tax_percentage"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              value={formState.seller_tax_percentage || ""}
+              onChange={(e) => updateFormState({ seller_tax_percentage: parseFloat(e.target.value) || undefined })}
+            />
+          </div>
+        )}
         <div className="mt-6">
-          <FormInput
-            label="Short BP Explanation"
-            name="short_bp_explanation"
-            placeholder="12.5% buyer premium"
-            value={formState.short_bp_explanation || ""}
-            onChange={(e) => updateFormState({ short_bp_explanation: e.target.value || undefined })}
-          />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-          <FormInput
-            label="Buyer Tax Percentage (%)"
-            name="buyer_tax_percentage"
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            value={formState.buyer_tax_percentage || ""}
-            onChange={(e) => updateFormState({ buyer_tax_percentage: parseFloat(e.target.value) || undefined })}
-          />
-          <FormInput
-            label="Seller Tax Percentage (%)"
-            name="seller_tax_percentage"
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            value={formState.seller_tax_percentage || ""}
-            onChange={(e) => updateFormState({ seller_tax_percentage: parseFloat(e.target.value) || undefined })}
-          />
-          <FormInput
-            label="Minimum Bid Amount"
-            name="minimum_bid_amount"
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            value={formState.minimum_bid_amount || ""}
-            onChange={(e) => updateFormState({ minimum_bid_amount: parseFloat(e.target.value) || undefined })}
-          />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-          <FormInput
-            label="Buyer Lot Charge 1"
-            name="buyer_lot_charge_1"
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            value={formState.buyer_lot_charge_1 || ""}
-            onChange={(e) => updateFormState({ buyer_lot_charge_1: parseFloat(e.target.value) || undefined })}
-          />
-          <FormInput
-            label="Buyer Lot Charge 2"
-            name="buyer_lot_charge_2"
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            value={formState.buyer_lot_charge_2 || ""}
-            onChange={(e) => updateFormState({ buyer_lot_charge_2: parseFloat(e.target.value) || undefined })}
+          <FormCheckbox
+            label="Tax Exempt All"
+            description="Apply tax exemption to all items — buyer and seller tax rates won't apply."
+            name="tax_exempt_all"
+            checked={!!formState.tax_exempt_all}
+            onChange={(e) =>
+              updateFormState({
+                tax_exempt_all: e.target.checked,
+                ...(e.target.checked
+                  ? { buyer_tax_percentage: undefined, seller_tax_percentage: undefined }
+                  : {}),
+              })
+            }
           />
         </div>
       </FormSection>
 
-      <FormSection title="Bidding Rules" description="Configure bidding mechanics and visibility.">
+      <FormSection title="Bidding Mechanics" description="Bidding type, format, and amount rules.">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <FormSelect
             label="Bidding Type"
@@ -431,8 +471,51 @@ export function UploadSettingsTab({ initialData, fieldErrors }: UploadSettingsTa
             disabled={formState.bid_mechanism === "standard"}
             error={errors.bid_amount_type}
           />
+          <FormInput
+            label="Minimum Bid Amount"
+            name="minimum_bid_amount"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formState.minimum_bid_amount || ""}
+            onChange={(e) => updateFormState({ minimum_bid_amount: parseFloat(e.target.value) || undefined })}
+          />
+          <FormInput
+            label="Max Amount Per Item"
+            name="max_amount_per_item"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formState.max_amount_per_item || ""}
+            onChange={(e) => updateFormState({ max_amount_per_item: parseFloat(e.target.value) || undefined })}
+          />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+          <FormInput
+            label="Starting Bidder Card #"
+            name="starting_bid_card_number"
+            type="number"
+            placeholder="1"
+            hint="First card number assigned to online bidders."
+            value={formState.starting_bid_card_number || ""}
+            onChange={(e) => updateFormState({ starting_bid_card_number: parseInt(e.target.value) || undefined })}
+          />
+          <FormInput
+            label="Live Bidding Starting Card #"
+            name="live_starting_bid_card_number"
+            type="number"
+            placeholder="1"
+            hint="First card number assigned to live/floor bidders."
+            value={formState.live_starting_bid_card_number || ""}
+            onChange={(e) =>
+              updateFormState({ live_starting_bid_card_number: parseInt(e.target.value) || undefined })
+            }
+          />
+        </div>
+      </FormSection>
+
+      <FormSection title="Lot Timing" description="Pacing between lots and how long each stays open.">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <FormInput
             label="Soft Close (seconds)"
             name="soft_close_seconds"
@@ -462,7 +545,10 @@ export function UploadSettingsTab({ initialData, fieldErrors }: UploadSettingsTa
             }
           />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+      </FormSection>
+
+      <FormSection title="Bid Display Options" description="What bidders see while bidding is active.">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <FormCheckbox
             label="Show Immediate Bid States"
             name="show_immediate_bid_states"
@@ -482,7 +568,10 @@ export function UploadSettingsTab({ initialData, fieldErrors }: UploadSettingsTa
             onChange={(e) => updateFormState({ show_bid_reserve_states: e.target.checked })}
           />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+      </FormSection>
+
+      <FormSection title="Bid Increment Schedule" description="Define how minimum increments scale with bid amount.">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <FormCheckbox
             label="Force Bid Increment Schedule"
             name="force_bid_increment_schedule"
@@ -548,13 +637,7 @@ export function UploadSettingsTab({ initialData, fieldErrors }: UploadSettingsTa
       </FormSection>
 
       <FormSection title="Registration & Deposit" description="Rules for bidder registration and deposits.">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <FormCheckbox
-            label="Require Credit Card Registration"
-            name="require_credit_card_registration"
-            checked={!!formState.require_credit_card_registration}
-            onChange={(e) => updateFormState({ require_credit_card_registration: e.target.checked })}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <FormSelect
             label="Successful Bidder Registration Option"
             name="successful_bidder_registration_option"
@@ -595,15 +678,12 @@ export function UploadSettingsTab({ initialData, fieldErrors }: UploadSettingsTa
             }
           />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-          <FormInput
-            label="Max Amount Per Item"
-            name="max_amount_per_item"
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            value={formState.max_amount_per_item || ""}
-            onChange={(e) => updateFormState({ max_amount_per_item: parseFloat(e.target.value) || undefined })}
+        <div className="mt-6">
+          <FormCheckbox
+            label="Require Credit Card Registration"
+            name="require_credit_card_registration"
+            checked={!!formState.require_credit_card_registration}
+            onChange={(e) => updateFormState({ require_credit_card_registration: e.target.checked })}
           />
         </div>
         {showDepositFields && (
@@ -671,55 +751,6 @@ export function UploadSettingsTab({ initialData, fieldErrors }: UploadSettingsTa
             />
           </div>
         )}
-      </FormSection>
-
-      <FormSection title="Payment Methods" description="Accepted cards and live card settings.">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <FormCheckbox
-            label="Accept Mastercard"
-            name="accept_mastercard"
-            checked={!!formState.accept_mastercard}
-            onChange={(e) => updateFormState({ accept_mastercard: e.target.checked })}
-          />
-          <FormCheckbox
-            label="Accept Visa"
-            name="accept_visa"
-            checked={!!formState.accept_visa}
-            onChange={(e) => updateFormState({ accept_visa: e.target.checked })}
-          />
-          <FormCheckbox
-            label="Accept American Express"
-            name="accept_amex"
-            checked={!!formState.accept_amex}
-            onChange={(e) => updateFormState({ accept_amex: e.target.checked })}
-          />
-          <FormCheckbox
-            label="Accept Discover"
-            name="accept_discover"
-            checked={!!formState.accept_discover}
-            onChange={(e) => updateFormState({ accept_discover: e.target.checked })}
-          />
-        </div>
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <FormInput
-            label="Starting Bid Card #"
-            name="starting_bid_card_number"
-            type="number"
-            placeholder="1"
-            value={formState.starting_bid_card_number || ""}
-            onChange={(e) => updateFormState({ starting_bid_card_number: parseInt(e.target.value) || undefined })}
-          />
-          <FormInput
-            label="Live Starting Bid Card #"
-            name="live_starting_bid_card_number"
-            type="number"
-            placeholder="1"
-            value={formState.live_starting_bid_card_number || ""}
-            onChange={(e) =>
-              updateFormState({ live_starting_bid_card_number: parseInt(e.target.value) || undefined })
-            }
-          />
-        </div>
       </FormSection>
 
       <FormSection title="Email Notifications" description="Templates used to notify bidders on their registeration.">

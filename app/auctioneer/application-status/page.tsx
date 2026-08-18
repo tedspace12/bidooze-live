@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -30,6 +30,22 @@ export default function ApplicationStatusPage() {
   const { user, auctioneer, canAccessAuctioneerFeatures, isAuthenticated } = useAuthStore();
   const { refetch, isFetching } = useCurrentUser();
 
+  // This page can be reached via proxy.ts's server-side redirect, which only
+  // fires once a real token cookie already exists — so the client's very
+  // first paint already has real auth data while the server that rendered
+  // the HTML never saw any cookies at all. Branching the whole tree below on
+  // `isAuthenticated` before the client has actually mounted is what causes
+  // a hydration mismatch (server always renders the logged-out shape, the
+  // client can render the logged-in shape immediately). Gating on a plain
+  // local `mounted` flag — set in an effect, which React guarantees never
+  // runs before hydration commits — forces the first client render to match
+  // the server exactly; the switch to real content then happens as an
+  // ordinary post-mount update instead of during hydration itself.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const status = auctioneer?.status || "pending_review";
   const statusLabel = useMemo(() => status.replace(/_/g, " ").toUpperCase(), [status]);
   const copy = statusCopy[status] || "Your application status is being processed.";
@@ -50,7 +66,7 @@ export default function ApplicationStatusPage() {
     }
   };
 
-  if (!isAuthenticated) {
+  if (!mounted || !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <Card className="w-full max-w-lg">

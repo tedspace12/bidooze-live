@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useState, type ChangeEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   Bell,
   Building2,
   CheckCircle2,
   Clock3,
+  CreditCard,
   Hammer,
+  Landmark,
   Loader2,
+  Pencil,
   Save,
   Shield,
   User,
@@ -22,17 +26,30 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CurrencySelect } from "@/components/ui/currency-select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { COUNTRY_BANK_CONFIG, DEFAULT_ACCOUNT_TYPES } from "@/components/auth/registration/StepThree";
-import { withAuth } from "@/services/api";
+import { FileUploader } from "@/components/auth/registration/FileUploader";
+import {
+  PaystackConnectDialog,
+  PAYSTACK_COUNTRIES,
+  type PaystackAccountValues,
+} from "@/components/payments/PaystackConnectDialog";
+import { cn } from "@/lib/utils";
+import { withAuctioneerAuth } from "@/services/api";
+import type { PaymentProvider } from "@/features/auth/types";
 
 type TabKey = "profile" | "business" | "payouts" | "auctions" | "notifications" | "security";
+const TAB_KEYS: TabKey[] = ["profile", "business", "payouts", "auctions", "notifications", "security"];
+type BusinessDocType = "government_id" | "business_doc" | "license";
+const BUSINESS_DOCUMENT_TYPES: { type: BusinessDocType; label: string }[] = [
+  { type: "government_id", label: "Government ID" },
+  { type: "business_doc", label: "Business Document" },
+  { type: "license", label: "License" },
+];
 type VerificationStatus = "verified" | "pending" | "rejected";
-type AccountType = "business_checking" | "business_savings";
-type PayoutSchedule = "daily" | "weekly" | "biweekly" | "monthly";
 
 type SettingsState = {
   profile: {
@@ -57,15 +74,17 @@ type SettingsState = {
     documents: Array<{ id: string; name: string; url: string; uploadedAt: string }>;
   };
   payouts: {
-    country: string;
-    bankName: string;
-    accountName: string;
-    accountNumber: string;
-    accountType: AccountType;
-    bankIdentifiers: Record<string, string>;
-    currency: string;
-    payoutSchedule: PayoutSchedule;
-    escrowParticipation: boolean;
+    paymentGateway: PaymentProvider | null;
+    gatewayAccountStatus: string | null;
+    businessName: string | null;
+    accountName: string | null;
+    bankName: string | null;
+    accountNumberLast4: string | null;
+    country: string | null;
+    currency: string | null;
+    onboardingCompleted: boolean;
+    onboardingCompletedAt: string | null;
+    paymentAccountConnected: boolean;
   };
   auctions: {
     defaultDurationHours: number;
@@ -126,15 +145,19 @@ type BusinessApi = {
 };
 
 type PayoutApi = {
-  country?: string | null;
-  bank_name?: string | null;
+  payment_gateway?: PaymentProvider | null;
+  gateway_account_id?: string | null;
+  gateway_account_status?: string | null;
+  business_name?: string | null;
   account_name?: string | null;
-  account_number?: string | null;
-  account_type?: AccountType | null;
-  bank_identifiers?: unknown;
+  bank_name?: string | null;
+  account_number_last4?: string | null;
+  country?: string | null;
   currency?: string | null;
-  payout_schedule?: PayoutSchedule | null;
-  escrow_participation?: boolean | null;
+  onboarding_completed?: boolean | null;
+  onboarding_completed_at?: string | null;
+  payment_account_connected?: boolean | null;
+  redirect_url?: string | null;
 };
 
 type AuctionDefaultsApi = {
@@ -163,6 +186,7 @@ type SecurityApi = {
 const ENDPOINTS = {
   profile: "/auctioneer/settings/profile",
   business: "/auctioneer/settings/business",
+  businessDocuments: "/auctioneer/settings/business/documents",
   payouts: "/auctioneer/settings/payout",
   auctions: "/auctioneer/settings/auction-defaults",
   notifications: "/auctioneer/settings/notifications",
@@ -197,15 +221,17 @@ const INITIAL_STATE: SettingsState = {
     documents: [],
   },
   payouts: {
-    country: "US",
-    bankName: "",
-    accountName: "",
-    accountNumber: "",
-    accountType: "business_checking",
-    bankIdentifiers: { routing_number: "" },
-    currency: "USD",
-    payoutSchedule: "weekly",
-    escrowParticipation: true,
+    paymentGateway: null,
+    gatewayAccountStatus: null,
+    businessName: null,
+    accountName: null,
+    bankName: null,
+    accountNumberLast4: null,
+    country: null,
+    currency: null,
+    onboardingCompleted: false,
+    onboardingCompletedAt: null,
+    paymentAccountConnected: false,
   },
   auctions: {
     defaultDurationHours: 72,
@@ -248,34 +274,28 @@ const getErr = (error: unknown): string => {
   return typeof msg === "string" && msg.trim() ? msg : "Request failed.";
 };
 
-const normalizeBankIdentifiers = (value: unknown): Record<string, string> => {
-  if (!value) return { routing_number: "" };
-  if (Array.isArray(value)) {
-    const out: Record<string, string> = {};
-    value.forEach((v, i) => {
-      const text = typeof v === "string" ? v : v == null ? "" : String(v);
-      if (text.trim()) out[`identifier_${i + 1}`] = text;
-    });
-    return Object.keys(out).length ? out : { routing_number: "" };
-  }
-  if (typeof value === "object") {
-    const out: Record<string, string> = {};
-    Object.entries(value).forEach(([k, v]) => {
-      out[k] = typeof v === "string" ? v : v == null ? "" : String(v);
-    });
-    return Object.keys(out).length ? out : { routing_number: "" };
-  }
-  return { routing_number: "" };
-};
-
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>("profile");
+  const searchParams = useSearchParams();
+  const initialTab = TAB_KEYS.includes(searchParams.get("tab") as TabKey)
+    ? (searchParams.get("tab") as TabKey)
+    : "profile";
+
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [settings, setSettings] = useState<SettingsState>(INITIAL_STATE);
   const [avatarUrl, setAvatarUrl] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [savingTab, setSavingTab] = useState<TabKey | null>(null);
   const [dirtyTabs, setDirtyTabs] = useState<Record<TabKey, boolean>>(INITIAL_DIRTY);
+  const [uploadingBusinessDocType, setUploadingBusinessDocType] = useState<BusinessDocType | null>(null);
+  const [businessDocResetKeys, setBusinessDocResetKeys] = useState<Record<BusinessDocType, number>>({
+    government_id: 0,
+    business_doc: 0,
+    license: 0,
+  });
+  const [selectedProvider, setSelectedProvider] = useState<PaymentProvider | undefined>(undefined);
+  const [paystackDialogOpen, setPaystackDialogOpen] = useState(false);
+  const [isConnectingStripe, setIsConnectingStripe] = useState(false);
 
   const markDirty = (tab: TabKey) => setDirtyTabs((prev) => ({ ...prev, [tab]: true }));
 
@@ -285,12 +305,12 @@ export default function SettingsPage() {
       setIsLoading(true);
       try {
         const [profileRes, businessRes, payoutsRes, auctionsRes, notificationsRes, securityRes] = await Promise.all([
-          withAuth.get(ENDPOINTS.profile),
-          withAuth.get(ENDPOINTS.business),
-          withAuth.get(ENDPOINTS.payouts),
-          withAuth.get(ENDPOINTS.auctions),
-          withAuth.get(ENDPOINTS.notifications),
-          withAuth.get(ENDPOINTS.security),
+          withAuctioneerAuth.get(ENDPOINTS.profile),
+          withAuctioneerAuth.get(ENDPOINTS.business),
+          withAuctioneerAuth.get(ENDPOINTS.payouts),
+          withAuctioneerAuth.get(ENDPOINTS.auctions),
+          withAuctioneerAuth.get(ENDPOINTS.notifications),
+          withAuctioneerAuth.get(ENDPOINTS.security),
         ]);
         if (!mounted) return;
 
@@ -330,15 +350,17 @@ export default function SettingsPage() {
             })),
           },
           payouts: {
-            country: (payouts?.country || "US").toUpperCase(),
-            bankName: payouts?.bank_name || "",
-            accountName: payouts?.account_name || "",
-            accountNumber: payouts?.account_number || "",
-            accountType: payouts?.account_type || "business_checking",
-            bankIdentifiers: normalizeBankIdentifiers(payouts?.bank_identifiers),
-            currency: payouts?.currency || "USD",
-            payoutSchedule: payouts?.payout_schedule || "weekly",
-            escrowParticipation: Boolean(payouts?.escrow_participation),
+            paymentGateway: payouts?.payment_gateway || null,
+            gatewayAccountStatus: payouts?.gateway_account_status || null,
+            businessName: payouts?.business_name || null,
+            accountName: payouts?.account_name || null,
+            bankName: payouts?.bank_name || null,
+            accountNumberLast4: payouts?.account_number_last4 || null,
+            country: payouts?.country || null,
+            currency: payouts?.currency || null,
+            onboardingCompleted: Boolean(payouts?.onboarding_completed),
+            onboardingCompletedAt: payouts?.onboarding_completed_at || null,
+            paymentAccountConnected: Boolean(payouts?.payment_account_connected),
           },
           auctions: {
             defaultDurationHours: auctions?.default_duration_hours ?? 72,
@@ -378,15 +400,35 @@ export default function SettingsPage() {
   }, []);
 
   const saveTab = async (tab: TabKey) => {
-    if (tab === "business") return;
     setSavingTab(tab);
     try {
+      if (tab === "business") {
+        const res = await withAuctioneerAuth.patch(ENDPOINTS.business, {
+          license_number: settings.business.licenseNumber.trim() || null,
+          license_expiration_date: settings.business.licenseExpirationDate || null,
+          certifications: settings.business.certifications.trim() || null,
+          associations: settings.business.associations.trim() || null,
+        });
+        const business = unwrap<BusinessApi>(res.data);
+        setSettings((prev) => ({
+          ...prev,
+          business: {
+            ...prev.business,
+            licenseNumber: business?.license_number || "",
+            licenseExpirationDate: business?.license_expiration_date || "",
+            certifications: business?.certifications || "",
+            associations: business?.associations || "",
+            verificationStatus: business?.verification_status || prev.business.verificationStatus,
+          },
+        }));
+      }
+
       if (tab === "profile") {
         if (!settings.profile.displayName.trim()) {
           toast.error("Display name is required.");
           return;
         }
-        await withAuth.patch(ENDPOINTS.profile, {
+        await withAuctioneerAuth.patch(ENDPOINTS.profile, {
           display_name: settings.profile.displayName.trim(),
           bio: settings.profile.bio.trim() || null,
           phone: settings.profile.phone.trim() || null,
@@ -395,36 +437,8 @@ export default function SettingsPage() {
         });
       }
 
-      if (tab === "payouts") {
-        const country = settings.payouts.country.trim().toUpperCase();
-        const accountNumber = settings.payouts.accountNumber.trim();
-        const bankIdentifiers = Object.entries(settings.payouts.bankIdentifiers).reduce<Record<string, string>>((acc, [k, v]) => {
-          if (v.trim()) acc[k] = v.trim();
-          return acc;
-        }, {});
-
-        if (country.length !== 2) return void toast.error("Country must be 2 letters.");
-        if (!settings.payouts.bankName.trim()) return void toast.error("Bank name is required.");
-        if (!settings.payouts.accountName.trim()) return void toast.error("Account name is required.");
-        if (Object.keys(bankIdentifiers).length === 0) return void toast.error("At least one bank identifier is required.");
-        if (country === "MX" && !accountNumber && !bankIdentifiers.clabe) return void toast.error("For MX, provide CLABE or account number.");
-        if (country !== "MX" && !accountNumber) return void toast.error("Account number is required.");
-
-        await withAuth.patch(ENDPOINTS.payouts, {
-          country,
-          bank_name: settings.payouts.bankName.trim(),
-          account_name: settings.payouts.accountName.trim(),
-          account_number: accountNumber || null,
-          account_type: settings.payouts.accountType,
-          bank_identifiers: bankIdentifiers,
-          currency: settings.payouts.currency.trim().toUpperCase(),
-          payout_schedule: settings.payouts.payoutSchedule,
-          escrow_participation: settings.payouts.escrowParticipation,
-        });
-      }
-
       if (tab === "auctions") {
-        await withAuth.patch(ENDPOINTS.auctions, {
+        await withAuctioneerAuth.patch(ENDPOINTS.auctions, {
           default_duration_hours: settings.auctions.defaultDurationHours,
           default_bid_increment: settings.auctions.defaultBidIncrement,
           default_bid_mechanism: settings.auctions.defaultBidMechanism,
@@ -435,11 +449,11 @@ export default function SettingsPage() {
       }
 
       if (tab === "notifications") {
-        await withAuth.patch(ENDPOINTS.notifications, settings.notifications);
+        await withAuctioneerAuth.patch(ENDPOINTS.notifications, settings.notifications);
       }
 
       if (tab === "security") {
-        await withAuth.patch(ENDPOINTS.security, { mfa_enabled: settings.security.mfaEnabled });
+        await withAuctioneerAuth.patch(ENDPOINTS.security, { mfa_enabled: settings.security.mfaEnabled });
         const hasPassword = settings.security.currentPassword || settings.security.newPassword || settings.security.confirmPassword;
         if (hasPassword) {
           if (!settings.security.currentPassword || !settings.security.newPassword || !settings.security.confirmPassword) {
@@ -451,7 +465,7 @@ export default function SettingsPage() {
           if (settings.security.currentPassword === settings.security.newPassword) {
             return void toast.error("New password must differ from current password.");
           }
-          await withAuth.patch(ENDPOINTS.password, {
+          await withAuctioneerAuth.patch(ENDPOINTS.password, {
             current_password: settings.security.currentPassword,
             new_password: settings.security.newPassword,
             new_password_confirmation: settings.security.confirmPassword,
@@ -472,6 +486,104 @@ export default function SettingsPage() {
     }
   };
 
+  const handleBusinessDocumentUpload = async (type: BusinessDocType, urls: string[] | null) => {
+    if (!urls || urls.length === 0) return;
+    const fileUrl = urls[urls.length - 1];
+    setUploadingBusinessDocType(type);
+    try {
+      const res = await withAuctioneerAuth.post(ENDPOINTS.businessDocuments, {
+        type,
+        file_url: fileUrl,
+      });
+      const doc = unwrap<{ id?: string | number; name?: string; url?: string; uploaded_at?: string }>(res.data);
+      setSettings((prev) => ({
+        ...prev,
+        business: {
+          ...prev.business,
+          documents: [
+            ...prev.business.documents,
+            {
+              id: String(doc?.id ?? crypto.randomUUID()),
+              name: doc?.name || "Document",
+              url: doc?.url || fileUrl,
+              uploadedAt: doc?.uploaded_at || new Date().toISOString(),
+            },
+          ],
+        },
+      }));
+      toast.success("Document uploaded");
+    } catch (error) {
+      toast.error(getErr(error));
+    } finally {
+      setUploadingBusinessDocType(null);
+      setBusinessDocResetKeys((prev) => ({ ...prev, [type]: prev[type] + 1 }));
+    }
+  };
+
+  const applyPayoutResponse = (payoutApi: PayoutApi | undefined) => {
+    setSettings((prev) => ({
+      ...prev,
+      payouts: {
+        paymentGateway: payoutApi?.payment_gateway || null,
+        gatewayAccountStatus: payoutApi?.gateway_account_status || null,
+        businessName: payoutApi?.business_name || null,
+        accountName: payoutApi?.account_name || null,
+        bankName: payoutApi?.bank_name || null,
+        accountNumberLast4: payoutApi?.account_number_last4 || null,
+        country: payoutApi?.country || null,
+        currency: payoutApi?.currency || null,
+        onboardingCompleted: Boolean(payoutApi?.onboarding_completed),
+        onboardingCompletedAt: payoutApi?.onboarding_completed_at || null,
+        paymentAccountConnected: Boolean(payoutApi?.payment_account_connected),
+      },
+    }));
+  };
+
+  const handlePaystackConnectSave = async (values: PaystackAccountValues) => {
+    setSavingTab("payouts");
+    try {
+      const res = await withAuctioneerAuth.patch(ENDPOINTS.payouts, {
+        payment_provider: "paystack",
+        account_number: values.accountNumber,
+        bank_code: values.bankCode,
+        bank_name: values.bankName,
+        business_name: values.businessName,
+        country: values.country,
+      });
+      applyPayoutResponse(unwrap<PayoutApi>(res.data));
+      setSelectedProvider("paystack");
+      toast.success("Payout account connected");
+    } catch (error) {
+      toast.error(getErr(error));
+    } finally {
+      setSavingTab(null);
+    }
+  };
+
+  const handleConnectStripe = async () => {
+    setIsConnectingStripe(true);
+    try {
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const res = await withAuctioneerAuth.patch(ENDPOINTS.payouts, {
+        payment_provider: "stripe",
+        stripe_return_url: `${origin}/settings/payment-return`,
+        stripe_refresh_url: `${origin}/settings/payment-refresh`,
+      });
+      const payoutData = unwrap<PayoutApi>(res.data);
+      if (payoutData?.redirect_url) {
+        toast.success("Redirecting to Stripe");
+        window.location.href = payoutData.redirect_url;
+        return;
+      }
+      applyPayoutResponse(payoutData);
+      toast.success("Stripe account connected");
+    } catch (error) {
+      toast.error(getErr(error));
+    } finally {
+      setIsConnectingStripe(false);
+    }
+  };
+
   const handleAvatarUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -482,7 +594,7 @@ export default function SettingsPage() {
     try {
       const formData = new FormData();
       formData.append("avatar", file);
-      const res = await withAuth.post(ENDPOINTS.avatar, formData, {
+      const res = await withAuctioneerAuth.post(ENDPOINTS.avatar, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       const data = unwrap<{ avatar_url?: string }>(res.data);
@@ -504,10 +616,11 @@ export default function SettingsPage() {
   );
 
   const dirtyCount = Object.values(dirtyTabs).filter(Boolean).length;
-  const selectedCountryConfig = COUNTRY_BANK_CONFIG[settings.payouts.country];
-  const payoutAccountTypes = selectedCountryConfig?.accountTypes ?? DEFAULT_ACCOUNT_TYPES;
-  const payoutIdentifierFields = selectedCountryConfig?.identifiers ?? [];
-  const showPayoutAccountNumber = !selectedCountryConfig?.noAccountNumber;
+  const effectiveProvider = selectedProvider ?? settings.payouts.paymentGateway ?? undefined;
+  const selectedPaystackCountry = PAYSTACK_COUNTRIES.find((c) => c.code === settings.payouts.country);
+  const maskedAccountNumber = settings.payouts.accountNumberLast4
+    ? `••••${settings.payouts.accountNumberLast4}`
+    : "";
 
   const statusBadge = settings.business.verificationStatus === "verified"
     ? <Badge className="gap-1 bg-emerald-600 text-white"><CheckCircle2 className="h-3.5 w-3.5" />Verified</Badge>
@@ -556,7 +669,7 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="business" className="space-y-6">
-          <Card><CardHeader className="flex flex-row items-center justify-between"><div><CardTitle>Business (Read Only)</CardTitle><CardDescription>Business profile and verification details.</CardDescription></div>{statusBadge}</CardHeader>
+          <Card><CardHeader className="flex flex-row items-center justify-between"><div><CardTitle>Business</CardTitle><CardDescription>Credentials set at registration are read-only here; license and verification details can be updated.</CardDescription></div>{statusBadge}</CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div><Label>Company</Label><p className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">{settings.business.companyName || "-"}</p></div>
@@ -569,15 +682,43 @@ export default function SettingsPage() {
                 <div><Label>Years</Label><p className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">{settings.business.yearsInBusiness || "-"}</p></div>
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div><Label>License Number</Label><p className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">{settings.business.licenseNumber || "-"}</p></div>
-                <div><Label>License Expiration</Label><p className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">{settings.business.licenseExpirationDate || "-"}</p></div>
+                <div>
+                  <Label>License Number</Label>
+                  <Input
+                    value={settings.business.licenseNumber}
+                    onChange={(e) => { setSettings((p) => ({ ...p, business: { ...p.business, licenseNumber: e.target.value } })); markDirty("business"); }}
+                  />
+                </div>
+                <div>
+                  <Label>License Expiration</Label>
+                  <Input
+                    type="date"
+                    value={settings.business.licenseExpirationDate}
+                    onChange={(e) => { setSettings((p) => ({ ...p, business: { ...p.business, licenseExpirationDate: e.target.value } })); markDirty("business"); }}
+                  />
+                </div>
               </div>
-              <div><Label>Certifications</Label><p className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">{settings.business.certifications || "-"}</p></div>
-              <div><Label>Associations</Label><p className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">{settings.business.associations || "-"}</p></div>
-              <div className="rounded-lg border border-dashed border-border p-4">
-                <Label>Documents</Label>
+              <div>
+                <Label>Certifications</Label>
+                <Textarea
+                  rows={3}
+                  value={settings.business.certifications}
+                  onChange={(e) => { setSettings((p) => ({ ...p, business: { ...p.business, certifications: e.target.value } })); markDirty("business"); }}
+                />
+              </div>
+              <div>
+                <Label>Associations</Label>
+                <Textarea
+                  rows={3}
+                  value={settings.business.associations}
+                  onChange={(e) => { setSettings((p) => ({ ...p, business: { ...p.business, associations: e.target.value } })); markDirty("business"); }}
+                />
+              </div>
+
+              <div className="rounded-lg border border-dashed border-border p-4 space-y-3">
+                <Label>Verification Documents</Label>
                 {settings.business.documents.length > 0 ? (
-                  <div className="mt-2 space-y-2">
+                  <div className="space-y-2">
                     {settings.business.documents.map((document) => (
                       <div
                         key={document.id}
@@ -599,113 +740,160 @@ export default function SettingsPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-2 text-sm text-muted-foreground">No documents available.</p>
+                  <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>
                 )}
+
+                <div className="grid grid-cols-1 gap-4 pt-2 border-t border-border sm:grid-cols-3">
+                  {BUSINESS_DOCUMENT_TYPES.map(({ type, label }) => (
+                    <div key={type} className="space-y-2">
+                      <FileUploader
+                        key={businessDocResetKeys[type]}
+                        folder="auctioneers/settings/business-documents"
+                        label={label}
+                        maxFiles={1}
+                        onChange={(urls) => handleBusinessDocumentUpload(type, urls)}
+                      />
+                      {uploadingBusinessDocType === type && (
+                        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>
+          <div className="flex justify-end">{saveButton("business", "Save Business")}</div>
         </TabsContent>
 
         <TabsContent value="payouts" className="space-y-6">
-          <Card><CardHeader><CardTitle>Payouts</CardTitle><CardDescription>Bank details and settlement controls.</CardDescription></CardHeader>
+          <Card>
+            <CardHeader>
+              <CardTitle>Payouts</CardTitle>
+              <CardDescription>Where auction proceeds are sent when buyers pay.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>Country</Label>
-                  <Select
-                    value={settings.payouts.country}
-                    onValueChange={(value) => {
-                      const nextAccountTypes = COUNTRY_BANK_CONFIG[value]?.accountTypes ?? DEFAULT_ACCOUNT_TYPES;
-                      const defaultAccountType = (nextAccountTypes[0]?.value ?? "business_checking") as AccountType;
+              <div className="space-y-2">
+                <Label>Payment provider</Label>
+                <RadioGroup
+                  value={effectiveProvider}
+                  onValueChange={(v) => setSelectedProvider(v as PaymentProvider)}
+                  className="grid grid-cols-1 gap-3 md:grid-cols-2"
+                >
+                  {[
+                    { value: "stripe", label: "Stripe", description: "Use Stripe Connect for supported countries.", icon: CreditCard },
+                    { value: "paystack", label: "Paystack", description: "Use a bank account from a supported African country through Paystack.", icon: Landmark },
+                  ].map((option) => {
+                    const Icon = option.icon;
+                    const selected = effectiveProvider === option.value;
+                    return (
+                      <label
+                        key={option.value}
+                        className={cn(
+                          "flex cursor-pointer gap-3 rounded-lg border p-4 transition-colors",
+                          selected ? "border-[#3F6B2D] bg-[#3F6B2D]/5" : "border-border bg-card"
+                        )}
+                      >
+                        <RadioGroupItem value={option.value} className="mt-1" />
+                        <Icon className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                        <span className="space-y-1">
+                          <span className="block font-medium text-foreground">{option.label}</span>
+                          <span className="block text-sm text-muted-foreground">{option.description}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </RadioGroup>
+              </div>
 
-                      setSettings((p) => ({
-                        ...p,
-                        payouts: {
-                          ...p.payouts,
-                          country: value,
-                          bankIdentifiers: {},
-                          accountNumber: "",
-                          accountType: defaultAccountType,
-                        },
-                      }));
-                      markDirty("payouts");
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {settings.payouts.country && !COUNTRY_BANK_CONFIG[settings.payouts.country] && (
-                        <SelectItem value={settings.payouts.country}>{settings.payouts.country}</SelectItem>
-                      )}
-                      {Object.entries(COUNTRY_BANK_CONFIG).map(([code, config]) => (
-                        <SelectItem key={code} value={code}>
-                          {config.flag} {config.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2"><Label>Bank Name</Label><Input value={settings.payouts.bankName} onChange={(e) => { setSettings((p) => ({ ...p, payouts: { ...p.payouts, bankName: e.target.value } })); markDirty("payouts"); }} /></div>
-                <div className="space-y-2"><Label>Account Name</Label><Input value={settings.payouts.accountName} onChange={(e) => { setSettings((p) => ({ ...p, payouts: { ...p.payouts, accountName: e.target.value } })); markDirty("payouts"); }} /></div>
-              </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {showPayoutAccountNumber && (
-                  <div className="space-y-2">
-                    <Label>{selectedCountryConfig?.accountNumberLabel ?? "Account Number"}</Label>
-                    <Input
-                      placeholder={selectedCountryConfig?.accountNumberPlaceholder ?? "Account Number"}
-                      value={settings.payouts.accountNumber}
-                      onChange={(e) => {
-                        setSettings((p) => ({ ...p, payouts: { ...p.payouts, accountNumber: e.target.value } }));
-                        markDirty("payouts");
-                      }}
-                    />
-                  </div>
-                )}
-                <div className="space-y-2"><Label>Account Type</Label><Select value={settings.payouts.accountType} onValueChange={(value) => { setSettings((p) => ({ ...p, payouts: { ...p.payouts, accountType: value as AccountType } })); markDirty("payouts"); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{payoutAccountTypes.map((type) => (<SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>))}</SelectContent></Select></div>
-              </div>
-              {settings.payouts.country && payoutIdentifierFields.length > 0 && (
-                <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
-                  <p className="text-sm font-medium">Bank Identifiers</p>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    {payoutIdentifierFields.map((field) => (
-                      <div className="space-y-2" key={field.key}>
-                        <Label htmlFor={field.key}>{field.label}</Label>
-                        <Input
-                          id={field.key}
-                          placeholder={field.placeholder}
-                          maxLength={field.maxLength}
-                          value={settings.payouts.bankIdentifiers[field.key] || ""}
-                          onChange={(e) => {
-                            const value = field.transform ? field.transform(e.target.value) : e.target.value;
-                            setSettings((p) => ({
-                              ...p,
-                              payouts: {
-                                ...p.payouts,
-                                bankIdentifiers: {
-                                  ...p.payouts.bankIdentifiers,
-                                  [field.key]: value,
-                                },
-                              },
-                            }));
-                            markDirty("payouts");
-                          }}
-                        />
-                        {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
+              {effectiveProvider === "stripe" && (
+                <div className="space-y-3">
+                  {settings.payouts.paymentAccountConnected && settings.payouts.paymentGateway === "stripe" ? (
+                    <div className="flex items-start gap-3 rounded-lg border border-[#3F6B2D]/25 bg-[#3F6B2D]/5 p-4">
+                      <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#3F6B2D]" />
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Stripe account connected</p>
+                        {settings.payouts.onboardingCompletedAt && (
+                          <p className="text-xs text-muted-foreground">
+                            Since {new Date(settings.payouts.onboardingCompletedAt).toLocaleDateString()}
+                          </p>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <CreditCard className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium text-foreground">Payouts via Stripe</p>
+                          <p className="text-xs text-muted-foreground">
+                            You will finish a short setup on Stripe&apos;s site, then come back here.
+                          </p>
+                        </div>
+                      </div>
+                      <Button type="button" onClick={handleConnectStripe} disabled={isConnectingStripe} className="w-full sm:w-auto">
+                        {isConnectingStripe ? <><Loader2 className="h-4 w-4 animate-spin" /> Connecting...</> : "Connect with Stripe"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div><Label>Currency</Label><CurrencySelect name="payoutCurrency" value={settings.payouts.currency} onChange={(v) => { setSettings((p) => ({ ...p, payouts: { ...p.payouts, currency: (v || p.payouts.currency).toUpperCase() } })); markDirty("payouts"); }} /></div>
-                <div><Label>Payout Schedule</Label><Select value={settings.payouts.payoutSchedule} onValueChange={(value) => { setSettings((p) => ({ ...p, payouts: { ...p.payouts, payoutSchedule: value as PayoutSchedule } })); markDirty("payouts"); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="daily">Daily</SelectItem><SelectItem value="weekly">Weekly</SelectItem><SelectItem value="biweekly">Bi-weekly</SelectItem><SelectItem value="monthly">Monthly</SelectItem></SelectContent></Select></div>
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-4"><div><p className="font-medium">Escrow Participation</p></div><Switch checked={settings.payouts.escrowParticipation} onCheckedChange={(v) => { setSettings((p) => ({ ...p, payouts: { ...p.payouts, escrowParticipation: v } })); markDirty("payouts"); }} /></div>
+
+              {effectiveProvider === "paystack" && (
+                <div className="space-y-3">
+                  {settings.payouts.paymentAccountConnected && settings.payouts.paymentGateway === "paystack" ? (
+                    <div className="flex flex-col gap-3 rounded-lg border border-[#3F6B2D]/25 bg-[#3F6B2D]/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#3F6B2D]" />
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{settings.payouts.accountName || "Account connected"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {settings.payouts.bankName} · {maskedAccountNumber} · {selectedPaystackCountry?.label}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPaystackDialogOpen(true)}
+                        className="w-full gap-2 sm:w-auto"
+                      >
+                        <Pencil className="h-3.5 w-3.5" /> Change
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Payout details not added yet</p>
+                        <p className="text-xs text-muted-foreground">
+                          Add the bank account you would like your Paystack payouts sent to.
+                        </p>
+                      </div>
+                      <Button type="button" onClick={() => setPaystackDialogOpen(true)} className="w-full sm:w-auto">
+                        Add payout details
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
-          <div className="flex justify-end">{saveButton("payouts", "Save Payouts")}</div>
+
+          <PaystackConnectDialog
+            open={paystackDialogOpen}
+            onOpenChange={setPaystackDialogOpen}
+            initialValues={{
+              country: settings.payouts.paymentGateway === "paystack" ? settings.payouts.country || "" : "",
+              bankCode: "",
+              bankName: settings.payouts.paymentGateway === "paystack" ? settings.payouts.bankName || "" : "",
+              accountNumber: "",
+              businessName: settings.payouts.businessName || "",
+              resolvedAccountName: settings.payouts.paymentGateway === "paystack" ? settings.payouts.accountName || "" : "",
+            }}
+            onSave={handlePaystackConnectSave}
+          />
         </TabsContent>
 
         <TabsContent value="auctions" className="space-y-6">

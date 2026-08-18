@@ -1,4 +1,5 @@
-import { withAuth, withoutAuth } from "@/services/api";
+import { withAuctioneerAuth, withoutAuth } from "@/services/api";
+import { signUpload, uploadFileToCloudinary } from "@/lib/cloudinary-upload";
 import type {
   Auction,
   AuctionEditResponse,
@@ -58,6 +59,16 @@ const rethrowApiError = (error: unknown): never => {
   throw err?.response?.data || { message: err?.message || "Request failed" };
 };
 
+// Used by updateAuction() for the edit flow's feature_image_files, which is
+// still upload-at-submit (not progressive like the create wizard — the edit
+// page's own File/existing-URL union is a separate, smaller surface that
+// wasn't part of this restructure).
+const uploadImagesToCloudinary = async (files: File[], folder: string): Promise<string[]> => {
+  if (files.length === 0) return [];
+  const sign = await signUpload(folder);
+  return Promise.all(files.map((file) => uploadFileToCloudinary(file, sign, () => {})));
+};
+
 const extractFilename = (contentDisposition?: string): string | undefined => {
   if (!contentDisposition) return undefined;
 
@@ -88,7 +99,7 @@ export const auctionService = {
 
   async getAuction(identifier: string | number) {
     try {
-      const res = await withAuth.get(`auctions/${identifier}/overview`);
+      const res = await withAuctioneerAuth.get(`auctions/${identifier}/overview`);
       return res.data as AuctionOverviewResponse;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -99,7 +110,7 @@ export const auctionService = {
     auctionId: string | number,
   ): Promise<AuctionEditResponse> {
     try {
-      const res = await withAuth.get(`auctions/${auctionId}/edit`, {
+      const res = await withAuctioneerAuth.get(`auctions/${auctionId}/edit`, {
         skipForbiddenRedirect: true,
       });
       return extractPayloadData<AuctionEditResponse>(res.data);
@@ -113,51 +124,15 @@ export const auctionService = {
     options?: { idempotencyKey?: string },
   ): Promise<Auction> {
     try {
-      const formData = new FormData();
-      const jsonFieldNames = new Set([
-        "categories",
-        "auction_links",
-        "bid_increments",
-      ]);
+      // Images are already Cloudinary secure_urls by the time this runs — the
+      // wizard uploads each one as it's picked (see useCloudinaryImageUpload),
+      // not in one batch here. /auctions only ever accepts URLs, not files.
 
-      // Primitive / scalar and non-file fields
-      Object.entries(data).forEach(([key, value]) => {
-        if (
-          key === "feature_images" ||
-          key === "lot_images" ||
-          key === "lots"
-        ) {
-          return;
-        }
-
-        if (value === undefined || value === null || value === "") return;
-
-        if (jsonFieldNames.has(key)) {
-          if (Array.isArray(value) && value.length === 0) return;
-          formData.append(key, JSON.stringify(value));
-          return;
-        }
-
-        formData.append(key, String(value));
-      });
-
-      // Lots as JSON
-      if (data.lots && data.lots.length > 0) {
-        formData.append("lots", JSON.stringify(data.lots));
-      }
-
-      // Feature images (required)
-      (data.feature_images || []).forEach((file, index) => {
-        formData.append(
-          "feature_images[]",
-          file,
-          file.name || `feature-${index}`,
-        );
-      });
-
-      // Lot images
+      // Resolve each lot_images key to a lot index (numeric key, else match
+      // lot_number) so the payload's keys line up with what the backend expects.
+      const lotImages: Record<string, string[]> = {};
       if (data.lot_images) {
-        Object.entries(data.lot_images).forEach(([key, files]) => {
+        Object.entries(data.lot_images).forEach(([key, urls]) => {
           const parsedIndex = Number.parseInt(key, 10);
           let index: number | null =
             Number.isInteger(parsedIndex) && parsedIndex >= 0
@@ -171,28 +146,29 @@ export const auctionService = {
             if (lotIndex >= 0) index = lotIndex;
           }
 
-          if (index === null) return;
-
-          files.forEach((file, imgIndex) => {
-            formData.append(
-              `lot_images[${index}][]`,
-              file,
-              file.name || `lot-${index}-${imgIndex}`,
-            );
-          });
+          if (index === null || urls.length === 0) return;
+          lotImages[index] = urls;
         });
       }
 
-      const headers: Record<string, string> = {
-        "Content-Type": "multipart/form-data",
-      };
-      if (options?.idempotencyKey?.trim()) {
-        headers["Idempotency-Key"] = options.idempotencyKey.trim();
+      const payload: Record<string, unknown> = {};
+      Object.entries(data).forEach(([key, value]) => {
+        if (key === "feature_images" || key === "lot_images") return;
+        if (value === undefined || value === null || value === "") return;
+        if (Array.isArray(value) && value.length === 0) return;
+        payload[key] = value;
+      });
+      payload.feature_images = data.feature_images || [];
+      if (Object.keys(lotImages).length > 0) {
+        payload.lot_images = lotImages;
       }
 
-      const res = await withAuth.post<Auction>("/auctions", formData, {
-        headers,
-      });
+      const config: { headers?: Record<string, string> } = {};
+      if (options?.idempotencyKey?.trim()) {
+        config.headers = { "Idempotency-Key": options.idempotencyKey.trim() };
+      }
+
+      const res = await withAuctioneerAuth.post<Auction>("/auctions", payload, config);
 
       return res.data as Auction;
     } catch (error: unknown) {
@@ -205,71 +181,30 @@ export const auctionService = {
     data: UpdateAuctionPayload,
   ): Promise<Auction> {
     try {
-      const hasNewFiles =
-        Array.isArray(data.feature_image_files) &&
-        data.feature_image_files.length > 0;
-
+      const newFiles = data.feature_image_files ?? [];
       const hasImageChanges =
-        hasNewFiles || Array.isArray(data.feature_image_urls);
+        newFiles.length > 0 || Array.isArray(data.feature_image_urls);
 
-      if (hasImageChanges) {
-        const formData = new FormData();
-        const jsonFields = new Set([
-          "categories",
-          "auction_links",
-          "bid_increments",
-        ]);
-
-        Object.entries(data).forEach(([key, value]) => {
-          if (key === "feature_image_files" || key === "feature_image_urls")
-            return;
-          if (value === undefined || value === null) return;
-
-          if (jsonFields.has(key)) {
-            formData.append(key, JSON.stringify(value));
-            return;
-          }
-
-          if (typeof value === "boolean") {
-            formData.append(key, value ? "1" : "0");
-            return;
-          }
-
-          formData.append(key, String(value));
-        });
-
-        (data.feature_image_urls ?? []).forEach((url) => {
-          formData.append("feature_image_urls[]", url);
-        });
-
-        (data.feature_image_files ?? []).forEach((file, index) => {
-          formData.append(
-            "feature_images[]",
-            file,
-            file.name || `feature-${index}`,
-          );
-        });
-
-        const res = await withAuth.patch<Auction>(
-          `/auctions/${auctionId}`,
-          formData,
-          {
-            headers: { "Content-Type": "multipart/form-data" },
-            skipForbiddenRedirect: true,
-          },
-        );
-
-        return extractPayloadData<Auction>(res.data);
-      }
+      // Upload any newly-added images first — /auctions/{id} only accepts
+      // URLs now, same as create.
+      const uploadedUrls = newFiles.length > 0
+        ? await uploadImagesToCloudinary(newFiles, `auctions/${auctionId}/feature-images`)
+        : [];
 
       const rest = { ...data };
       delete rest.feature_image_files;
       delete rest.feature_image_urls;
       const payload = Object.fromEntries(
         Object.entries(rest).filter(([, value]) => value !== undefined),
-      ) as UpdateAuctionPayload;
+      ) as Record<string, unknown>;
 
-      const res = await withAuth.patch<Auction>(
+      if (hasImageChanges) {
+        // Kept existing URLs + newly uploaded ones, in one field — matches
+        // the shape /auctions expects on create.
+        payload.feature_images = [...(data.feature_image_urls ?? []), ...uploadedUrls];
+      }
+
+      const res = await withAuctioneerAuth.patch<Auction>(
         `/auctions/${auctionId}`,
         payload,
         {
@@ -287,7 +222,7 @@ export const auctionService = {
     page?: number;
   }): Promise<Auction[]> {
     try {
-      const res = await withAuth.get<Auction[]>(
+      const res = await withAuctioneerAuth.get<Auction[]>(
         "/auctions/auctioneer/my-auctions",
         { params },
       );
@@ -299,7 +234,7 @@ export const auctionService = {
 
   async getAuctioneerSellers(): Promise<AuctionSeller[]> {
     try {
-      const res = await withAuth.get<AuctionSeller[]>("/auctioneer/consignors");
+      const res = await withAuctioneerAuth.get<AuctionSeller[]>("/auctioneer/consignors");
       return extractArrayData<AuctionSeller>(res.data);
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -310,7 +245,7 @@ export const auctionService = {
     data: CreateSellerPayload,
   ): Promise<AuctionSeller> {
     try {
-      const res = await withAuth.post<AuctionSeller>(
+      const res = await withAuctioneerAuth.post<AuctionSeller>(
         "/auctioneer/consignors",
         data,
       );
@@ -322,7 +257,7 @@ export const auctionService = {
 
   async getAuctionOverview(auctionId: string | number) {
     try {
-      const res = await withAuth.get(`auctions/${auctionId}/overview`);
+      const res = await withAuctioneerAuth.get(`auctions/${auctionId}/overview`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -333,7 +268,7 @@ export const auctionService = {
     auctionId: string | number,
   ): Promise<AuctionActivity[]> {
     try {
-      const res = await withAuth.get(`auctions/${auctionId}/activity`);
+      const res = await withAuctioneerAuth.get(`auctions/${auctionId}/activity`);
       return extractArrayData<AuctionActivity>(res.data);
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -345,7 +280,7 @@ export const auctionService = {
     params?: { status?: string; page?: number; per_page?: number }
   ): Promise<{ data: import("../types").AuctionBid[]; meta?: { total?: number; current_page?: number; last_page?: number } }> {
     try {
-      const res = await withAuth.get(`auctioneer/auctions/${auctionId}/bids`, { params });
+      const res = await withAuctioneerAuth.get(`auctioneer/auctions/${auctionId}/bids`, { params });
       const raw = res.data;
       if (raw && typeof raw === "object" && "data" in raw) return raw as { data: import("../types").AuctionBid[]; meta?: { total?: number; current_page?: number; last_page?: number } };
       return { data: Array.isArray(raw) ? raw : [] };
@@ -358,7 +293,7 @@ export const auctionService = {
     auctionId: string | number,
   ): Promise<AuctionRecentBid[]> {
     try {
-      const res = await withAuth.get(`auctions/${auctionId}/recent-bids`);
+      const res = await withAuctioneerAuth.get(`auctions/${auctionId}/recent-bids`);
       return extractArrayData<AuctionRecentBid>(res.data);
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -367,7 +302,7 @@ export const auctionService = {
 
   async getAuctionLots(auctionId: string | number) {
     try {
-      const res = await withAuth.get(`auctions/${auctionId}/lots`);
+      const res = await withAuctioneerAuth.get(`auctions/${auctionId}/lots`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -376,7 +311,7 @@ export const auctionService = {
 
   async getAuctionLot(auctionId: string | number, lotId: string | number) {
     try {
-      const res = await withAuth.get(`auctions/${auctionId}/lots/${lotId}`);
+      const res = await withAuctioneerAuth.get(`auctions/${auctionId}/lots/${lotId}`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -401,7 +336,7 @@ export const auctionService = {
         payload = formData;
       }
 
-      const res = await withAuth.post(
+      const res = await withAuctioneerAuth.post(
         `auctions/${auctionId}/lots`,
         payload,
         hasImages
@@ -436,7 +371,7 @@ export const auctionService = {
         payload = formData;
       }
 
-      const res = await withAuth.patch(
+      const res = await withAuctioneerAuth.patch(
         `auctions/${auctionId}/lots/${lotId}`,
         payload,
         hasImages
@@ -451,7 +386,7 @@ export const auctionService = {
 
   async startLot(auctionId: string | number, lotId: string | number) {
     try {
-      const res = await withAuth.post(
+      const res = await withAuctioneerAuth.post(
         `auctions/${auctionId}/lots/${lotId}/start`,
       );
       return res.data;
@@ -462,7 +397,7 @@ export const auctionService = {
 
   async endLot(auctionId: string | number, lotId: string | number) {
     try {
-      const res = await withAuth.post(
+      const res = await withAuctioneerAuth.post(
         `auctions/${auctionId}/lots/${lotId}/end`,
       );
       return res.data;
@@ -473,7 +408,7 @@ export const auctionService = {
 
   async deleteLot(auctionId: string | number, lotId: string | number) {
     try {
-      const res = await withAuth.delete(`auctions/${auctionId}/lots/${lotId}`);
+      const res = await withAuctioneerAuth.delete(`auctions/${auctionId}/lots/${lotId}`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -482,7 +417,7 @@ export const auctionService = {
 
   async getAuctionBidders(auctionId: string | number) {
     try {
-      const res = await withAuth.get(`auctions/${auctionId}/bidders`);
+      const res = await withAuctioneerAuth.get(`auctions/${auctionId}/bidders`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -498,7 +433,7 @@ export const auctionService = {
     },
   ) {
     try {
-      const res = await withAuth.patch(
+      const res = await withAuctioneerAuth.patch(
         `auctions/${auctionId}/bidders/${registrationId}`,
         data,
       );
@@ -510,7 +445,7 @@ export const auctionService = {
 
   async getAuctionFinancials(auctionId: string | number) {
     try {
-      const res = await withAuth.get(`auctions/${auctionId}/financials`);
+      const res = await withAuctioneerAuth.get(`auctions/${auctionId}/financials`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -519,7 +454,7 @@ export const auctionService = {
 
   async getAuctionFinancialLots(auctionId: string | number) {
     try {
-      const res = await withAuth.get(`auctions/${auctionId}/financials/lots`);
+      const res = await withAuctioneerAuth.get(`auctions/${auctionId}/financials/lots`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -528,7 +463,7 @@ export const auctionService = {
 
   async getAuctionFinancialSettings(auctionId: string | number) {
     try {
-      const res = await withAuth.get(
+      const res = await withAuctioneerAuth.get(
         `auctions/${auctionId}/financials/settings`,
       );
       return res.data;
@@ -542,7 +477,7 @@ export const auctionService = {
     data: AuctionSettingsPayload & { tax_exempt_all?: boolean },
   ) {
     try {
-      const res = await withAuth.patch(
+      const res = await withAuctioneerAuth.patch(
         `auctions/${auctionId}/financials/settings`,
         data,
       );
@@ -556,7 +491,7 @@ export const auctionService = {
     auctionId: string | number,
   ): Promise<SettlementSummaryData> {
     try {
-      const res = await withAuth.get(
+      const res = await withAuctioneerAuth.get(
         `auctions/${auctionId}/settlement/summary`,
       );
       return extractPayloadData<SettlementSummaryData>(res.data);
@@ -570,7 +505,7 @@ export const auctionService = {
     params?: SettlementInvoiceListParams,
   ): Promise<SettlementListResponse<SettlementInvoiceListItem>> {
     try {
-      const res = await withAuth.get(
+      const res = await withAuctioneerAuth.get(
         `auctions/${auctionId}/settlement/invoices`,
         { params },
       );
@@ -587,7 +522,7 @@ export const auctionService = {
     invoiceId: string | number,
   ): Promise<SettlementInvoiceDetailData> {
     try {
-      const res = await withAuth.get(
+      const res = await withAuctioneerAuth.get(
         `auctions/${auctionId}/settlement/invoices/${invoiceId}`,
       );
       return extractPayloadData<SettlementInvoiceDetailData>(res.data);
@@ -605,7 +540,7 @@ export const auctionService = {
     },
   ): Promise<SettlementActionResult> {
     try {
-      const res = await withAuth.post(
+      const res = await withAuctioneerAuth.post(
         `auctions/${auctionId}/settlement/invoices/send`,
         data,
       );
@@ -620,7 +555,7 @@ export const auctionService = {
     params?: SettlementInvoiceListParams & SettlementExportParams,
   ): Promise<SettlementFileDownload> {
     try {
-      const res = await withAuth.get<Blob>(
+      const res = await withAuctioneerAuth.get<Blob>(
         `auctions/${auctionId}/settlement/invoices/export`,
         {
           params,
@@ -642,7 +577,7 @@ export const auctionService = {
     params?: SettlementPayoutListParams,
   ): Promise<SettlementListResponse<SettlementPayoutListItem>> {
     try {
-      const res = await withAuth.get(
+      const res = await withAuctioneerAuth.get(
         `auctions/${auctionId}/settlement/payouts`,
         { params },
       );
@@ -659,7 +594,7 @@ export const auctionService = {
     payoutId: string | number,
   ): Promise<SettlementPayoutDetailData> {
     try {
-      const res = await withAuth.get(
+      const res = await withAuctioneerAuth.get(
         `auctions/${auctionId}/settlement/payouts/${payoutId}`,
       );
       return extractPayloadData<SettlementPayoutDetailData>(res.data);
@@ -679,7 +614,7 @@ export const auctionService = {
     },
   ): Promise<SettlementActionResult> {
     try {
-      const res = await withAuth.post(
+      const res = await withAuctioneerAuth.post(
         `auctions/${auctionId}/settlement/payouts/initiate`,
         data,
       );
@@ -694,7 +629,7 @@ export const auctionService = {
     params?: SettlementPayoutListParams & SettlementExportParams,
   ): Promise<SettlementFileDownload> {
     try {
-      const res = await withAuth.get<Blob>(
+      const res = await withAuctioneerAuth.get<Blob>(
         `auctions/${auctionId}/settlement/payouts/export`,
         {
           params,
@@ -713,7 +648,7 @@ export const auctionService = {
 
   async getAuctionSettings(auctionId: string | number) {
     try {
-      const res = await withAuth.get(`auctions/${auctionId}/settings`);
+      const res = await withAuctioneerAuth.get(`auctions/${auctionId}/settings`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -725,7 +660,7 @@ export const auctionService = {
     data: AuctionSettingsPayload,
   ) {
     try {
-      const res = await withAuth.patch(`auctions/${auctionId}/settings`, data);
+      const res = await withAuctioneerAuth.patch(`auctions/${auctionId}/settings`, data);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -734,7 +669,7 @@ export const auctionService = {
 
   async publishAuction(auctionId: string | number) {
     try {
-      const res = await withAuth.post(`auctions/${auctionId}/publish`);
+      const res = await withAuctioneerAuth.post(`auctions/${auctionId}/publish`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -743,7 +678,7 @@ export const auctionService = {
 
   async closeAuction(auctionId: string | number) {
     try {
-      const res = await withAuth.post(`auctions/${auctionId}/close`);
+      const res = await withAuctioneerAuth.post(`auctions/${auctionId}/close`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -752,7 +687,7 @@ export const auctionService = {
 
   async pauseAuction(auctionId: string | number) {
     try {
-      const res = await withAuth.post(`auctions/${auctionId}/pause`);
+      const res = await withAuctioneerAuth.post(`auctions/${auctionId}/pause`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -761,7 +696,7 @@ export const auctionService = {
 
   async resumeAuction(auctionId: string | number) {
     try {
-      const res = await withAuth.post(`auctions/${auctionId}/resume`);
+      const res = await withAuctioneerAuth.post(`auctions/${auctionId}/resume`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -770,7 +705,7 @@ export const auctionService = {
 
   async completeAuction(auctionId: string | number) {
     try {
-      const res = await withAuth.post(`auctions/${auctionId}/complete`);
+      const res = await withAuctioneerAuth.post(`auctions/${auctionId}/complete`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -779,7 +714,7 @@ export const auctionService = {
 
   async deleteAuction(auctionId: string | number) {
     try {
-      const res = await withAuth.delete(`auctions/${auctionId}`);
+      const res = await withAuctioneerAuth.delete(`auctions/${auctionId}`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -788,7 +723,7 @@ export const auctionService = {
 
   async getAuctionLiveState(auctionId: string | number) {
     try {
-      const res = await withAuth.get(
+      const res = await withAuctioneerAuth.get(
         `auctioneer/auctions/${auctionId}/live/overview`,
       );
       return res.data;
@@ -799,7 +734,7 @@ export const auctionService = {
 
   async startLiveSession(auctionId: string | number) {
     try {
-      const res = await withAuth.post(
+      const res = await withAuctioneerAuth.post(
         `auctioneer/auctions/${auctionId}/live/start`,
       );
       return res.data;
@@ -810,7 +745,7 @@ export const auctionService = {
 
   async pauseLiveSession(auctionId: string | number) {
     try {
-      const res = await withAuth.post(
+      const res = await withAuctioneerAuth.post(
         `auctioneer/auctions/${auctionId}/live/pause`,
       );
       return res.data;
@@ -821,7 +756,7 @@ export const auctionService = {
 
   async resumeLiveSession(auctionId: string | number) {
     try {
-      const res = await withAuth.post(
+      const res = await withAuctioneerAuth.post(
         `auctioneer/auctions/${auctionId}/live/resume`,
       );
       return res.data;
@@ -832,7 +767,7 @@ export const auctionService = {
 
   async endLiveSession(auctionId: string | number) {
     try {
-      const res = await withAuth.post(
+      const res = await withAuctioneerAuth.post(
         `auctioneer/auctions/${auctionId}/live/end`,
       );
       return res.data;
@@ -843,7 +778,7 @@ export const auctionService = {
 
   async startLiveLot(auctionId: string | number, lotId: string | number) {
     try {
-      const res = await withAuth.post(
+      const res = await withAuctioneerAuth.post(
         `auctioneer/auctions/${auctionId}/lots/${lotId}/start`,
       );
       return res.data;
@@ -854,7 +789,7 @@ export const auctionService = {
 
   async sellLiveLot(auctionId: string | number, lotId: string | number) {
     try {
-      const res = await withAuth.post(
+      const res = await withAuctioneerAuth.post(
         `auctioneer/auctions/${auctionId}/lots/${lotId}/sell`,
       );
       return res.data;
@@ -865,7 +800,7 @@ export const auctionService = {
 
   async passLiveLot(auctionId: string | number, lotId: string | number) {
     try {
-      const res = await withAuth.post(
+      const res = await withAuctioneerAuth.post(
         `auctioneer/auctions/${auctionId}/lots/${lotId}/pass`,
       );
       return res.data;
@@ -876,7 +811,7 @@ export const auctionService = {
 
   async getBidIncrements(auctionId: string | number) {
     try {
-      const res = await withAuth.get<{ data: import("../types").BidIncrementInput[] }>(`auctions/${auctionId}/bid-increments`);
+      const res = await withAuctioneerAuth.get<{ data: import("../types").BidIncrementInput[] }>(`auctions/${auctionId}/bid-increments`);
       return res.data.data ?? [];
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -885,7 +820,7 @@ export const auctionService = {
 
   async updateBidIncrements(auctionId: string | number, rows: import("../types").BidIncrementInput[]) {
     try {
-      const res = await withAuth.put<{ data: import("../types").BidIncrementInput[] }>(`auctions/${auctionId}/bid-increments`, { rows });
+      const res = await withAuctioneerAuth.put<{ data: import("../types").BidIncrementInput[] }>(`auctions/${auctionId}/bid-increments`, { rows });
       return res.data.data ?? [];
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -894,7 +829,7 @@ export const auctionService = {
 
   async getFloorBidders(auctionId: string | number) {
     try {
-      const res = await withAuth.get<{ data: import("../types").FloorBidder[] }>(`auctioneer/auctions/${auctionId}/floor-bidders`);
+      const res = await withAuctioneerAuth.get<{ data: import("../types").FloorBidder[] }>(`auctioneer/auctions/${auctionId}/floor-bidders`);
       return res.data.data ?? [];
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -903,7 +838,7 @@ export const auctionService = {
 
   async createFloorBidder(auctionId: string | number, payload: import("../types").CreateFloorBidderPayload) {
     try {
-      const res = await withAuth.post<{ data: import("../types").FloorBidder }>(`auctioneer/auctions/${auctionId}/floor-bidders`, payload);
+      const res = await withAuctioneerAuth.post<{ data: import("../types").FloorBidder }>(`auctioneer/auctions/${auctionId}/floor-bidders`, payload);
       return res.data.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -912,7 +847,7 @@ export const auctionService = {
 
   async approveBid(bidId: string | number) {
     try {
-      const res = await withAuth.post(`auctioneer/bids/${bidId}/approve`);
+      const res = await withAuctioneerAuth.post(`auctioneer/bids/${bidId}/approve`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -921,7 +856,7 @@ export const auctionService = {
 
   async rejectBid(bidId: string | number, reason?: string) {
     try {
-      const res = await withAuth.post(`auctioneer/bids/${bidId}/reject`, { reason });
+      const res = await withAuctioneerAuth.post(`auctioneer/bids/${bidId}/reject`, { reason });
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -934,7 +869,7 @@ export const auctionService = {
     data: { amount: number; auction_registration_id: number },
   ) {
     try {
-      const res = await withAuth.post(
+      const res = await withAuctioneerAuth.post(
         `auctioneer/auctions/${auctionId}/lots/${lotId}/floor-bid`,
         data,
       );

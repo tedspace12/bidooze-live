@@ -20,7 +20,11 @@ export function AdminLoginForm({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        await loginAdmin.mutateAsync({ email, password });
+        try {
+            await loginAdmin.mutateAsync({ email, password });
+        } catch {
+            // Toast is handled in the auth hook.
+        }
     }
 
     return (

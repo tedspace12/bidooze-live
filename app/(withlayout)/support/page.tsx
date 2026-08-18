@@ -31,7 +31,7 @@ import {
   Phone,
   Send,
 } from "lucide-react";
-import { withAuth } from "@/services/api";
+import { withAuctioneerAuth } from "@/services/api";
 
 // ─── FAQ data ─────────────────────────────────────────────────────────────────
 
@@ -93,7 +93,7 @@ function SupportForm() {
     if (!subject.trim() || !category || !message.trim()) return;
     setSubmitting(true);
     try {
-      await withAuth.post("/auctioneer/support", { category, subject, message });
+      await withAuctioneerAuth.post("/auctioneer/support", { category, subject, message });
       toast.success("Support request submitted", {
         description: "Our team will get back to you within 1–2 business days.",
       });

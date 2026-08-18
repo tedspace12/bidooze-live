@@ -42,7 +42,11 @@ export function LoginForm({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        await loginAuctioneer.mutateAsync({ email, password });
+        try {
+            await loginAuctioneer.mutateAsync({ email, password });
+        } catch {
+            // Toast is handled in the auth hook.
+        }
     }
 
     const handleSocialLogin = async (provider: SocialProvider) => {

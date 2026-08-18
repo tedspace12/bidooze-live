@@ -410,8 +410,34 @@ html { scroll-behavior: smooth; }
   .auction-tab-trigger[data-state="active"] {
     border-bottom-color: var(--green-500);
   }
-  
+
   .dark .auction-tab-trigger[data-state="active"] {
     border-bottom-color: var(--green-200);
+  }
+
+  /* Themed scrollbar — thin, rounded, matches the sidebar theme instead of
+     the OS/browser-native scrollbar. Firefox uses scrollbar-width/-color;
+     everything else (Chrome, Edge, Safari) uses the ::-webkit-* rules. */
+  .themed-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sidebar-border) transparent;
+  }
+
+  .themed-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .themed-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .themed-scrollbar::-webkit-scrollbar-thumb {
+    background-color: var(--sidebar-border);
+    border-radius: 9999px;
+  }
+
+  .themed-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: var(--sidebar-ring);
   }
 }

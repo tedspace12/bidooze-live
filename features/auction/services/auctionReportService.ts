@@ -1,4 +1,4 @@
-import { withAuth } from "@/services/api";
+import { withAuctioneerAuth } from "@/services/api";
 
 import type {
   AuctionReportActivityData,
@@ -93,7 +93,7 @@ export const auctionReportService = {
     auctionId: string | number
   ): Promise<AuctionReportSummaryData> {
     try {
-      const res = await withAuth.get<MessageEnvelope | AuctionReportSummaryData>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | AuctionReportSummaryData>(
         `auctions/${auctionId}/reports/summary`
       );
       return extractObjectData<AuctionReportSummaryData>(res.data);
@@ -107,7 +107,7 @@ export const auctionReportService = {
     params?: AuctionReportLotsParams
   ): Promise<AuctionReportLotsData> {
     try {
-      const res = await withAuth.get<MessageEnvelope | AuctionReportLotsData>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | AuctionReportLotsData>(
         `auctions/${auctionId}/reports/lots`,
         { params }
       );
@@ -122,7 +122,7 @@ export const auctionReportService = {
     params?: AuctionReportActivityParams
   ): Promise<AuctionReportActivityData> {
     try {
-      const res = await withAuth.get<MessageEnvelope | AuctionReportActivityData>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | AuctionReportActivityData>(
         `auctions/${auctionId}/reports/activity`,
         { params }
       );
@@ -137,7 +137,7 @@ export const auctionReportService = {
     params?: AuctionReportBiddersParams
   ): Promise<AuctionReportBiddersData> {
     try {
-      const res = await withAuth.get<MessageEnvelope | AuctionReportBiddersData>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | AuctionReportBiddersData>(
         `auctions/${auctionId}/reports/bidders`,
         { params }
       );
@@ -151,7 +151,7 @@ export const auctionReportService = {
     auctionId: string | number
   ): Promise<AuctionReportFinancialData> {
     try {
-      const res = await withAuth.get<MessageEnvelope | AuctionReportFinancialData>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | AuctionReportFinancialData>(
         `auctions/${auctionId}/reports/financials`
       );
       return extractObjectData<AuctionReportFinancialData>(res.data);
@@ -165,7 +165,7 @@ export const auctionReportService = {
     params?: AuctionReportConsignorsParams
   ): Promise<AuctionReportConsignorsData> {
     try {
-      const res = await withAuth.get<MessageEnvelope | AuctionReportConsignorsData>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | AuctionReportConsignorsData>(
         `auctions/${auctionId}/reports/consignors`,
         { params }
       );
@@ -179,7 +179,7 @@ export const auctionReportService = {
     auctionId: string | number
   ): Promise<AuctionReportExceptionsData> {
     try {
-      const res = await withAuth.get<MessageEnvelope | AuctionReportExceptionsData>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | AuctionReportExceptionsData>(
         `auctions/${auctionId}/reports/exceptions`
       );
       return extractObjectData<AuctionReportExceptionsData>(res.data);
@@ -193,7 +193,7 @@ export const auctionReportService = {
     params?: { format?: AuctionReportExportFormat }
   ): Promise<AuctionReportExportResult> {
     try {
-      const res = await withAuth.get<Blob>(
+      const res = await withAuctioneerAuth.get<Blob>(
         `auctions/${auctionId}/reports/export/summary`,
         {
           params,
@@ -217,7 +217,7 @@ export const auctionReportService = {
     params?: AuctionReportLotsParams & { format?: AuctionReportExportFormat }
   ): Promise<AuctionReportExportResult> {
     try {
-      const res = await withAuth.get<Blob>(`auctions/${auctionId}/reports/export/lots`, {
+      const res = await withAuctioneerAuth.get<Blob>(`auctions/${auctionId}/reports/export/lots`, {
         params,
         responseType: "blob",
         validateStatus: (status: number) => status >= 200 && status < 300,
@@ -238,7 +238,7 @@ export const auctionReportService = {
     params?: AuctionReportBiddersParams & { format?: AuctionReportExportFormat }
   ): Promise<AuctionReportExportResult> {
     try {
-      const res = await withAuth.get<Blob>(`auctions/${auctionId}/reports/export/bidders`, {
+      const res = await withAuctioneerAuth.get<Blob>(`auctions/${auctionId}/reports/export/bidders`, {
         params,
         responseType: "blob",
         validateStatus: (status: number) => status >= 200 && status < 300,
@@ -259,7 +259,7 @@ export const auctionReportService = {
     params?: { format?: AuctionReportExportFormat }
   ): Promise<AuctionReportExportResult> {
     try {
-      const res = await withAuth.get<Blob>(
+      const res = await withAuctioneerAuth.get<Blob>(
         `auctions/${auctionId}/reports/export/settlement`,
         {
           params,
@@ -283,7 +283,7 @@ export const auctionReportService = {
     params?: { format?: AuctionReportExportFormat }
   ): Promise<AuctionReportExportResult> {
     try {
-      const res = await withAuth.get<Blob>(`auctions/${auctionId}/reports/export/full`, {
+      const res = await withAuctioneerAuth.get<Blob>(`auctions/${auctionId}/reports/export/full`, {
         params,
         responseType: "blob",
         validateStatus: (status: number) => status >= 200 && status < 300,

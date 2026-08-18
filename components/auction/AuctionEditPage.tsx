@@ -53,7 +53,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TimezoneSelect } from "@/components/ui/timezone-select";
+import { TimezoneField } from "@/components/auction/TimezoneField";
 import { useAuction } from "@/features/auction/hooks/useAuction";
 import { useCategories } from "@/features/auction/hooks/Usecategories";
 import type { AuctionEditResponse, AuctionStatus, BidAmountType, BidMechanism, UpdateAuctionPayload } from "@/features/auction/types";
@@ -942,15 +942,10 @@ export default function AuctionEditPage() {
               />
             </div>
             <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Timezone</label>
-                <TimezoneSelect
-                  name="timezone"
-                  value={formState.timezone}
-                  onChange={(value) => setFormState((s) => s && { ...s, timezone: value || "" })}
-                />
-                <p className="text-xs text-muted-foreground">Stored as an IANA timezone.</p>
-              </div>
+              <TimezoneField
+                value={formState.timezone}
+                onChange={(value) => setFormState((s) => s && { ...s, timezone: value })}
+              />
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Currency</label>
                 <CurrencySelect

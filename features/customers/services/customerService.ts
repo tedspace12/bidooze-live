@@ -1,4 +1,4 @@
-import { withAuth } from "@/services/api";
+import { withAuctioneerAuth } from "@/services/api";
 
 type ApiErrorLike = {
   response?: {
@@ -313,7 +313,7 @@ export interface BidderBlockResponse {
 export const customerService = {
   async getConsignors(params?: GetConsignorsParams): Promise<ConsignorListResponse<ConsignorListItem>> {
     try {
-      const res = await withAuth.get<MessageEnvelope | ConsignorListItem[]>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | ConsignorListItem[]>(
         "/auctioneer/consignors",
         { params }
       );
@@ -336,7 +336,7 @@ export const customerService = {
 
   async getConsignorDropdown(params?: Omit<GetConsignorsParams, "status"> & { status?: ConsignorStatus }): Promise<ConsignorListResponse<ConsignorDropdownItem>> {
     try {
-      const res = await withAuth.get<MessageEnvelope | ConsignorDropdownItem[]>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | ConsignorDropdownItem[]>(
         "/auctioneer/consignors",
         { params: { ...params, mode: "dropdown" } }
       );
@@ -359,7 +359,7 @@ export const customerService = {
 
   async createConsignor(payload: ConsignorCreatePayload): Promise<ConsignorMutationResponse> {
     try {
-      const res = await withAuth.post<MessageEnvelope | ConsignorRecord>(
+      const res = await withAuctioneerAuth.post<MessageEnvelope | ConsignorRecord>(
         "/auctioneer/consignors",
         payload
       );
@@ -383,7 +383,7 @@ export const customerService = {
     payload: ConsignorUpdatePayload
   ): Promise<ConsignorMutationResponse> {
     try {
-      const res = await withAuth.patch<MessageEnvelope | ConsignorRecord>(
+      const res = await withAuctioneerAuth.patch<MessageEnvelope | ConsignorRecord>(
         `/auctioneer/consignors/${consignorId}`,
         payload
       );
@@ -407,7 +407,7 @@ export const customerService = {
     payload: ConsignorBankAccountPayload
   ): Promise<ConsignorBankAccountResponse> {
     try {
-      const res = await withAuth.put<MessageEnvelope | ConsignorBankAccountMasked>(
+      const res = await withAuctioneerAuth.put<MessageEnvelope | ConsignorBankAccountMasked>(
         `/auctioneer/consignors/${consignorId}/bank-account`,
         payload
       );
@@ -431,7 +431,7 @@ export const customerService = {
     payload: ConsignorStatusPayload
   ): Promise<ConsignorMutationResponse> {
     try {
-      const res = await withAuth.patch<MessageEnvelope | ConsignorRecord>(
+      const res = await withAuctioneerAuth.patch<MessageEnvelope | ConsignorRecord>(
         `/auctioneer/consignors/${consignorId}/status`,
         payload
       );
@@ -455,7 +455,7 @@ export const customerService = {
     payload: { content: string }
   ): Promise<ConsignorNoteResponse> {
     try {
-      const res = await withAuth.post<MessageEnvelope | ConsignorNote>(
+      const res = await withAuctioneerAuth.post<MessageEnvelope | ConsignorNote>(
         `/auctioneer/consignors/${consignorId}/notes`,
         payload
       );
@@ -479,7 +479,7 @@ export const customerService = {
     params?: { per_page?: number; page?: number }
   ): Promise<ConsignorNotesListResponse> {
     try {
-      const res = await withAuth.get<MessageEnvelope | ConsignorNote[]>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | ConsignorNote[]>(
         `/auctioneer/consignors/${consignorId}/notes`,
         { params }
       );
@@ -505,7 +505,7 @@ export const customerService = {
     params?: { per_page?: number; page?: number }
   ): Promise<ConsignorActivityResponse> {
     try {
-      const res = await withAuth.get<MessageEnvelope | ConsignorActivityLog[]>(
+      const res = await withAuctioneerAuth.get<MessageEnvelope | ConsignorActivityLog[]>(
         `/auctioneer/consignors/${consignorId}/activity`,
         { params }
       );
@@ -532,7 +532,7 @@ export const customerService = {
     per_page?: number;
   }): Promise<BidderListResponse> {
     try {
-      const res = await withAuth.get<MessageEnvelope | BidderListItem[]>("/bidders", { params });
+      const res = await withAuctioneerAuth.get<MessageEnvelope | BidderListItem[]>("/bidders", { params });
 
       const list = extractArrayData<BidderListItem>(res.data);
       const meta =
@@ -548,7 +548,7 @@ export const customerService = {
 
   async getBidderById(id: string | number): Promise<BidderDetail> {
     try {
-      const res = await withAuth.get<MessageEnvelope | BidderDetail>(`/bidders/${id}`);
+      const res = await withAuctioneerAuth.get<MessageEnvelope | BidderDetail>(`/bidders/${id}`);
       const payload = res.data;
       if (payload && typeof payload === "object" && "data" in payload) {
         const nested = (payload as MessageEnvelope).data;
@@ -565,7 +565,7 @@ export const customerService = {
   async blockBidder(bidderId: string | number, reason?: string): Promise<BidderBlockResponse> {
     try {
       const payload = reason ? { reason } : {};
-      const res = await withAuth.post<BidderBlockResponse>(`/bidders/${bidderId}/block`, payload);
+      const res = await withAuctioneerAuth.post<BidderBlockResponse>(`/bidders/${bidderId}/block`, payload);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);
@@ -574,7 +574,7 @@ export const customerService = {
 
   async unblockBidder(bidderId: string | number): Promise<BidderBlockResponse> {
     try {
-      const res = await withAuth.delete<BidderBlockResponse>(`/bidders/${bidderId}/block`);
+      const res = await withAuctioneerAuth.delete<BidderBlockResponse>(`/bidders/${bidderId}/block`);
       return res.data;
     } catch (error: unknown) {
       throw rethrowApiError(error);

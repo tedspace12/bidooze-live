@@ -94,7 +94,6 @@ export interface Auction {
   buyer_tax_percentage?: number;
   seller_tax_percentage?: number;
   bp_explanation?: string;
-  short_bp_explanation?: string;
   tax_exempt_all?: boolean;
   terms_and_conditions?: string;
   payment_information?: string;
@@ -202,8 +201,6 @@ export interface CreateAuctionPayload {
   buyer_premium_percentage?: number;
   buyer_tax_percentage?: number;
   seller_tax_percentage?: number;
-  buyer_lot_charge_1?: number;
-  buyer_lot_charge_2?: number;
   minimum_bid_amount?: number;
   tax_exempt_all?: boolean;
 
@@ -245,12 +242,6 @@ export interface CreateAuctionPayload {
   shipping_pickup_info?: string;
   bidding_notice?: string;
   auction_notice?: string;
-  short_bp_explanation?: string;
-
-  accept_mastercard?: boolean;
-  accept_visa?: boolean;
-  accept_amex?: boolean;
-  accept_discover?: boolean;
 
   auction_links?: { url: string; description: string }[];
 
@@ -259,9 +250,11 @@ export interface CreateAuctionPayload {
 
   lots?: CreateAuctionLotInput[];
 
-  // Files
-  feature_images: File[];
-  lot_images?: Record<string, File[]>;
+  // Cloudinary secure_urls — images are uploaded from the browser as they're
+  // picked (see hooks/useCloudinaryImageUpload), so by the time this payload
+  // is built every image is already a hosted URL, not a raw file.
+  feature_images: string[];
+  lot_images?: Record<string, string[]>;
 }
 
 export type UpdateAuctionPayload = Partial<
@@ -290,8 +283,6 @@ export interface AuctionSettingsPayload {
   buyer_premium_percentage?: number;
   buyer_tax_percentage?: number;
   seller_tax_percentage?: number;
-  buyer_lot_charge_1?: number;
-  buyer_lot_charge_2?: number;
   minimum_bid_amount?: number;
   shipping_availability?: ShippingAvailability;
   shipping_account?: string;

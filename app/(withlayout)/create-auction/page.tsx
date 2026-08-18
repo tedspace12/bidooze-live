@@ -32,7 +32,6 @@ type CopyableAuctionSource = {
   code?: string;
   commission_percentage?: number;
   buyer_premium_percentage?: number;
-  short_bp_explanation?: string;
   buyer_tax_percentage?: number;
   seller_tax_percentage?: number;
   tax_exempt_all?: boolean;
@@ -196,7 +195,6 @@ function CreateAuction() {
     }
     if (selectedOptions.includes("buyer-premium")) {
       preFilledState.buyer_premium_percentage = source.buyer_premium_percentage;
-      preFilledState.short_bp_explanation = source.short_bp_explanation;
     }
     if (selectedOptions.includes("tax")) {
       preFilledState.buyer_tax_percentage = source.buyer_tax_percentage;

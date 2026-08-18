@@ -30,13 +30,12 @@ export type StepFiveData = StepFiveFields & {
 interface StepFiveProps {
   defaultValues?: StepFiveData;
   onSubmit: (data: StepFiveData) => void;
-  onSkip: () => void;
   onBack: () => void;
   isLoading?: boolean;
   registrationToken?: string | null;
 }
 
-export function StepFive({ defaultValues, onSubmit, onSkip, onBack, isLoading, registrationToken }: StepFiveProps) {
+export function StepFive({ defaultValues, onSubmit, onBack, isLoading, registrationToken }: StepFiveProps) {
   const [identityUrls, setIdentityUrls] = useState<string[] | null>(
     defaultValues?.identityVerification?.length ? defaultValues.identityVerification : null
   );
@@ -59,7 +58,7 @@ export function StepFive({ defaultValues, onSubmit, onSkip, onBack, isLoading, r
     });
   };
 
-  const canSubmit = !isLoading;
+  const canSubmit = !isLoading && !!identityUrls?.length && !!businessUrls?.length;
 
   const base = `auctioneers/${registrationToken ?? "draft"}`;
 
@@ -67,27 +66,26 @@ export function StepFive({ defaultValues, onSubmit, onSkip, onBack, isLoading, r
     <div className="max-w-3xl w-full space-y-8">
       <header>
         <p className="text-muted-foreground text-sm mb-2">Step 5/5</p>
-        <h2 className="text-3xl font-bold mb-1">Verification (Optional)</h2>
+        <h2 className="text-3xl font-bold mb-1">Verification</h2>
         <p className="text-muted-foreground">
-          This page is optional during registration. You can upload verification documents now, or skip and submit for review.
+          Upload both documents below to complete your registration — these are required before you can submit.
         </p>
       </header>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            All fields and document uploads on this page are optional. These may be required later before account activity.
-          </div>
 
           <FileUploader
             folder={`${base}/identity`}
             label="Identity Verification (Government ID)"
+            required
             onChange={setIdentityUrls}
           />
 
           <FileUploader
             folder={`${base}/business`}
             label="Business Verification (Registration Documents)"
+            required
             onChange={setBusinessUrls}
           />
 
@@ -123,26 +121,14 @@ export function StepFive({ defaultValues, onSubmit, onSkip, onBack, isLoading, r
             >
               Back
             </Button>
-            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={onSkip}
-                className="w-full sm:w-auto"
-                size="lg"
-                disabled={isLoading}
-              >
-                Skip and submit
-              </Button>
-              <Button
-                type="submit"
-                className="w-full sm:w-auto h-12 md:h-10 md:min-w-32"
-                size="lg"
-                disabled={!canSubmit}
-              >
-                {isLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</> : "Complete"}
-              </Button>
-            </div>
+            <Button
+              type="submit"
+              className="w-full sm:w-auto h-12 md:h-10 md:min-w-32"
+              size="lg"
+              disabled={!canSubmit}
+            >
+              {isLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</> : "Complete"}
+            </Button>
           </div>
         </form>
       </Form>

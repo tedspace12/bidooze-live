@@ -1,5 +1,8 @@
+import type { AuthPanel } from "@/lib/auth-panel";
+
 export type MfaSession = {
   email: string;
+  panel: AuthPanel;
   expires_at?: number | null;
   mfa_channel?: string | null;
 };
@@ -22,6 +25,7 @@ export function readMfaSession(): MfaSession | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as {
       email?: unknown;
+      panel?: unknown;
       expires_at?: unknown;
       mfa_channel?: unknown;
     };
@@ -30,6 +34,7 @@ export function readMfaSession(): MfaSession | null {
       return null;
     }
 
+    const panel: AuthPanel = parsed.panel === "admin" ? "admin" : "auctioneer";
     const expiresAt =
       typeof parsed.expires_at === "number" && Number.isFinite(parsed.expires_at)
         ? parsed.expires_at
@@ -41,6 +46,7 @@ export function readMfaSession(): MfaSession | null {
 
     return {
       email: parsed.email.trim(),
+      panel,
       expires_at: expiresAt,
       mfa_channel: mfaChannel,
     };

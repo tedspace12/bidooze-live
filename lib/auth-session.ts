@@ -1,4 +1,5 @@
-export const AUTH_SESSION_COOKIE = "bidooze_auth_session";
+import Cookies from "js-cookie";
+import { AuthPanel, sessionCookieName } from "@/lib/auth-panel";
 
 export type AuthSessionPayload = {
   token: string | null;
@@ -33,6 +34,8 @@ export type AuthSessionPayload = {
   } | null;
 };
 
+// For RAW (still URI-encoded) cookie values — e.g. proxy.ts reading
+// request.cookies, which does not auto-decode the way js-cookie does.
 export function parseSessionCookie(raw?: string | null): AuthSessionPayload | null {
   if (!raw) return null;
   try {
@@ -43,20 +46,35 @@ export function parseSessionCookie(raw?: string | null): AuthSessionPayload | nu
   }
 }
 
-export function readSessionFromDocument(): AuthSessionPayload | null {
+// For values js-cookie has already decoded for us.
+function parseDecodedSession(raw?: string | null): AuthSessionPayload | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AuthSessionPayload;
+  } catch {
+    return null;
+  }
+}
+
+export function readSessionFromDocument(panel: AuthPanel): AuthSessionPayload | null {
   if (typeof document === "undefined") return null;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${AUTH_SESSION_COOKIE}=([^;]*)`));
-  return parseSessionCookie(match ? match[1] : null);
+  return parseDecodedSession(Cookies.get(sessionCookieName(panel)));
 }
 
-export function writeSessionToDocument(session: AuthSessionPayload) {
+export function writeSessionToDocument(session: AuthSessionPayload, panel: AuthPanel) {
   if (typeof document === "undefined") return;
-  const value = encodeURIComponent(JSON.stringify(session));
-  const secure = process.env.NODE_ENV === "production" ? "; secure" : "";
-  document.cookie = `${AUTH_SESSION_COOKIE}=${value}; path=/; samesite=strict${secure}`;
+  // No `expires` — this stays a session cookie, cleared when the browser closes.
+  // sameSite: "lax", not "strict" — see the matching comment on setToken() in
+  // services/api.ts; this cookie needs to survive the same third-party
+  // redirect-back flows (Stripe Connect, Paystack, OAuth).
+  Cookies.set(sessionCookieName(panel), JSON.stringify(session), {
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
 }
 
-export function clearSessionFromDocument() {
+export function clearSessionFromDocument(panel: AuthPanel) {
   if (typeof document === "undefined") return;
-  document.cookie = `${AUTH_SESSION_COOKIE}=; Max-Age=0; path=/; samesite=strict;`;
+  Cookies.remove(sessionCookieName(panel), { path: "/" });
 }

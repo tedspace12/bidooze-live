@@ -95,8 +95,9 @@ export interface StepFourPayload {
 
 export interface StepFivePayload {
   registration_token: string;
-  identity_verification?: string[];    // Cloudinary URLs
-  business_verification?: string[];
+  // Cloudinary URLs — required (non-empty) as of the submit() validation update.
+  identity_verification: string[];
+  business_verification: string[];
   background_check_consent?: boolean;
 }
 
@@ -165,6 +166,36 @@ export interface AuthSession {
   team_member?: TeamMemberInfo | null;
 }
 
+export interface RegistrationProgressStep {
+  completed: boolean;
+  step_number: number;
+  name: string;
+}
+
+export interface RegistrationProgress {
+  status: string;
+  registration_step: number;
+  is_complete: boolean;
+  next_step: number;
+  progress_percentage: number;
+  steps: {
+    company_info: RegistrationProgressStep;
+    contact_info: RegistrationProgressStep;
+    bank_info: RegistrationProgressStep & {
+      payment_provider: PaymentProvider | null;
+      payment_provider_connected: boolean;
+    };
+    credentials_documents: RegistrationProgressStep;
+    // Identity + business verification docs are now required before submit()
+    // will accept the registration.
+    additional_documents: RegistrationProgressStep & {
+      required_for_registration: boolean;
+    };
+  };
+  can_submit: boolean;
+  missing_requirements: string[];
+}
+
 export interface RegistrationProgressResponse {
   status: "draft" | "pending" | "approved" | "rejected" | "in_progress";
   registration_step: number;
@@ -195,6 +226,7 @@ export interface RegistrationProgressResponse {
       completed: boolean;
       step_number: number;
       name: string;
+      required_for_registration: boolean;
     };
   };
   can_submit: boolean;
