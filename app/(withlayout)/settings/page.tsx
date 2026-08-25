@@ -58,6 +58,8 @@ type SettingsState = {
     phone: string;
     website: string;
     fullAddress: string;
+    subdomain: string;
+    wantsSubdomain: boolean;
   };
   business: {
     companyName: string;
@@ -120,6 +122,8 @@ type ProfileApi = {
   website?: string | null;
   full_address?: string | null;
   avatar_url?: string | null;
+  subdomain?: string | null;
+  wants_subdomain?: boolean | null;
 };
 
 type BusinessDocApi = {
@@ -205,7 +209,7 @@ const INITIAL_DIRTY: Record<TabKey, boolean> = {
 };
 
 const INITIAL_STATE: SettingsState = {
-  profile: { displayName: "", bio: "", phone: "", website: "", fullAddress: "" },
+  profile: { displayName: "", bio: "", phone: "", website: "", fullAddress: "", subdomain: "", wantsSubdomain: false },
   business: {
     companyName: "",
     businessRegNo: "",
@@ -286,6 +290,7 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [savingTab, setSavingTab] = useState<TabKey | null>(null);
+  const [subdomainTouched, setSubdomainTouched] = useState(false);
   const [dirtyTabs, setDirtyTabs] = useState<Record<TabKey, boolean>>(INITIAL_DIRTY);
   const [uploadingBusinessDocType, setUploadingBusinessDocType] = useState<BusinessDocType | null>(null);
   const [businessDocResetKeys, setBusinessDocResetKeys] = useState<Record<BusinessDocType, number>>({
@@ -329,6 +334,8 @@ export default function SettingsPage() {
             phone: profile?.phone || "",
             website: profile?.website || "",
             fullAddress: profile?.full_address || "",
+            subdomain: profile?.subdomain || "",
+            wantsSubdomain: Boolean(profile?.wants_subdomain),
           },
           business: {
             companyName: business?.company_name || "",
@@ -386,6 +393,7 @@ export default function SettingsPage() {
             confirmPassword: "",
           },
         });
+        setSubdomainTouched(false);
         setDirtyTabs(INITIAL_DIRTY);
       } catch (error) {
         toast.error(getErr(error));
@@ -428,13 +436,25 @@ export default function SettingsPage() {
           toast.error("Display name is required.");
           return;
         }
-        await withAuctioneerAuth.patch(ENDPOINTS.profile, {
+        const res = await withAuctioneerAuth.patch(ENDPOINTS.profile, {
           display_name: settings.profile.displayName.trim(),
           bio: settings.profile.bio.trim() || null,
           phone: settings.profile.phone.trim() || null,
           website: settings.profile.website.trim() || null,
           full_address: settings.profile.fullAddress.trim() || null,
+          wants_subdomain: settings.profile.wantsSubdomain,
+          ...(subdomainTouched ? { subdomain: settings.profile.subdomain.trim() || null } : {}),
         });
+        const savedProfile = unwrap<ProfileApi>(res.data);
+        setSettings((prev) => ({
+          ...prev,
+          profile: {
+            ...prev.profile,
+            subdomain: savedProfile?.subdomain || "",
+            wantsSubdomain: Boolean(savedProfile?.wants_subdomain),
+          },
+        }));
+        setSubdomainTouched(false);
       }
 
       if (tab === "auctions") {
@@ -665,6 +685,51 @@ export default function SettingsPage() {
               <div><Label>Full Address</Label><Input value={settings.profile.fullAddress} onChange={(e) => { setSettings((p) => ({ ...p, profile: { ...p.profile, fullAddress: e.target.value } })); markDirty("profile"); }} /></div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Bidooze Subdomain</CardTitle><CardDescription>Give bidders a dedicated storefront URL.</CardDescription></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
+                <div>
+                  <Label>Reserve a Bidooze subdomain</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Turning this off clears your current subdomain.
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.profile.wantsSubdomain}
+                  onCheckedChange={(checked) => {
+                    setSettings((p) => ({
+                      ...p,
+                      profile: { ...p.profile, wantsSubdomain: checked, ...(checked ? {} : { subdomain: "" }) },
+                    }));
+                    markDirty("profile");
+                  }}
+                />
+              </div>
+              {settings.profile.wantsSubdomain && (
+                <div>
+                  <Label>Subdomain</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={settings.profile.subdomain}
+                      placeholder="yourcompany"
+                      onChange={(e) => {
+                        setSubdomainTouched(true);
+                        setSettings((p) => ({ ...p, profile: { ...p.profile, subdomain: e.target.value } }));
+                        markDirty("profile");
+                      }}
+                    />
+                    <span className="whitespace-nowrap text-sm text-muted-foreground">.bidooze.com</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Lowercase letters, numbers, and hyphens only. Leave blank to auto-generate from your company name.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="flex justify-end">{saveButton("profile", "Save Profile")}</div>
         </TabsContent>
 

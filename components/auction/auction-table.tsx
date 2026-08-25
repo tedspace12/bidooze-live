@@ -1,19 +1,41 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { AuctionStatusBadge } from "./auction-status-badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Gavel, Calendar, PlusCircle, Search, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Eye, Gavel, Calendar, Play, PlusCircle, Search, SlidersHorizontal, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Auction } from "@/features/auction/types";
+import { auctionService } from "@/features/auction/services/auctionService";
 import {
   getAuctionBidderCount,
   getAuctionLotCount,
   getVisibleAuctionCategories,
 } from "@/features/auction/utils";
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+};
 
 interface AuctionTableProps {
   loading: boolean;
@@ -151,6 +173,28 @@ export const AuctionTable: React.FC<AuctionTableProps> = ({
   selectedIds,
   onSelectionChange,
 }) => {
+  const queryClient = useQueryClient();
+  const [confirmPublishId, setConfirmPublishId] = useState<string | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+
+  const handlePublish = async (auctionId: string) => {
+    setPublishingId(auctionId);
+    try {
+      await auctionService.publishAuction(auctionId);
+      setConfirmPublishId(null);
+      toast.success("Auction published", {
+        description: "Your auction is published and will start automatically.",
+      });
+      await queryClient.invalidateQueries({ queryKey: ["my-auctions"] });
+    } catch (error: unknown) {
+      toast.error("Unable to publish auction", {
+        description: getErrorMessage(error, "Failed to publish auction."),
+      });
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
   const allSelected = auctions.length > 0 && selectedIds.length === auctions.length;
 
   const handleSelectAll = (checked: boolean | "indeterminate") => {
@@ -357,12 +401,25 @@ export const AuctionTable: React.FC<AuctionTableProps> = ({
                 </div>
               </div>
 
-              <Link href={`/dashboard/auction/${item.id}`} className="block">
-                <Button variant="secondary" size="sm" className="w-full">
-                  <Eye className="w-4 h-4 mr-2" />
-                  View Dashboard
-                </Button>
-              </Link>
+              <div className="flex gap-2">
+                {item.status === "draft" && (
+                  <Button
+                    size="sm"
+                    className="flex-1 gap-2"
+                    onClick={() => setConfirmPublishId(itemId)}
+                    disabled={publishingId === itemId}
+                  >
+                    <Play className="w-4 h-4" />
+                    Publish
+                  </Button>
+                )}
+                <Link href={`/dashboard/auction/${item.id}`} className="flex-1">
+                  <Button variant="secondary" size="sm" className="w-full">
+                    <Eye className="w-4 h-4 mr-2" />
+                    View Dashboard
+                  </Button>
+                </Link>
+              </div>
             </div>
           );
         })}
@@ -465,12 +522,25 @@ export const AuctionTable: React.FC<AuctionTableProps> = ({
                   </td>
 
                   <td className="text-right">
-                    <Link href={`/dashboard/auction/${item.id}`}>
-                      <Button variant="secondary" size="sm" className="inline-flex items-center gap-1">
-                        <Eye className="w-4 h-4" />
-                        View Dashboard
-                      </Button>
-                    </Link>
+                    <div className="inline-flex items-center gap-2">
+                      {item.status === "draft" && (
+                        <Button
+                          size="sm"
+                          className="inline-flex items-center gap-1"
+                          onClick={() => setConfirmPublishId(itemId)}
+                          disabled={publishingId === itemId}
+                        >
+                          <Play className="w-4 h-4" />
+                          Publish
+                        </Button>
+                      )}
+                      <Link href={`/dashboard/auction/${item.id}`}>
+                        <Button variant="secondary" size="sm" className="inline-flex items-center gap-1">
+                          <Eye className="w-4 h-4" />
+                          View Dashboard
+                        </Button>
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               );
@@ -478,6 +548,27 @@ export const AuctionTable: React.FC<AuctionTableProps> = ({
           </tbody>
         </table>
       </div>
+
+      <AlertDialog open={!!confirmPublishId} onOpenChange={(open) => !open && setConfirmPublishId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Publish Auction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Publishing makes the auction visible to bidders. It will automatically start at the
+              scheduled time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!publishingId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => confirmPublishId && handlePublish(confirmPublishId)}
+              disabled={!!publishingId}
+            >
+              {publishingId ? "Publishing..." : "Publish"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
